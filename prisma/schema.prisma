@@ -1,0 +1,286 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Роли: OWNER (владелец), TARGETOLOG, ACCOUNT (аккаунт-менеджер), CONTRACTOR (программист/монтажёр)
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  name         String
+  role         String
+  rate         Float? // % от чека (таргетолог/программист) или фикс-ставка
+  rateType     String   @default("PERCENT") // PERCENT | FIXED
+  projectLimit Int      @default(5)
+  active       Boolean  @default(true)
+  phone        String?
+  tgChatId     String? // привязанный чат Telegram
+  tgLinkCode   String? @unique // одноразовый код привязки
+  createdAt    DateTime @default(now())
+
+  clientsAsTargetolog Client[] @relation("targetolog")
+  clientsAsAccount    Client[] @relation("account")
+  tasks               Task[]   @relation("assignee")
+  reports             AdReport[]
+  notifications       Notification[]
+  memberships         ClientMember[]
+  expenses            Expense[]
+}
+
+// Статусы: TEST | ACTIVE | RISK | PAUSED | CHURNED
+model Client {
+  id           String   @id @default(cuid())
+  name         String
+  niche        String?
+  contact      String?
+  source       String? // источник заявки
+  status       String   @default("TEST")
+  avgCheck     Float    @default(0) // абонплата, сом
+  startedAt    DateTime @default(now())
+  churnedAt    DateTime?
+  services     String   @default("") // CSV: TARGET,SITE,BOT,VIDEO
+  adAccount    String? // на кого оформлен рекламный кабинет
+  nextPaymentAt DateTime?
+  notes        String?
+
+  targetologId String?
+  targetolog   User?   @relation("targetolog", fields: [targetologId], references: [id])
+  accountId    String?
+  account      User?   @relation("account", fields: [accountId], references: [id])
+
+  paymentDay    Int? // число месяца, когда клиент платит (1–31)
+  contractStart DateTime? // дата подписания договора
+  contractEnd   DateTime? // окончание договора
+  profitPercent Float? // % от прибыли клиента, если работаем за процент
+  goal          String? // цель клиента: что считаем результатом
+  agreement     String? // договорённости по работе
+  targetCpl     Float? // ориентир по цене заявки
+  sitePrice     Float? // стоимость разработки сайта
+  botPrice      Float? // стоимость чат-бота
+  videoPrice    Float? // стоимость монтажа
+
+  payments Payment[]
+  reports  AdReport[]
+  tasks    Task[]
+  members  ClientMember[]
+  goals    Goal[]
+  expenses Expense[]
+  incomes  Income[]
+  createdAt DateTime @default(now())
+}
+
+/// Участник проекта с индивидуальной ставкой (процент или фикс)
+model ClientMember {
+  id       String @id @default(cuid())
+  clientId String
+  client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  userId   String
+  user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role     String // TARGETOLOG | ACCOUNT | CONTRACTOR
+  rateType String @default("PERCENT") // PERCENT | FIXED
+  rate     Float  @default(0)
+  note     String?
+  createdAt DateTime @default(now())
+
+  @@unique([clientId, userId, role])
+}
+
+/// Цели: по агентству (clientId = null) или по клиенту
+model Goal {
+  id        String  @id @default(cuid())
+  clientId  String?
+  client    Client? @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  month     String // "2026-08"
+  metric    String // REVENUE | LEADS | CPL | CLIENTS | PROFIT
+  target    Float
+  comment   String?
+  createdAt DateTime @default(now())
+
+  @@unique([clientId, month, metric])
+}
+
+// kind: SUBSCRIPTION (абонплата) | SITE | BOT | VIDEO
+// status: PAID | PENDING | DEBT
+model Payment {
+  id        String   @id @default(cuid())
+  clientId  String
+  client    Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  kind      String   @default("SUBSCRIPTION")
+  amount    Float
+  status    String   @default("PENDING")
+  method    String   @default("TRANSFER") // TRANSFER | CASH | INVOICE
+  dueAt     DateTime // плановая дата оплаты
+  paidAt    DateTime?
+  periodMonth String // "2026-08" — к какому месяцу относится выручка
+  comment   String?
+  // распределение (снимок на момент расчёта)
+  execShare Float @default(0) // доля исполнителя (таргетолог/программист)
+  reserve   Float @default(0) // резерв на развитие
+  ownerNet  Float @default(0) // чистая прибыль владельца
+  execUserId String?
+  accountId String? // на какой счёт пришли деньги
+  account   Account? @relation(fields: [accountId], references: [id], onDelete: SetNull)
+  createdAt DateTime @default(now())
+}
+
+model AdReport {
+  id         String   @id @default(cuid())
+  clientId   String
+  client     Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  authorId   String?
+  author     User?    @relation(fields: [authorId], references: [id])
+  periodFrom DateTime
+  periodTo   DateTime
+  budget     Float    @default(0) // выделенный рекламный бюджет
+  spent      Float    @default(0)
+  leads      Int      @default(0)
+  actions    Int      @default(0) // целевые действия
+  targetCpl  Float // порог решения, обязательное
+  targetCpa  Float?
+  bundles    String? // статус связок
+  comment    String?
+  createdAt  DateTime @default(now())
+}
+
+// board: TARGET | DEV | VIDEO
+// stage (TARGET): BRIEF, HYPOTHESES, SHOOTING, LAUNCH, FILTER, SCALE, UPDATE
+model Task {
+  id         String   @id @default(cuid())
+  title      String
+  board      String   @default("TARGET")
+  stage      String   @default("BRIEF")
+  clientId   String?
+  client     Client?  @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  assigneeId String?
+  assignee   User?    @relation("assignee", fields: [assigneeId], references: [id])
+  dueAt      DateTime?
+  comment    String?
+  done       Boolean  @default(false)
+  order      Int      @default(0)
+  createdAt  DateTime @default(now())
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  kind      String // PAYMENT_DUE | CPL_ALERT | NEW_LEAD
+  title     String
+  body      String?
+  link      String?
+  read      Boolean  @default(false)
+  dedupeKey String? // техническая метка для защиты от повторной отправки, пользователю не показывается
+  createdAt DateTime @default(now())
+
+  @@index([dedupeKey])
+}
+
+/// Счета: касса, банк, карта. Баланс считается из операций (как в UnityFinance/FADAMOS).
+model Account {
+  id         String   @id @default(cuid())
+  name       String
+  kind       String   @default("CASH") // CASH | BANK | CARD
+  opening    Float    @default(0) // начальный остаток
+  minBalance Float? // минимальный остаток, ниже которого предупреждаем
+  active     Boolean  @default(true)
+  note       String?
+  createdAt  DateTime @default(now())
+
+  payments  Payment[]
+  expenses  Expense[]
+  incomes   Income[]
+  transfersFrom Transfer[] @relation("from")
+  transfersTo   Transfer[] @relation("to")
+}
+
+/// Прочие приходы, не связанные с оплатой клиента (возврат, партнёрка, продажа, внесение своих)
+model Income {
+  id          String   @id @default(cuid())
+  title       String
+  category    String   @default("OTHER") // ключ категории
+  amount      Float
+  receivedAt  DateTime
+  periodMonth String
+  comment     String?
+  accountId   String?
+  account     Account? @relation(fields: [accountId], references: [id], onDelete: SetNull)
+  clientId    String?
+  client      Client?  @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  createdAt   DateTime @default(now())
+}
+
+/// Перевод между счетами
+model Transfer {
+  id            String   @id @default(cuid())
+  fromAccountId String
+  fromAccount   Account  @relation("from", fields: [fromAccountId], references: [id], onDelete: Cascade)
+  toAccountId   String
+  toAccount     Account  @relation("to", fields: [toAccountId], references: [id], onDelete: Cascade)
+  amount        Float
+  madeAt        DateTime
+  periodMonth   String
+  comment       String?
+  createdAt     DateTime @default(now())
+}
+
+/// Универсальный справочник: категории, статусы, услуги, этапы, методы оплаты, источники.
+/// type: EXPENSE_CATEGORY | INCOME_CATEGORY | CLIENT_STATUS | SERVICE | PAYMENT_METHOD |
+///       PAYMENT_KIND | SOURCE | NICHE | STAGE_TARGET | STAGE_DEV | STAGE_VIDEO | ACCOUNT_KIND
+model DictItem {
+  id      String  @id @default(cuid())
+  type    String
+  key     String
+  name    String
+  color   String? // класс подсветки для статусов
+  hint    String?
+  order   Int     @default(100)
+  builtin Boolean @default(false)
+  active  Boolean @default(true)
+
+  @@unique([type, key])
+  @@index([type, order])
+}
+
+/// Расходы агентства. Категории: ADS, SALARY, SUBSCRIPTION, OFFICE, TAX, EDU, OTHER
+/// status: PAID (оплачен) | PLANNED (запланирован)
+model Expense {
+  id          String   @id @default(cuid())
+  title       String
+  category    String   @default("OTHER")
+  amount      Float
+  status      String   @default("PAID")
+  method      String   @default("TRANSFER") // TRANSFER | CASH | CARD
+  spentAt     DateTime // дата расхода (плановая или фактическая)
+  periodMonth String // "2026-08" — к какому месяцу относится
+  recurring   Boolean  @default(false) // ежемесячный
+  comment     String?
+  clientId    String?
+  client      Client?  @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  userId      String? // кому платим (для выплат команде)
+  user        User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  accountId   String? // с какого счёта оплачен
+  account     Account? @relation(fields: [accountId], references: [id], onDelete: SetNull)
+  createdAt   DateTime @default(now())
+}
+
+model Setting {
+  key   String @id
+  value String
+}
+
+/// Состояние диалога с ботом: многошаговый ввод расхода, прихода, оплаты.
+/// step — текущий шаг, data — накопленные значения в JSON.
+model BotSession {
+  id        String   @id @default(cuid())
+  chatId    String   @unique
+  flow      String // EXPENSE | INCOME | PAYMENT
+  step      String
+  data      String   @default("{}")
+  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now())
+}

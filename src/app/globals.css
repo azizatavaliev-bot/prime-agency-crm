@@ -1,0 +1,417 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  --bg: #f5f6fa;
+  --surface: #ffffff;
+  --surface-2: #f7f7fb;
+  --line: #e7e7ee;
+  --text: #18181b;
+  --muted: #71717a;
+  --accent: #6d5efc;
+  --accent-2: #9d6bff;
+  --accent-soft: rgba(109, 94, 252, 0.1);
+  --accent-text: #ffffff;
+  --shadow: 0 1px 2px rgba(24, 24, 27, 0.04), 0 8px 24px -12px rgba(24, 24, 27, 0.12);
+  --shadow-lg: 0 24px 60px -24px rgba(24, 24, 27, 0.28);
+}
+
+.dark {
+  --bg: #0a0a12;
+  --surface: #14141f;
+  --surface-2: #1b1b28;
+  --line: #262636;
+  --text: #f4f4f5;
+  --muted: #a1a1aa;
+  --accent: #7c6cff;
+  --accent-2: #a97bff;
+  --accent-soft: rgba(124, 108, 255, 0.16);
+  --accent-text: #ffffff;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 10px 30px -16px rgba(0, 0, 0, 0.7);
+  --shadow-lg: 0 30px 70px -30px rgba(0, 0, 0, 0.85);
+}
+
+html,
+body {
+  background: var(--bg);
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+/* ---------- семантические классы ---------- */
+.surface {
+  background: var(--surface);
+  color: var(--text);
+}
+.bg-subtle {
+  background: var(--surface-2);
+}
+.text-muted {
+  color: var(--muted);
+}
+.modal-head {
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow);
+  @apply rounded-2xl;
+}
+.card-hover {
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+}
+.card-hover:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-lg);
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--line));
+}
+
+.btn {
+  @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-medium transition;
+}
+.btn-primary {
+  @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-medium transition;
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  color: var(--accent-text);
+  box-shadow: 0 8px 20px -10px color-mix(in srgb, var(--accent) 80%, transparent);
+}
+.btn-primary:hover {
+  filter: brightness(1.07);
+  transform: translateY(-1px);
+}
+.btn-primary:active {
+  transform: translateY(0);
+}
+.btn-ghost {
+  @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-medium transition;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  color: var(--text);
+}
+.btn-ghost:hover {
+  background: var(--surface-2);
+}
+.input {
+  @apply w-full rounded-xl px-3 py-2 text-sm outline-none;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  color: var(--text);
+}
+.input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.label {
+  @apply block text-xs font-medium mb-1;
+  color: var(--muted);
+}
+.badge {
+  @apply inline-flex items-center rounded-lg border px-2 py-0.5 text-xs font-medium whitespace-nowrap;
+}
+.th {
+  @apply text-left text-xs font-medium px-4 py-3 whitespace-nowrap;
+  color: var(--muted);
+}
+.td {
+  @apply px-4 py-3 text-sm whitespace-nowrap;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.99);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.row-click {
+  @apply cursor-pointer transition;
+}
+.row-click:hover {
+  background: var(--accent-soft);
+}
+.field-label {
+  @apply text-xs;
+  color: var(--muted);
+}
+.field-value {
+  @apply mt-0.5 text-sm;
+}
+.section-title {
+  @apply mb-3 flex items-center gap-2 text-sm font-medium;
+  color: var(--muted);
+}
+
+/* ---------- тёмная тема для утилит Tailwind, использованных в разметке ---------- */
+.dark .bg-white {
+  background-color: var(--surface) !important;
+}
+.dark .bg-zinc-50,
+.dark .bg-zinc-100,
+.dark .bg-zinc-100\/70 {
+  background-color: var(--surface-2) !important;
+}
+.dark .hover\:bg-zinc-50:hover,
+.dark .hover\:bg-zinc-100:hover {
+  background-color: var(--surface-2) !important;
+}
+.dark .border-zinc-100,
+.dark .border-zinc-200 {
+  border-color: var(--line) !important;
+}
+.dark .divide-zinc-100 > * + * {
+  border-color: var(--line) !important;
+}
+.dark .text-zinc-900,
+.dark .text-zinc-800 {
+  color: var(--text) !important;
+}
+.dark .text-zinc-700,
+.dark .text-zinc-600,
+.dark .text-zinc-500,
+.dark .text-zinc-400,
+.dark .text-zinc-300 {
+  color: var(--muted) !important;
+}
+.dark .bg-zinc-900 {
+  background-color: var(--accent) !important;
+}
+.dark .bg-zinc-900.text-white,
+.dark .bg-zinc-900 .text-white {
+  color: var(--accent-text) !important;
+}
+/* пастельные подсветки статусов — приглушаем */
+.dark .bg-emerald-50 {
+  background-color: rgb(16 185 129 / 0.12) !important;
+}
+.dark .bg-amber-50 {
+  background-color: rgb(245 158 11 / 0.12) !important;
+}
+.dark .bg-red-50 {
+  background-color: rgb(239 68 68 / 0.12) !important;
+}
+.dark .bg-sky-50 {
+  background-color: rgb(14 165 233 / 0.12) !important;
+}
+.dark .bg-emerald-100 {
+  background-color: rgb(16 185 129 / 0.16) !important;
+}
+.dark .bg-amber-100 {
+  background-color: rgb(245 158 11 / 0.16) !important;
+}
+.dark .bg-red-100 {
+  background-color: rgb(239 68 68 / 0.16) !important;
+}
+.dark .bg-sky-100 {
+  background-color: rgb(14 165 233 / 0.16) !important;
+}
+.dark .border-emerald-200 {
+  border-color: rgb(16 185 129 / 0.3) !important;
+}
+.dark .border-amber-200 {
+  border-color: rgb(245 158 11 / 0.3) !important;
+}
+.dark .border-red-200 {
+  border-color: rgb(239 68 68 / 0.3) !important;
+}
+.dark .border-sky-200 {
+  border-color: rgb(14 165 233 / 0.3) !important;
+}
+.dark .text-emerald-700 {
+  color: rgb(52 211 153) !important;
+}
+.dark .text-amber-700 {
+  color: rgb(251 191 36) !important;
+}
+.dark .text-red-700 {
+  color: rgb(248 113 113) !important;
+}
+.dark .text-sky-700 {
+  color: rgb(56 189 248) !important;
+}
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+}
+
+
+/* ---------- акцентные элементы интерфейса ---------- */
+.accent-text {
+  color: var(--accent);
+}
+.accent-soft {
+  background: var(--accent-soft);
+}
+.accent-gradient {
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+}
+
+/* аватар клиента / сотрудника с инициалами */
+.avatar {
+  @apply flex items-center justify-center rounded-2xl font-semibold;
+  letter-spacing: -0.02em;
+}
+
+/* цветная полоса статуса слева у карточки */
+.stripe {
+  position: relative;
+  overflow: hidden;
+}
+.stripe::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--stripe-color, var(--accent));
+}
+
+/* иконка в плитке статистики */
+.stat-icon {
+  @apply flex h-9 w-9 shrink-0 items-center justify-center rounded-xl;
+}
+
+/* чип-метка с эмодзи */
+.chip {
+  @apply inline-flex items-center gap-1.5 rounded-xl border px-2.5 py-1 text-xs font-medium whitespace-nowrap;
+}
+
+/* «стеклянная» шапка модалки */
+.modal-head {
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--line);
+}
+
+/* активный пункт меню */
+.nav-active {
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  color: #fff;
+  box-shadow: 0 10px 24px -14px color-mix(in srgb, var(--accent) 90%, transparent);
+}
+
+.dark .bg-zinc-900 {
+  background: linear-gradient(135deg, var(--accent), var(--accent-2)) !important;
+}
+
+/* ---------- мобильный опыт (решения из Unity OS) ---------- */
+
+/* iOS Safari зумит страницу при фокусе на поле, если шрифт меньше 16px */
+@media (max-width: 640px) {
+  input,
+  select,
+  textarea {
+    font-size: max(16px, 1em);
+  }
+}
+
+/* Отступы под «чёлку» и домашний индикатор на iPhone */
+.pt-safe {
+  padding-top: env(safe-area-inset-top);
+}
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* Подсказка «таблицу можно листать вбок» — тень у правого края */
+.scroll-hint {
+  box-shadow: inset -10px 0 8px -10px rgba(0, 0, 0, 0.28);
+}
+@media (max-width: 640px) {
+  .scroll-hint {
+    box-shadow: inset -14px 0 10px -10px rgba(0, 0, 0, 0.45);
+  }
+}
+
+/* Нижняя панель вкладок на телефоне */
+/* Панель только на телефоне и планшете. Без media-query её `display: grid`
+   перебивает Tailwind-класс `lg:hidden`, и она вылезает на десктопе. */
+.bottom-nav {
+  display: none;
+}
+@media (max-width: 1023px) {
+  .bottom-nav {
+    display: grid;
+  }
+}
+.bottom-nav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 40;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 2px;
+  padding: 6px 6px calc(6px + env(safe-area-inset-bottom));
+  background: color-mix(in srgb, var(--surface) 94%, transparent);
+  backdrop-filter: blur(12px);
+  border-top: 1px solid var(--line);
+}
+.bottom-nav-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 7px 2px;
+  border-radius: 12px;
+  color: var(--muted);
+  transition: color 0.15s ease, background 0.15s ease;
+}
+.bottom-nav-item.active {
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+.bottom-nav-label {
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 1.2;
+  text-align: center;
+}
+
+/* Контент не должен прятаться под нижней панелью */
+@media (max-width: 1023px) {
+  main {
+    padding-bottom: 88px;
+  }
+}
+
+/* Системные списки <select> и скроллбары в тёмной теме */
+.dark {
+  color-scheme: dark;
+}
+.dark select option {
+  background-color: var(--surface);
+  color: var(--text);
+}
+
+/* Уважаем настройку «уменьшить движение» */
+@media (prefers-reduced-motion: reduce) {
+  .card-hover:hover {
+    transform: none;
+  }
+  .btn-primary:hover {
+    transform: none;
+  }
+}

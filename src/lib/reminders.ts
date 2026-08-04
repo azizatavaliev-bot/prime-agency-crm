@@ -1,0 +1,164 @@
+import "server-only";
+import { prisma } from "./prisma";
+import { notifyUser } from "./telegram";
+import { reportMetrics, getNotify } from "./finance";
+import { generateDuePayments } from "./actions";
+import { daysToContractEnd } from "./payday";
+import { som, dateRu } from "./format";
+
+/**
+ * Полный прогон напоминаний. Дёргается кроном (GET /api/cron/reminders?key=…)
+ * и при заходе владельца на дашборд. Дубли гасятся по dedupeKey (техническое
+ * поле, не показывается пользователю — в отличие от заголовка уведомления).
+ */
+export async function runReminders() {
+  const log: string[] = [];
+  const today = new Date();
+
+  const alreadySent = async (dedupeKey: string) =>
+    Boolean(await prisma.notification.findFirst({ where: { dedupeKey } }));
+
+  const cfg = await getNotify();
+  const owners = await prisma.user.findMany({ where: { role: "OWNER", active: true } });
+  const ownerIds = cfg.notifyOwner ? owners.map((o) => o.id) : [];
+
+  /* 0. Сначала заводим ожидаемые платежи по дню оплаты клиента */
+  const generated = await generateDuePayments();
+  if (generated) log.push(`создано плановых оплат: ${generated}`);
+
+  /* 1. Оплаты: за N дней до срока и просрочка */
+  const soon = new Date(Date.now() + cfg.paymentDays * 86400000);
+  const duePayments = await prisma.payment.findMany({
+    where: { status: { in: ["PENDING", "DEBT"] }, dueAt: { lte: soon } },
+    include: { client: true },
+  });
+  for (const p of duePayments) {
+    const overdue = p.dueAt < today;
+    const dedupeKey = `pay-${p.id}-${overdue ? "late" : "soon"}`;
+    if (await alreadySent(dedupeKey)) continue;
+    const targets = [...ownerIds, cfg.notifyTeam ? p.client.accountId : null].filter(
+      Boolean
+    ) as string[];
+    for (const uid of targets)
+      await notifyUser(uid, {
+        kind: "PAYMENT_DUE",
+        title: `${overdue ? "Просрочена оплата" : "Скоро оплата"}: ${p.client.name}`,
+        body: `${som(p.amount)} · срок ${dateRu(p.dueAt)}`,
+        link: `/clients/${p.clientId}`,
+        dedupeKey,
+      });
+    log.push(`оплата ${p.client.name}`);
+  }
+
+  /* 2. Отчёты по таргету: если по активному проекту нет отчёта больше 7 дней */
+  const activeClients = await prisma.client.findMany({
+    where: { status: { in: ["TEST", "ACTIVE", "RISK"] }, services: { contains: "TARGET" } },
+    include: { reports: { orderBy: { periodTo: "desc" }, take: 1 } },
+  });
+  for (const c of activeClients) {
+    const last = c.reports[0];
+    const days = last ? Math.floor((today.getTime() - last.periodTo.getTime()) / 86400000) : 999;
+    if (days < cfg.reportDays) continue;
+    const dedupeKey = `rep-${c.id}-${today.toISOString().slice(0, 10)}`;
+    if (await alreadySent(dedupeKey)) continue;
+    const targets = [cfg.notifyTeam ? c.targetologId : null, ...ownerIds].filter(Boolean) as string[];
+    for (const uid of targets)
+      await notifyUser(uid, {
+        kind: "REPORT_DUE",
+        title: `Нужен отчёт по проекту ${c.name}`,
+        body: last ? `Последний отчёт ${dateRu(last.periodTo)} — ${days} дн. назад` : "Отчётов ещё не было",
+        link: `/clients/${c.id}`,
+        dedupeKey,
+      });
+    log.push(`отчёт ${c.name}`);
+  }
+
+  /* 3. Задачи: дедлайн сегодня/завтра или просрочен */
+  const tasks = await prisma.task.findMany({
+    where: {
+      done: false,
+      dueAt: { lte: new Date(Date.now() + cfg.taskDays * 86400000) },
+      assigneeId: { not: null },
+    },
+    include: { client: true },
+  });
+  for (const t of cfg.notifyTeam ? tasks : []) {
+    const overdue = t.dueAt! < today;
+    const dedupeKey = `task-${t.id}-${today.toISOString().slice(0, 10)}`;
+    if (await alreadySent(dedupeKey)) continue;
+    await notifyUser(t.assigneeId!, {
+      kind: "TASK_DUE",
+      title: `${overdue ? "Просрочена задача" : "Дедлайн задачи"}: ${t.title}`,
+      body: `${t.client?.name ?? "без клиента"} · срок ${dateRu(t.dueAt)}`,
+      link: `/tasks?board=${t.board}`,
+      dedupeKey,
+    });
+    log.push(`задача ${t.title}`);
+  }
+
+  /* 4. Плановые расходы: срок сегодня/завтра или просрочен */
+  const dueExpenses = await prisma.expense.findMany({
+    where: { status: "PLANNED", spentAt: { lte: new Date(Date.now() + cfg.expenseDays * 86400000) } },
+  });
+  for (const e of dueExpenses) {
+    const overdue = e.spentAt < today;
+    const dedupeKey = `exp-${e.id}-${today.toISOString().slice(0, 10)}`;
+    if (await alreadySent(dedupeKey)) continue;
+    for (const uid of ownerIds)
+      await notifyUser(uid, {
+        kind: "PAYMENT_DUE",
+        title: `${overdue ? "Просрочен расход" : "Скоро расход"}: ${e.title}`,
+        body: `${som(e.amount)} · срок ${dateRu(e.spentAt)}`,
+        link: "/expenses",
+        dedupeKey,
+      });
+    log.push(`расход ${e.title}`);
+  }
+
+  /* 4.5 Договор заканчивается через 30 дней или уже истёк */
+  const contractClients = await prisma.client.findMany({
+    where: { status: { in: ["TEST", "ACTIVE", "RISK"] }, contractEnd: { not: null } },
+  });
+  for (const c of contractClients) {
+    const left = daysToContractEnd(c.contractEnd);
+    if (left === null || left > 30) continue;
+    const dedupeKey = `contract-${c.id}-${today.toISOString().slice(0, 7)}`;
+    if (await alreadySent(dedupeKey)) continue;
+    const targets = [...ownerIds, cfg.notifyTeam ? c.accountId : null].filter(Boolean) as string[];
+    for (const uid of targets)
+      await notifyUser(uid, {
+        kind: "PAYMENT_DUE",
+        title: `${left < 0 ? "Договор истёк" : "Договор заканчивается"}: ${c.name}`,
+        body: `${dateRu(c.contractEnd)}${left >= 0 ? ` · осталось ${left} дн.` : ""} — пора продлевать`,
+        link: `/clients/${c.id}`,
+        dedupeKey,
+      });
+    log.push(`договор ${c.name}`);
+  }
+
+  /* 5. CPL: последний отчёт вне цели */
+  const recentReports = await prisma.adReport.findMany({
+    where: { periodTo: { gte: new Date(Date.now() - 7 * 86400000) } },
+    include: { client: true },
+  });
+  for (const r of cfg.cplAlert ? recentReports : []) {
+    const m = reportMetrics(r);
+    if (m.inTarget !== false) continue;
+    const dedupeKey = `cpl-${r.id}`;
+    if (await alreadySent(dedupeKey)) continue;
+    const targets = [cfg.notifyTeam ? r.client.targetologId : null, ...ownerIds].filter(
+      Boolean
+    ) as string[];
+    for (const uid of targets)
+      await notifyUser(uid, {
+        kind: "CPL_ALERT",
+        title: `Превышен порог CPL: ${r.client.name}`,
+        body: `CPL ${som(m.cpl ?? 0)} при цели ${som(r.targetCpl)}`,
+        link: `/clients/${r.clientId}`,
+        dedupeKey,
+      });
+    log.push(`CPL ${r.client.name}`);
+  }
+
+  return log;
+}
