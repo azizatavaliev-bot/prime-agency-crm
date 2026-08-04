@@ -5,8 +5,10 @@ import { redirect } from "next/navigation";
 import { prisma } from "./prisma";
 import { requireUser, hashPassword } from "./auth";
 import { can, clientScope, taskScope } from "./access";
-import { getShares, split, reportMetrics } from "./finance";
+import { getShares, split, reportMetrics, getUsdRate } from "./finance";
 import { monthKey } from "./format";
+import { ROLES, DEFAULTS } from "./constants";
+import { notifyAssignee, closeOrReopenTask } from "./tasks";
 
 function str(fd: FormData, k: string) {
   const v = fd.get(k);
@@ -133,8 +135,16 @@ export async function savePayment(fd: FormData) {
     ...s,
   };
 
-  if (id) await prisma.payment.update({ where: { id }, data });
-  else await prisma.payment.create({ data });
+  if (id) {
+    // Сам платёж тоже должен быть доступен: иначе чужой правится подстановкой id.
+    const existing = await prisma.payment.findFirst({
+      where: { AND: [{ id }, { client: clientScope(user) }] },
+    });
+    if (!existing) redirect("/no-access");
+    await prisma.payment.update({ where: { id }, data });
+  } else {
+    await prisma.payment.create({ data });
+  }
 
   if (str(fd, "nextPaymentAt"))
     await prisma.client.update({
@@ -201,8 +211,15 @@ export async function saveReport(fd: FormData) {
     comment: str(fd, "comment"),
   };
   const id = str(fd, "id");
-  if (id) await prisma.adReport.update({ where: { id }, data });
-  else await prisma.adReport.create({ data });
+  if (id) {
+    const existing = await prisma.adReport.findFirst({
+      where: { AND: [{ id }, { client: clientScope(user) }] },
+    });
+    if (!existing) redirect("/no-access");
+    await prisma.adReport.update({ where: { id }, data });
+  } else {
+    await prisma.adReport.create({ data });
+  }
 
   const m = reportMetrics(data);
   if (m.inTarget === false) {
@@ -242,22 +259,128 @@ export async function saveTask(fd: FormData) {
     assigneeId: str(fd, "assigneeId"),
     dueAt: date(fd, "dueAt"),
     comment: str(fd, "comment"),
+    priority: req(fd, "priority") || "MEDIUM",
+    tags: fd.getAll("tags").map(String).filter(Boolean).join(","),
+    recurrence: str(fd, "recurrence"),
   };
   if (id) {
     const t = await prisma.task.findFirst({ where: { AND: [{ id }, taskScope(user)] } });
     if (!t) redirect("/no-access");
     await prisma.task.update({ where: { id }, data });
+    // Переназначили — новый исполнитель должен узнать.
+    if (data.assigneeId && data.assigneeId !== t.assigneeId && data.assigneeId !== user.id)
+      await notifyAssignee(data.assigneeId, { ...t, ...data, id }, "Задача назначена на вас");
   } else {
     if (user.role === "CONTRACTOR") redirect("/no-access");
     const created = await prisma.task.create({ data });
+    const raw = str(fd, "checklist");
+    if (raw) {
+      const items = raw
+        .split("\n")
+        .map((s) => s.trim())
+        .filter(Boolean);
+      if (items.length)
+        await prisma.taskChecklistItem.createMany({
+          data: items.map((text, i) => ({ taskId: created.id, text, order: i })),
+        });
+    }
     if (data.assigneeId && data.assigneeId !== user.id)
-      await notify([data.assigneeId], {
-        kind: "NEW_LEAD",
-        title: `Новая задача: ${data.title}`,
-        link: `/tasks?board=${data.board}`,
-      });
-    void created;
+      await notifyAssignee(data.assigneeId, created, "Новая задача");
   }
+  revalidatePath("/tasks");
+}
+
+/* ---------------- Чеклист и комментарии задачи ---------------- */
+
+/** Доступ к задаче по её scope — используется всеми под-действиями. */
+async function taskOr404(user: Awaited<ReturnType<typeof requireUser>>, id: string) {
+  const t = await prisma.task.findFirst({ where: { AND: [{ id }, taskScope(user)] } });
+  if (!t) redirect("/no-access");
+  return t;
+}
+
+export async function addChecklistItem(fd: FormData) {
+  const user = await requireUser();
+  const taskId = req(fd, "taskId");
+  await taskOr404(user, taskId);
+  const text = req(fd, "text");
+  if (!text) return;
+  const last = await prisma.taskChecklistItem.findFirst({
+    where: { taskId },
+    orderBy: { order: "desc" },
+  });
+  await prisma.taskChecklistItem.create({
+    data: { taskId, text, order: (last?.order ?? -1) + 1 },
+  });
+  revalidatePath("/tasks");
+}
+
+export async function toggleChecklistItem(fd: FormData) {
+  const user = await requireUser();
+  const id = req(fd, "id");
+  const item = await prisma.taskChecklistItem.findUnique({ where: { id } });
+  if (!item) redirect("/no-access");
+  await taskOr404(user, item.taskId);
+  await prisma.taskChecklistItem.update({ where: { id }, data: { done: !item.done } });
+  revalidatePath("/tasks");
+}
+
+export async function deleteChecklistItem(fd: FormData) {
+  const user = await requireUser();
+  const id = req(fd, "id");
+  const item = await prisma.taskChecklistItem.findUnique({ where: { id } });
+  if (!item) redirect("/no-access");
+  await taskOr404(user, item.taskId);
+  await prisma.taskChecklistItem.delete({ where: { id } });
+  revalidatePath("/tasks");
+}
+
+export async function addTaskComment(fd: FormData) {
+  const user = await requireUser();
+  const taskId = req(fd, "taskId");
+  const task = await taskOr404(user, taskId);
+  const text = req(fd, "text");
+  if (!text) return;
+  await prisma.taskComment.create({ data: { taskId, userId: user.id, text } });
+
+  // Автора и исполнителя держим в курсе обсуждения.
+  const targets = [task.assigneeId].filter((x) => x && x !== user.id) as string[];
+  if (targets.length)
+    await notify(targets, {
+      kind: "NEW_LEAD",
+      title: `Комментарий к задаче: ${task.title}`,
+      body: text.slice(0, 120),
+      link: `/tasks?board=${task.board}`,
+    });
+  revalidatePath("/tasks");
+}
+
+export async function deleteTaskComment(fd: FormData) {
+  const user = await requireUser();
+  const id = req(fd, "id");
+  const c = await prisma.taskComment.findUnique({ where: { id } });
+  if (!c) redirect("/no-access");
+  if (user.role !== "OWNER" && c.userId !== user.id) redirect("/no-access");
+  await prisma.taskComment.delete({ where: { id } });
+  revalidatePath("/tasks");
+}
+
+export async function setTaskPriority(fd: FormData) {
+  const user = await requireUser();
+  const id = req(fd, "id");
+  await taskOr404(user, id);
+  await prisma.task.update({ where: { id }, data: { priority: req(fd, "priority") || "MEDIUM" } });
+  revalidatePath("/tasks");
+}
+
+export async function archiveTask(fd: FormData) {
+  const user = await requireUser();
+  const id = req(fd, "id");
+  const t = await taskOr404(user, id);
+  await prisma.task.update({
+    where: { id },
+    data: { archivedAt: t.archivedAt ? null : new Date() },
+  });
   revalidatePath("/tasks");
 }
 
@@ -275,9 +398,10 @@ export async function toggleTask(fd: FormData) {
   const id = req(fd, "id");
   const t = await prisma.task.findFirst({ where: { AND: [{ id }, taskScope(user)] } });
   if (!t) redirect("/no-access");
-  await prisma.task.update({ where: { id }, data: { done: !t.done } });
+  await closeOrReopenTask(t, !t.done);
   revalidatePath("/tasks");
 }
+
 
 export async function deleteTask(fd: FormData) {
   const user = await requireUser();
@@ -295,10 +419,13 @@ export async function saveUser(fd: FormData) {
   if (!can.manageTeam(user)) redirect("/no-access");
   const id = str(fd, "id");
   const password = str(fd, "password");
+  // Роль только из известного списка: неизвестная снимает фильтры доступа.
+  const role = req(fd, "role");
+  if (!Object.keys(ROLES).includes(role)) redirect("/no-access");
   const base = {
     email: req(fd, "email").toLowerCase(),
     name: req(fd, "name"),
-    role: req(fd, "role"),
+    role,
     rate: n(fd, "rate") || null,
     rateType: req(fd, "rateType") || "PERCENT",
     projectLimit: Math.round(n(fd, "projectLimit")) || 5,
@@ -327,6 +454,7 @@ export async function saveSettings(fd: FormData) {
     ["devShare", n(fd, "devShare") / 100],
     ["reserveShare", n(fd, "reserveShare") / 100],
     ["projectLimit", Math.round(n(fd, "projectLimit"))],
+    ["usdRate", n(fd, "usdRate") || DEFAULTS.usdRate],
   ];
   for (const [key, value] of entries) {
     await prisma.setting.upsert({
@@ -489,10 +617,11 @@ export async function markExpensePaid(fd: FormData) {
   const user = await requireUser();
   if (user.role !== "OWNER") redirect("/no-access");
   const id = req(fd, "id");
-  const now = new Date();
+  // periodMonth не трогаем: июльский расход, оплаченный в августе, должен
+  // остаться в июльском отчёте, иначе закрытый месяц меняется задним числом.
   await prisma.expense.update({
     where: { id },
-    data: { status: "PAID", spentAt: now, periodMonth: monthKey(now) },
+    data: { status: "PAID", spentAt: new Date() },
   });
   revalidatePath("/expenses");
   revalidatePath("/dashboard");
@@ -799,4 +928,167 @@ export async function generateDuePayments() {
     revalidatePath("/clients");
   }
   return created;
+}
+
+/* ---------------- Маркетинг (ежедневные отчёты агентства) ---------------- */
+
+export async function saveMarketingReport(fd: FormData) {
+  const user = await requireUser();
+  if (!can.writeReports(user)) redirect("/no-access");
+
+  // Клиента можно указать только своего: иначе таргетолог подставит чужой id вручную.
+  const clientId = str(fd, "clientId");
+  if (clientId) {
+    const client = await prisma.client.findFirst({
+      where: { AND: [{ id: clientId }, clientScope(user)] },
+    });
+    if (!client) redirect("/no-access");
+  }
+
+  // Расход храним всегда в сомах, иначе итоги и CPL сложат доллары с сомами.
+  const currency = req(fd, "currency") || "KGS";
+  const entered = n(fd, "spend");
+  const usdRate = currency === "USD" ? n(fd, "usdRate") || (await getUsdRate()) : null;
+  const spend = currency === "USD" ? entered * (usdRate as number) : entered;
+
+  const data = {
+    date: date(fd, "date") ?? new Date(),
+    channel: req(fd, "channel") || "TARGET",
+    source: str(fd, "source"),
+    direction: str(fd, "direction"),
+    spend,
+    currency,
+    usdRate,
+    leads: Math.round(n(fd, "leads")),
+    impressions: Math.round(n(fd, "impressions")),
+    inquiries: Math.round(n(fd, "inquiries")),
+    notes: str(fd, "notes"),
+    clientId,
+    authorId: user.id,
+  };
+
+  const id = str(fd, "id");
+  if (id) {
+    // Чужой отчёт правит только владелец.
+    const existing = await prisma.marketingReport.findUnique({ where: { id } });
+    if (!existing) redirect("/no-access");
+    if (user.role !== "OWNER" && existing.authorId !== user.id) redirect("/no-access");
+    await prisma.marketingReport.update({ where: { id }, data });
+  } else {
+    await prisma.marketingReport.create({ data });
+  }
+
+  revalidatePath("/marketing");
+  revalidatePath("/marketing/report");
+  revalidatePath("/marketing/calendar");
+}
+
+export async function deleteMarketingReport(fd: FormData) {
+  const user = await requireUser();
+  if (!can.writeReports(user)) redirect("/no-access");
+  const id = req(fd, "id");
+  const existing = await prisma.marketingReport.findUnique({ where: { id } });
+  if (!existing) redirect("/no-access");
+  if (user.role !== "OWNER" && existing.authorId !== user.id) redirect("/no-access");
+  await prisma.marketingReport.delete({ where: { id } });
+  revalidatePath("/marketing");
+  revalidatePath("/marketing/report");
+  revalidatePath("/marketing/calendar");
+}
+
+/* ---------------- Шаблоны наборов задач ---------------- */
+
+export async function saveTaskTemplate(fd: FormData) {
+  const user = await requireUser();
+  if (user.role !== "OWNER") redirect("/no-access");
+  const id = str(fd, "id");
+  const data = {
+    name: req(fd, "name"),
+    hint: str(fd, "hint"),
+    board: req(fd, "board") || "TARGET",
+  };
+  // Пункты приходят одной textarea: «Заголовок | через сколько дней»
+  const raw = str(fd, "items") ?? "";
+  const items = raw
+    .split("\n")
+    .map((l) => l.trim())
+    .filter(Boolean)
+    .map((line, i) => {
+      const [title, days] = line.split("|").map((s) => s.trim());
+      return { title, dueDays: days ? Number(days) || null : null, order: i };
+    })
+    .filter((i) => i.title);
+
+  if (id) {
+    await prisma.taskTemplate.update({ where: { id }, data });
+    await prisma.taskTemplateItem.deleteMany({ where: { templateId: id } });
+    if (items.length)
+      await prisma.taskTemplateItem.createMany({
+        data: items.map((i) => ({ ...i, templateId: id })),
+      });
+  } else {
+    const created = await prisma.taskTemplate.create({ data });
+    if (items.length)
+      await prisma.taskTemplateItem.createMany({
+        data: items.map((i) => ({ ...i, templateId: created.id })),
+      });
+  }
+  revalidatePath("/settings/templates");
+  revalidatePath("/tasks");
+}
+
+export async function deleteTaskTemplate(fd: FormData) {
+  const user = await requireUser();
+  if (user.role !== "OWNER") redirect("/no-access");
+  await prisma.taskTemplate.delete({ where: { id: req(fd, "id") } });
+  revalidatePath("/settings/templates");
+}
+
+/** Применить шаблон: создаёт весь набор задач разом, опционально к клиенту. */
+export async function applyTaskTemplate(fd: FormData) {
+  const user = await requireUser();
+  if (user.role === "CONTRACTOR") redirect("/no-access");
+
+  const templateId = req(fd, "templateId");
+  const tpl = await prisma.taskTemplate.findUnique({
+    where: { id: templateId },
+    include: { items: { orderBy: { order: "asc" } } },
+  });
+  if (!tpl) redirect("/no-access");
+
+  const clientId = str(fd, "clientId");
+  if (clientId) {
+    const client = await prisma.client.findFirst({
+      where: { AND: [{ id: clientId }, clientScope(user)] },
+    });
+    if (!client) redirect("/no-access");
+  }
+  const assigneeId = str(fd, "assigneeId");
+  const now = new Date();
+
+  for (const item of tpl.items) {
+    const dueAt =
+      item.dueDays === null ? null : new Date(now.getTime() + item.dueDays * 86400000);
+    const task = await prisma.task.create({
+      data: {
+        title: item.title,
+        board: tpl.board,
+        stage: item.stage,
+        priority: item.priority,
+        clientId,
+        assigneeId,
+        dueAt,
+      },
+    });
+    const points = item.checklist
+      .split("\n")
+      .map((s) => s.trim())
+      .filter(Boolean);
+    if (points.length)
+      await prisma.taskChecklistItem.createMany({
+        data: points.map((text, i) => ({ taskId: task.id, text, order: i })),
+      });
+  }
+
+  revalidatePath("/tasks");
 }

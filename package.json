@@ -11,6 +11,8 @@
     "build:local": "NEXT_DIST_DIR=.next-build prisma generate && NEXT_DIST_DIR=.next-build next build"
   },
   "dependencies": {
+    "@dnd-kit/core": "^6.3.1",
+    "@dnd-kit/sortable": "^10.0.0",
     "@prisma/client": "^6.2.1",
     "bcryptjs": "^2.4.3",
     "jose": "^5.9.6",

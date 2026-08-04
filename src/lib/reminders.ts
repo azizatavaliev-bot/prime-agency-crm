@@ -1,10 +1,15 @@
 import "server-only";
 import { prisma } from "./prisma";
-import { notifyUser } from "./telegram";
+import { notifyUser, sendTg, escapeHtml } from "./telegram";
 import { reportMetrics, getNotify } from "./finance";
 import { generateDuePayments } from "./actions";
 import { daysToContractEnd } from "./payday";
 import { som, dateRu } from "./format";
+import { deadlineBadge } from "./tasks";
+
+/** Уже отправляли такое уведомление? Защита от дублей по техническому ключу. */
+const alreadySent = async (dedupeKey: string) =>
+  Boolean(await prisma.notification.findFirst({ where: { dedupeKey } }));
 
 /**
  * Полный прогон напоминаний. Дёргается кроном (GET /api/cron/reminders?key=…)
@@ -14,9 +19,6 @@ import { som, dateRu } from "./format";
 export async function runReminders() {
   const log: string[] = [];
   const today = new Date();
-
-  const alreadySent = async (dedupeKey: string) =>
-    Boolean(await prisma.notification.findFirst({ where: { dedupeKey } }));
 
   const cfg = await getNotify();
   const owners = await prisma.user.findMany({ where: { role: "OWNER", active: true } });
@@ -158,6 +160,72 @@ export async function runReminders() {
         dedupeKey,
       });
     log.push(`CPL ${r.client.name}`);
+  }
+
+  return log;
+}
+
+/**
+ * Утренний дайджест по задачам — каждому исполнителю в Telegram.
+ * Отдельно от runReminders: тот шлёт точечные напоминания по каждой задаче,
+ * а дайджест — одна сводка за день, чтобы не заваливать чат.
+ */
+export async function runTaskDigest() {
+  const log: string[] = [];
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const endOfToday = new Date(today.getTime() + 86400000 - 1);
+  const stamp = today.toISOString().slice(0, 10);
+
+  const users = await prisma.user.findMany({
+    where: { active: true, NOT: { tgChatId: null } },
+  });
+
+  for (const u of users) {
+    const dedupeKey = `digest-${u.id}-${stamp}`;
+    if (await alreadySent(dedupeKey)) continue;
+
+    const tasks = await prisma.task.findMany({
+      where: { assigneeId: u.id, done: false, archivedAt: null },
+      include: { client: true },
+      orderBy: { dueAt: "asc" },
+    });
+    if (!tasks.length) continue;
+
+    const overdue = tasks.filter((t) => t.dueAt && t.dueAt < today);
+    const dueToday = tasks.filter((t) => t.dueAt && t.dueAt >= today && t.dueAt <= endOfToday);
+
+    const lines = [`☀️ <b>Доброе утро, ${escapeHtml(u.name)}!</b>`, ``];
+    lines.push(`Активных задач: <b>${tasks.length}</b>`);
+    if (overdue.length) lines.push(`⚠️ Просрочено: <b>${overdue.length}</b>`);
+    if (dueToday.length) lines.push(`🔥 Срок сегодня: <b>${dueToday.length}</b>`);
+
+    const focus = [...overdue, ...dueToday].slice(0, 5);
+    if (focus.length) {
+      lines.push(``, `<b>На что смотреть:</b>`);
+      for (const t of focus) {
+        const b = deadlineBadge(t.dueAt, false);
+        lines.push(
+          `${b.emoji} ${escapeHtml(t.title)}${t.client ? ` — ${escapeHtml(t.client.name)}` : ""}`
+        );
+      }
+    }
+
+    await sendTg(u.tgChatId!, lines.join("\n"), undefined, [
+      [{ text: "📋 Мои задачи", data: "tasks" }],
+      [{ text: "⚠️ Просроченные", data: "tasks:overdue" }],
+    ]);
+    await prisma.notification.create({
+      data: {
+        userId: u.id,
+        kind: "TASK_DUE",
+        title: `Задач на сегодня: ${tasks.length}`,
+        body: overdue.length ? `Просрочено: ${overdue.length}` : undefined,
+        link: "/tasks",
+        dedupeKey,
+      },
+    });
+    log.push(`дайджест ${u.name}`);
   }
 
   return log;

@@ -6,6 +6,7 @@ import { accountBalances, cashflow } from "./accounts";
 import { getShares, split } from "./finance";
 import { dict, labelOf } from "./dict";
 import { daysToPayment } from "./payday";
+import { deadlineBadge, closeOrReopenTask } from "./tasks";
 import type { User } from "@prisma/client";
 
 /* ------------------------------------------------------------------ */
@@ -231,21 +232,74 @@ export async function payDo(paymentId: string, user: User) {
 }
 
 /** Мои открытые задачи. */
-export async function tasksScreen(user: User) {
+/**
+ * Список задач исполнителя. Каждая строка — с кнопкой «готово»,
+ * чтобы задача закрывалась прямо из чата, не открывая CRM.
+ */
+export async function tasksScreen(user: User, filter: "active" | "today" | "overdue" = "active") {
+  const now = new Date();
+  const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
+
+  const where = {
+    assigneeId: user.id,
+    done: false,
+    archivedAt: null,
+    ...(filter === "today" ? { dueAt: { lte: endOfToday } } : {}),
+    ...(filter === "overdue" ? { dueAt: { lt: new Date(now.toDateString()) } } : {}),
+  };
+
   const tasks = await prisma.task.findMany({
-    where: { assigneeId: user.id, done: false },
-    include: { client: true },
-    orderBy: { dueAt: "asc" },
-    take: 10,
+    where,
+    include: { client: true, checklist: true },
+    orderBy: [{ dueAt: "asc" }],
+    take: 8,
   });
-  if (!tasks.length) return { text: "🎉 Открытых задач нет.", buttons: backMenu() };
+
+  const tabs: TgButton[] = [
+    { text: filter === "active" ? "• Все" : "Все", data: "tasks" },
+    { text: filter === "today" ? "• Сегодня" : "Сегодня", data: "tasks:today" },
+    { text: filter === "overdue" ? "• Просрочено" : "Просрочено", data: "tasks:overdue" },
+  ];
+
+  if (!tasks.length)
+    return {
+      text:
+        filter === "overdue"
+          ? "✅ Просроченных задач нет."
+          : filter === "today"
+            ? "✅ На сегодня всё закрыто."
+            : "🎉 Открытых задач нет.",
+      buttons: [tabs, ...backMenu()],
+    };
+
   const lines = [`🗂 <b>Ваши задачи</b>`, ``];
+  const buttons: TgButton[][] = [tabs];
+
   for (const t of tasks) {
-    const due = t.dueAt ? ` (до ${dateRu(t.dueAt)})` : "";
-    lines.push(`• ${escapeHtml(t.title)}${t.client ? ` — ${escapeHtml(t.client.name)}` : ""}${due}`);
+    const b = deadlineBadge(t.dueAt, t.done);
+    const check = t.checklist.length
+      ? ` · ${t.checklist.filter((i) => i.done).length}/${t.checklist.length}`
+      : "";
+    lines.push(
+      `${PRIORITY_EMOJI[t.priority] ?? "➖"} <b>${escapeHtml(t.title)}</b>${
+        t.client ? `\n   👤 ${escapeHtml(t.client.name)}` : ""
+      }\n   ${b.emoji} ${b.text}${check}`
+    );
+    buttons.push([
+      { text: `✅ ${t.title.slice(0, 22)}`, data: `t_done_${t.id}` },
+      { text: "🔄", data: `t_prog_${t.id}` },
+    ]);
   }
-  return { text: lines.join("\n"), buttons: backMenu() };
+
+  return { text: lines.join("\n\n"), buttons: [...buttons, ...backMenu()] };
 }
+
+const PRIORITY_EMOJI: Record<string, string> = {
+  URGENT: "🔥",
+  HIGH: "⬆️",
+  MEDIUM: "➖",
+  LOW: "⬇️",
+};
 
 function backMenu(): TgButton[][] {
   return [[{ text: "‹ Меню", data: "menu" }]];
@@ -423,6 +477,26 @@ export async function handleCallback(
       buttons: backMenu(),
     };
   if (data === "tasks") return tasksScreen(user);
+  if (data === "tasks:today") return tasksScreen(user, "today");
+  if (data === "tasks:overdue") return tasksScreen(user, "overdue");
+  if (data === "t_mine") return tasksScreen(user);
+
+  // Управление задачей прямо из чата — как в Unity и FADAMOS.
+  if (data.startsWith("t_done_") || data.startsWith("t_undone_") || data.startsWith("t_prog_")) {
+    const id = data.replace(/^t_(done|undone|prog)_/, "");
+    const t = await prisma.task.findUnique({ where: { id } });
+    if (!t) return { text: "Задача не найдена.", buttons: backMenu() };
+    // Трогать можно только свои задачи, владелец — любые.
+    if (user.role !== "OWNER" && t.assigneeId !== user.id)
+      return { text: "Это не ваша задача.", buttons: backMenu() };
+
+    if (data.startsWith("t_prog_")) {
+      await prisma.task.update({ where: { id }, data: { startedAt: new Date() } });
+      return tasksScreen(user);
+    }
+    await closeOrReopenTask(t, !data.startsWith("t_undone_"));
+    return tasksScreen(user);
+  }
 
   // всё, что ниже — только для владельца и бухгалтера
   if (!money) return { text: "Этот раздел доступен владельцу и бухгалтеру.", buttons: backMenu() };

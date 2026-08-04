@@ -1,50 +1,64 @@
 import Link from "next/link";
-import { Plus, Check, Trash2, User as UserIcon, CalendarDays } from "lucide-react";
+import { Plus, KanbanSquare, AlertTriangle, Sun, CheckCircle2, Layers } from "lucide-react";
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { taskScope, clientScope } from "@/lib/access";
-import { moveTask, toggleTask, deleteTask, saveTask } from "@/lib/actions";
+import { saveTask } from "@/lib/actions";
 import { BOARDS } from "@/lib/constants";
 import { dict, stagesOf } from "@/lib/dict";
 import { dateRu, daysUntil } from "@/lib/format";
-import { PageHeader } from "@/components/ui";
+import { deadlineBadge, sortTasks } from "@/lib/tasks";
+import { PageHeader, Stat } from "@/components/ui";
 import FormModal from "@/components/FormModal";
-import StageSelect from "@/components/StageSelect";
 import TaskForm from "@/components/TaskForm";
-import { TaskModal } from "@/components/details";
+import TasksClient from "@/components/TasksClient";
+import ApplyTemplate from "@/components/ApplyTemplate";
+import type { TaskCardData } from "@/components/TaskCard";
+import type { TaskDetailData } from "@/components/TaskDetail";
 
 export const dynamic = "force-dynamic";
 
 export default async function TasksPage({
   searchParams,
 }: {
-  searchParams: Promise<{ board?: string; mine?: string }>;
+  searchParams: Promise<{ board?: string; archived?: string }>;
 }) {
   const user = await requireUser();
   const sp = await searchParams;
   const board =
-    user.role === "CONTRACTOR"
-      ? sp.board === "VIDEO"
-        ? "VIDEO"
-        : "DEV"
-      : sp.board || "TARGET";
+    user.role === "CONTRACTOR" ? (sp.board === "VIDEO" ? "VIDEO" : "DEV") : sp.board || "TARGET";
   const boards =
     user.role === "CONTRACTOR"
       ? (["DEV", "VIDEO"] as const)
       : (Object.keys(BOARDS) as (keyof typeof BOARDS)[]);
+  const showArchived = sp.archived === "1";
 
-  const tasks = await prisma.task.findMany({
+  const rows = await prisma.task.findMany({
     where: {
-      AND: [taskScope(user), { board }, sp.mine ? { assigneeId: user.id } : {}],
+      AND: [
+        taskScope(user),
+        { board },
+        showArchived ? { NOT: { archivedAt: null } } : { archivedAt: null },
+      ],
     },
-    include: { client: true, assignee: true },
+    include: {
+      client: { select: { id: true, name: true } },
+      assignee: { select: { name: true } },
+      checklist: { orderBy: { order: "asc" } },
+      comments: {
+        orderBy: { createdAt: "asc" },
+        include: { user: { select: { name: true } } },
+      },
+    },
     orderBy: { createdAt: "desc" },
   });
 
-  const [targetStages, devStages, videoStages] = await Promise.all([
+  const sorted = sortTasks(rows);
+  const [targetStages, devStages, videoStages, tagList] = await Promise.all([
     dict("STAGE_TARGET"),
     dict("STAGE_DEV"),
     dict("STAGE_VIDEO"),
+    dict("TASK_TAG"),
   ]);
   const stagesByBoard: Record<string, { key: string; name: string }[]> = {
     TARGET: targetStages,
@@ -52,15 +66,84 @@ export default async function TasksPage({
     VIDEO: videoStages,
   };
   const stages: [string, string][] = (await stagesOf(board)).map((s) => [s.key, s.name]);
-  const clients = await prisma.client.findMany({
-    where: clientScope(user),
-    select: { id: true, name: true },
-    orderBy: { name: "asc" },
-  });
-  const users = await prisma.user.findMany({
+  const tagLabels = Object.fromEntries(tagList.map((t) => [t.key, t.name]));
+
+  const [clients, users] = await Promise.all([
+    prisma.client.findMany({
+      where: clientScope(user),
+      select: { id: true, name: true },
+      orderBy: { name: "asc" },
+    }),
+    prisma.user.findMany({ where: { active: true }, select: { id: true, name: true, role: true } }),
+  ]);
+
+  const templates = await prisma.taskTemplate.findMany({
     where: { active: true },
-    select: { id: true, name: true, role: true },
+    include: { _count: { select: { items: true } } },
+    orderBy: [{ order: "asc" }, { name: "asc" }],
   });
+
+  const cards: TaskCardData[] = sorted.map((t) => ({
+    id: t.id,
+    title: t.title,
+    stage: t.stage,
+    priority: t.priority,
+    done: t.done,
+    dueAt: t.dueAt ? t.dueAt.toISOString() : null,
+    tags: t.tags,
+    recurrence: t.recurrence,
+    clientId: t.clientId,
+    clientName: t.client?.name ?? null,
+    assigneeName: t.assignee?.name ?? null,
+    checklistDone: t.checklist.filter((i) => i.done).length,
+    checklistTotal: t.checklist.length,
+    commentCount: t.comments.length,
+    badge: deadlineBadge(t.dueAt, t.done),
+  }));
+
+  const details: Record<string, TaskDetailData> = {};
+  for (const t of sorted) {
+    const d = daysUntil(t.dueAt);
+    details[t.id] = {
+      id: t.id,
+      title: t.title,
+      board: t.board,
+      stage: t.stage,
+      priority: t.priority,
+      done: t.done,
+      dueAtLabel: dateRu(t.dueAt),
+      deadlineLabel: t.done
+        ? "выполнена"
+        : d === null
+          ? "—"
+          : d < 0
+            ? `просрочено ${-d} дн.`
+            : `осталось ${d} дн.`,
+      recurrence: t.recurrence,
+      comment: t.comment,
+      clientName: t.client?.name ?? null,
+      assigneeName: t.assignee?.name ?? null,
+      archived: Boolean(t.archivedAt),
+      checklist: t.checklist.map((i) => ({ id: i.id, text: i.text, done: i.done })),
+      comments: t.comments.map((c) => ({
+        id: c.id,
+        text: c.text,
+        author: c.user?.name ?? "—",
+        when: dateRu(c.createdAt),
+        mine: c.userId === user.id,
+      })),
+    };
+  }
+
+  const active = sorted.filter((t) => !t.done);
+  const overdue = active.filter((t) => t.dueAt && daysUntil(t.dueAt)! < 0);
+  const todayList = active.filter((t) => t.dueAt && daysUntil(t.dueAt) === 0);
+  const groups = {
+    overdue: overdue.map((t) => t.id),
+    today: todayList.map((t) => t.id),
+    noDate: active.filter((t) => !t.dueAt).map((t) => t.id),
+    mine: sorted.filter((t) => t.assigneeId === user.id).map((t) => t.id),
+  };
 
   return (
     <div>
@@ -76,17 +159,28 @@ export default async function TasksPage({
         right={
           <div className="flex flex-wrap gap-2">
             {boards.map((b) => (
-              <Link
-                key={b}
-                href={`/tasks?board=${b}`}
-                className={board === b ? "btn-primary" : "btn-ghost"}
-              >
+              <Link key={b} href={`/tasks?board=${b}`} className={board === b ? "btn-primary" : "btn-ghost"}>
                 {BOARDS[b]}
               </Link>
             ))}
-            <Link href={`/tasks?board=${board}${sp.mine ? "" : "&mine=1"}`} className="btn-ghost">
-              {sp.mine ? "Все задачи" : "Только мои"}
+            <Link
+              href={`/tasks?board=${board}${showArchived ? "" : "&archived=1"}`}
+              className="btn-ghost"
+            >
+              {showArchived ? "Активные" : "Архив"}
             </Link>
+            {user.role !== "CONTRACTOR" && (
+              <ApplyTemplate
+                templates={templates.map((t) => ({
+                  id: t.id,
+                  name: t.name,
+                  hint: t.hint,
+                  count: t._count.items,
+                }))}
+                clients={clients}
+                users={users}
+              />
+            )}
             {user.role !== "CONTRACTOR" && (
               <FormModal
                 label="Новая задача"
@@ -99,6 +193,7 @@ export default async function TasksPage({
                   users={users}
                   defaultBoard={board}
                   stagesByBoard={stagesByBoard}
+                  tags={tagList}
                 />
               </FormModal>
             )}
@@ -106,87 +201,34 @@ export default async function TasksPage({
         }
       />
 
-      <div className="flex gap-4 overflow-x-auto pb-4">
-        {stages.map(([key, label]) => {
-          const col = tasks.filter((t) => t.stage === key);
-          return (
-            <div key={key} className="w-72 shrink-0">
-              <div className="mb-2 flex items-center justify-between px-1">
-                <div className="text-sm font-medium">{label}</div>
-                <div className="text-xs text-zinc-400">{col.length}</div>
-              </div>
-              <div className="space-y-2 rounded-2xl bg-zinc-100/70 p-2 min-h-[120px]">
-                {col.map((t) => {
-                  const d = daysUntil(t.dueAt);
-                  return (
-                    <div key={t.id} className={`card p-3 ${t.done ? "opacity-50" : ""}`}>
-                      <div className="flex items-start justify-between gap-2">
-                        <TaskModal
-                          task={t}
-                          clients={clients}
-                          users={users}
-                          canEdit={user.role !== "CONTRACTOR"}
-                          stagesByBoard={stagesByBoard}
-                          className="min-w-0 flex-1"
-                          trigger={
-                            <div className={`text-sm font-medium hover:underline ${t.done ? "line-through" : ""}`}>
-                              {t.title}
-                            </div>
-                          }
-                        />
-                        <form action={toggleTask}>
-                          <input type="hidden" name="id" value={t.id} />
-                          <button
-                            className="rounded-lg p-1 text-zinc-400 transition hover:bg-emerald-50 hover:text-emerald-600"
-                            title={t.done ? "Вернуть в работу" : "Выполнено"}
-                          >
-                            <Check size={14} />
-                          </button>
-                        </form>
-                      </div>
-                      {t.client && (
-                        <Link
-                          href={`/clients/${t.clientId}`}
-                          className="mt-1 block text-xs text-zinc-500 hover:underline"
-                        >
-                          {t.client.name}
-                        </Link>
-                      )}
-                      {t.comment && <div className="mt-1 text-xs text-zinc-500">{t.comment}</div>}
-                      <div className="mt-2 flex items-center justify-between text-xs text-zinc-400">
-                        <span className="flex items-center gap-1">
-                          <UserIcon size={12} /> {t.assignee?.name ?? "—"}
-                        </span>
-                        <span
-                          className={`flex items-center gap-1 ${
-                            d !== null && d < 0 && !t.done ? "text-red-600" : ""
-                          }`}
-                        >
-                          <CalendarDays size={12} /> {dateRu(t.dueAt)}
-                        </span>
-                      </div>
-                      <div className="mt-2 flex items-center gap-2">
-                        <form action={moveTask} className="flex-1">
-                          <input type="hidden" name="id" value={t.id} />
-                          <StageSelect stages={stages} value={t.stage} />
-                        </form>
-                        {user.role !== "CONTRACTOR" && (
-                          <form action={deleteTask}>
-                            <input type="hidden" name="id" value={t.id} />
-                            <button className="rounded-lg p-1 text-zinc-300 transition hover:bg-red-50 hover:text-red-600">
-                              <Trash2 size={13} />
-                            </button>
-                          </form>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          );
-        })}
+      <div className="mb-5 grid gap-3 grid-cols-2 lg:grid-cols-4">
+        <Stat label="Всего активных" value={String(active.length)} icon={Layers} />
+        <Stat
+          label="Просрочено"
+          value={String(overdue.length)}
+          tone={overdue.length ? "bad" : "good"}
+          icon={AlertTriangle}
+        />
+        <Stat label="Срок сегодня" value={String(todayList.length)} tone={todayList.length ? "warn" : "default"} icon={Sun} />
+        <Stat label="Выполнено" value={String(sorted.filter((t) => t.done).length)} tone="good" icon={CheckCircle2} />
       </div>
+
+      {sorted.length === 0 ? (
+        <div className="card p-8 text-center text-sm text-muted">
+          {showArchived ? "В архиве пусто" : "Задач пока нет"}
+        </div>
+      ) : (
+        <TasksClient
+          stages={stages}
+          tasks={cards}
+          details={details}
+          tagLabels={tagLabels}
+          canMove={!showArchived}
+          canEdit={user.role !== "CONTRACTOR"}
+          currentUserName={user.name}
+          groups={groups}
+        />
+      )}
     </div>
   );
 }

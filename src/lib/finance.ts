@@ -34,6 +34,13 @@ export async function getNotify(): Promise<NotifySettings> {
   };
 }
 
+/** Курс доллара для рекламных расходов, вводимых в USD. Настраивается в Настройках. */
+export async function getUsdRate(): Promise<number> {
+  const row = await prisma.setting.findUnique({ where: { key: "usdRate" } });
+  const v = Number(row?.value);
+  return Number.isFinite(v) && v > 0 ? v : DEFAULTS.usdRate;
+}
+
 export async function getShares(): Promise<Shares> {
   const rows = await prisma.setting.findMany();
   const map = Object.fromEntries(rows.map((r) => [r.key, Number(r.value)]));

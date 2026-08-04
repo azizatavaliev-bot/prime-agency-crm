@@ -86,6 +86,50 @@ export const VIDEO_STAGES = {
   DONE: "Сдано",
 } as const;
 
+/** Приоритеты задач. Один источник для доски, модалки, бота и отчётов. */
+export const PRIORITY = {
+  URGENT: "Срочно",
+  HIGH: "Высокий",
+  MEDIUM: "Обычный",
+  LOW: "Низкий",
+} as const;
+
+export const PRIORITY_COLOR: Record<string, string> = {
+  URGENT: "bg-red-100 text-red-700 border-red-200",
+  HIGH: "bg-amber-100 text-amber-700 border-amber-200",
+  MEDIUM: "bg-zinc-100 text-zinc-700 border-zinc-200",
+  LOW: "bg-sky-100 text-sky-700 border-sky-200",
+};
+
+/** Цвет полосы слева на карточке — приоритет виден, не открывая задачу. */
+export const PRIORITY_BAR: Record<string, string> = {
+  URGENT: "#ef4444",
+  HIGH: "#f59e0b",
+  MEDIUM: "#d4d4d8",
+  LOW: "#0ea5e9",
+};
+
+export const PRIORITY_ORDER: Record<string, number> = {
+  URGENT: 0,
+  HIGH: 1,
+  MEDIUM: 2,
+  LOW: 3,
+};
+
+export const TASK_TAG = {
+  FIX: "Правки",
+  URGENT_CLIENT: "Срочно от клиента",
+  WAITING: "Ждём материалы",
+  IDEA: "Идея",
+} as const;
+
+export const RECURRENCE = {
+  DAILY: "Каждый день",
+  WEEKDAYS: "По будням",
+  WEEKLY: "Каждую неделю",
+  MONTHLY: "Каждый месяц",
+} as const;
+
 export function stagesFor(board: string): Record<string, string> {
   if (board === "DEV") return DEV_STAGES;
   if (board === "VIDEO") return VIDEO_STAGES;
@@ -98,6 +142,7 @@ export const DEFAULTS = {
   devShare: 0.4, // 40% с разработки
   reserveShare: 0.12, // 10–15%
   projectLimit: 5,
+  usdRate: 87.42, // курс доллара для рекламных расходов в USD
 };
 
 export const EXPENSE_CATEGORY = {
@@ -149,6 +194,24 @@ export const ACCOUNT_KIND = {
   BANK: "Банковский счёт",
   CARD: "Карта",
 } as const;
+
+export const MARKETING_CHANNEL = {
+  TARGET: "Таргет",
+  ORGANIC: "Органика",
+} as const;
+
+export const MARKETING_SOURCE = {
+  FACEBOOK: "Facebook/Instagram",
+  GOOGLE: "Google",
+  TIKTOK: "TikTok",
+  TELEGRAM: "Telegram",
+  YOUTUBE: "YouTube",
+  SEO: "SEO",
+  REFERRAL: "Рекомендация",
+  OTHER: "Другое",
+} as const;
+
+export const MARKETING_DIRECTION = {} as const;
 
 export const LEDGER_KIND = {
   PAYMENT: "Оплата клиента",

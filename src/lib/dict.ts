@@ -12,6 +12,10 @@ import {
   DEV_STAGES,
   VIDEO_STAGES,
   ACCOUNT_KIND,
+  MARKETING_CHANNEL,
+  MARKETING_SOURCE,
+  MARKETING_DIRECTION,
+  TASK_TAG,
 } from "./constants";
 
 export const DICT_TYPES = {
@@ -27,6 +31,10 @@ export const DICT_TYPES = {
   STAGE_TARGET: "Этапы доски «Таргет»",
   STAGE_DEV: "Этапы доски «Разработка»",
   STAGE_VIDEO: "Этапы доски «Монтаж»",
+  MARKETING_CHANNEL: "Каналы маркетинга",
+  MARKETING_SOURCE: "Источники маркетинга",
+  MARKETING_DIRECTION: "Направления (для отчётов)",
+  TASK_TAG: "Метки задач",
 } as const;
 
 export type DictType = keyof typeof DICT_TYPES;
@@ -45,6 +53,10 @@ export const DICT_HINT: Record<DictType, string> = {
   STAGE_TARGET: "Колонки канбана по таргету — этапы конвейера заявок.",
   STAGE_DEV: "Колонки канбана разработки сайтов и ботов.",
   STAGE_VIDEO: "Колонки канбана монтажа.",
+  MARKETING_CHANNEL: "Каналы в ежедневном отчёте маркетинга: таргет, органика и т.д.",
+  MARKETING_SOURCE: "Площадки-источники трафика в ежедневном отчёте.",
+  MARKETING_DIRECTION: "Направления/продукты для разреза отчётов, если нужно — необязательно.",
+  TASK_TAG: "Метки для задач: правки, срочно от клиента, ждём материалы и т.д.",
 };
 
 const FALLBACK: Record<DictType, Record<string, string>> = {
@@ -60,6 +72,10 @@ const FALLBACK: Record<DictType, Record<string, string>> = {
   STAGE_TARGET: TARGET_STAGES,
   STAGE_DEV: DEV_STAGES,
   STAGE_VIDEO: VIDEO_STAGES,
+  MARKETING_CHANNEL: MARKETING_CHANNEL,
+  MARKETING_SOURCE: MARKETING_SOURCE,
+  MARKETING_DIRECTION: MARKETING_DIRECTION,
+  TASK_TAG: TASK_TAG,
 };
 
 export type DictOption = { key: string; name: string; color?: string | null };

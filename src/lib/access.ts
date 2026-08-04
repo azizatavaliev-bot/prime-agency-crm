@@ -13,7 +13,21 @@ export function clientScope(user: SessionUser): Prisma.ClientWhereInput {
       return { accountId: user.id };
     case "CONTRACTOR":
       return { tasks: { some: { assigneeId: user.id } } };
+    default:
+      // Неизвестная роль не должна открывать доступ ко всему: Prisma
+      // трактует where: undefined как «без фильтра».
+      return { id: "__no_access__" };
   }
+}
+
+/**
+ * Какие маркетинговые отчёты видит пользователь.
+ * Таргетолог видит только свои записи и отчёты по своим проектам —
+ * рекламный бюджет всего агентства ему знать не нужно.
+ */
+export function marketingScope(user: SessionUser): Prisma.MarketingReportWhereInput {
+  if (user.role === "OWNER") return {};
+  return { OR: [{ authorId: user.id }, { client: clientScope(user) }] };
 }
 
 /** Какие задачи видит пользователь. */

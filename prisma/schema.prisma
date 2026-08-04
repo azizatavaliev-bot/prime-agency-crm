@@ -20,33 +20,35 @@ model User {
   active       Boolean  @default(true)
   phone        String?
   tgChatId     String? // привязанный чат Telegram
-  tgLinkCode   String? @unique // одноразовый код привязки
+  tgLinkCode   String?  @unique // одноразовый код привязки
   createdAt    DateTime @default(now())
 
-  clientsAsTargetolog Client[] @relation("targetolog")
-  clientsAsAccount    Client[] @relation("account")
-  tasks               Task[]   @relation("assignee")
+  clientsAsTargetolog Client[]          @relation("targetolog")
+  clientsAsAccount    Client[]          @relation("account")
+  tasks               Task[]            @relation("assignee")
   reports             AdReport[]
   notifications       Notification[]
   memberships         ClientMember[]
   expenses            Expense[]
+  marketingReports    MarketingReport[]
+  taskComments        TaskComment[]
 }
 
 // Статусы: TEST | ACTIVE | RISK | PAUSED | CHURNED
 model Client {
-  id           String   @id @default(cuid())
-  name         String
-  niche        String?
-  contact      String?
-  source       String? // источник заявки
-  status       String   @default("TEST")
-  avgCheck     Float    @default(0) // абонплата, сом
-  startedAt    DateTime @default(now())
-  churnedAt    DateTime?
-  services     String   @default("") // CSV: TARGET,SITE,BOT,VIDEO
-  adAccount    String? // на кого оформлен рекламный кабинет
+  id            String    @id @default(cuid())
+  name          String
+  niche         String?
+  contact       String?
+  source        String? // источник заявки
+  status        String    @default("TEST")
+  avgCheck      Float     @default(0) // абонплата, сом
+  startedAt     DateTime  @default(now())
+  churnedAt     DateTime?
+  services      String    @default("") // CSV: TARGET,SITE,BOT,VIDEO
+  adAccount     String? // на кого оформлен рекламный кабинет
   nextPaymentAt DateTime?
-  notes        String?
+  notes         String?
 
   targetologId String?
   targetolog   User?   @relation("targetolog", fields: [targetologId], references: [id])
@@ -64,27 +66,28 @@ model Client {
   botPrice      Float? // стоимость чат-бота
   videoPrice    Float? // стоимость монтажа
 
-  payments Payment[]
-  reports  AdReport[]
-  tasks    Task[]
-  members  ClientMember[]
-  goals    Goal[]
-  expenses Expense[]
-  incomes  Income[]
-  createdAt DateTime @default(now())
+  payments         Payment[]
+  reports          AdReport[]
+  tasks            Task[]
+  members          ClientMember[]
+  goals            Goal[]
+  expenses         Expense[]
+  incomes          Income[]
+  marketingReports MarketingReport[]
+  createdAt        DateTime          @default(now())
 }
 
 /// Участник проекта с индивидуальной ставкой (процент или фикс)
 model ClientMember {
-  id       String @id @default(cuid())
-  clientId String
-  client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  userId   String
-  user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  role     String // TARGETOLOG | ACCOUNT | CONTRACTOR
-  rateType String @default("PERCENT") // PERCENT | FIXED
-  rate     Float  @default(0)
-  note     String?
+  id        String   @id @default(cuid())
+  clientId  String
+  client    Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role      String // TARGETOLOG | ACCOUNT | CONTRACTOR
+  rateType  String   @default("PERCENT") // PERCENT | FIXED
+  rate      Float    @default(0)
+  note      String?
   createdAt DateTime @default(now())
 
   @@unique([clientId, userId, role])
@@ -92,9 +95,9 @@ model ClientMember {
 
 /// Цели: по агентству (clientId = null) или по клиенту
 model Goal {
-  id        String  @id @default(cuid())
+  id        String   @id @default(cuid())
   clientId  String?
-  client    Client? @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  client    Client?  @relation(fields: [clientId], references: [id], onDelete: Cascade)
   month     String // "2026-08"
   metric    String // REVENUE | LEADS | CPL | CLIENTS | PROFIT
   target    Float
@@ -107,25 +110,25 @@ model Goal {
 // kind: SUBSCRIPTION (абонплата) | SITE | BOT | VIDEO
 // status: PAID | PENDING | DEBT
 model Payment {
-  id        String   @id @default(cuid())
-  clientId  String
-  client    Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  kind      String   @default("SUBSCRIPTION")
-  amount    Float
-  status    String   @default("PENDING")
-  method    String   @default("TRANSFER") // TRANSFER | CASH | INVOICE
-  dueAt     DateTime // плановая дата оплаты
-  paidAt    DateTime?
+  id          String    @id @default(cuid())
+  clientId    String
+  client      Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  kind        String    @default("SUBSCRIPTION")
+  amount      Float
+  status      String    @default("PENDING")
+  method      String    @default("TRANSFER") // TRANSFER | CASH | INVOICE
+  dueAt       DateTime // плановая дата оплаты
+  paidAt      DateTime?
   periodMonth String // "2026-08" — к какому месяцу относится выручка
-  comment   String?
+  comment     String?
   // распределение (снимок на момент расчёта)
-  execShare Float @default(0) // доля исполнителя (таргетолог/программист)
-  reserve   Float @default(0) // резерв на развитие
-  ownerNet  Float @default(0) // чистая прибыль владельца
-  execUserId String?
-  accountId String? // на какой счёт пришли деньги
-  account   Account? @relation(fields: [accountId], references: [id], onDelete: SetNull)
-  createdAt DateTime @default(now())
+  execShare   Float     @default(0) // доля исполнителя (таргетолог/программист)
+  reserve     Float     @default(0) // резерв на развитие
+  ownerNet    Float     @default(0) // чистая прибыль владельца
+  execUserId  String?
+  accountId   String? // на какой счёт пришли деньги
+  account     Account?  @relation(fields: [accountId], references: [id], onDelete: SetNull)
+  createdAt   DateTime  @default(now())
 }
 
 model AdReport {
@@ -150,19 +153,87 @@ model AdReport {
 // board: TARGET | DEV | VIDEO
 // stage (TARGET): BRIEF, HYPOTHESES, SHOOTING, LAUNCH, FILTER, SCALE, UPDATE
 model Task {
-  id         String   @id @default(cuid())
+  id         String    @id @default(cuid())
   title      String
-  board      String   @default("TARGET")
-  stage      String   @default("BRIEF")
+  board      String    @default("TARGET")
+  stage      String    @default("BRIEF")
   clientId   String?
-  client     Client?  @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  client     Client?   @relation(fields: [clientId], references: [id], onDelete: SetNull)
   assigneeId String?
-  assignee   User?    @relation("assignee", fields: [assigneeId], references: [id])
+  assignee   User?     @relation("assignee", fields: [assigneeId], references: [id])
   dueAt      DateTime?
   comment    String?
-  done       Boolean  @default(false)
-  order      Int      @default(0)
-  createdAt  DateTime @default(now())
+  done       Boolean   @default(false)
+  order      Int       @default(0)
+  createdAt  DateTime  @default(now())
+
+  priority   String    @default("MEDIUM") // URGENT | HIGH | MEDIUM | LOW
+  tags       String    @default("") // CSV ключей справочника TASK_TAG
+  startedAt  DateTime? // когда задачу взяли в работу
+  doneAt     DateTime? // когда закрыли — для отчёта по выполнению
+  archivedAt DateTime? // архив: из доски убрана, но не удалена
+
+  // Повтор создаётся по факту закрытия, а не по расписанию — иначе копятся дубли.
+  recurrence         String? // DAILY | WEEKDAYS | WEEKLY | MONTHLY
+  recurrenceParentId String?
+
+  checklist TaskChecklistItem[]
+  comments  TaskComment[]
+
+  @@index([assigneeId, done])
+  @@index([dueAt])
+}
+
+/// Лёгкий пункт чеклиста внутри задачи (не отдельная задача).
+model TaskChecklistItem {
+  id        String   @id @default(cuid())
+  taskId    String
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  text      String
+  done      Boolean  @default(false)
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+
+  @@index([taskId, order])
+}
+
+/// Лента обсуждения задачи.
+model TaskComment {
+  id        String   @id @default(cuid())
+  taskId    String
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  text      String
+  createdAt DateTime @default(now())
+
+  @@index([taskId, createdAt])
+}
+
+/// Шаблон набора задач: «запуск клиента», «закрытие месяца».
+model TaskTemplate {
+  id        String             @id @default(cuid())
+  name      String
+  hint      String?
+  board     String             @default("TARGET")
+  active    Boolean            @default(true)
+  order     Int                @default(100)
+  items     TaskTemplateItem[]
+  createdAt DateTime           @default(now())
+}
+
+model TaskTemplateItem {
+  id         String       @id @default(cuid())
+  templateId String
+  template   TaskTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  title      String
+  stage      String       @default("BRIEF")
+  priority   String       @default("MEDIUM")
+  dueDays    Int? // через сколько дней от применения шаблона
+  checklist  String       @default("") // пункты через перевод строки
+  order      Int          @default(0)
+
+  @@index([templateId, order])
 }
 
 model Notification {
@@ -191,9 +262,9 @@ model Account {
   note       String?
   createdAt  DateTime @default(now())
 
-  payments  Payment[]
-  expenses  Expense[]
-  incomes   Income[]
+  payments      Payment[]
+  expenses      Expense[]
+  incomes       Income[]
   transfersFrom Transfer[] @relation("from")
   transfersTo   Transfer[] @relation("to")
 }
@@ -266,6 +337,29 @@ model Expense {
   accountId   String? // с какого счёта оплачен
   account     Account? @relation(fields: [accountId], references: [id], onDelete: SetNull)
   createdAt   DateTime @default(now())
+}
+
+/// Ежедневные маркетинговые отчёты агентства (не привязаны к одному клиенту) — как в Unity.
+model MarketingReport {
+  id          String   @id @default(cuid())
+  date        DateTime
+  channel     String   @default("TARGET") // ключ справочника MARKETING_CHANNEL
+  source      String? // ключ справочника MARKETING_SOURCE
+  direction   String? // ключ справочника MARKETING_DIRECTION
+  spend       Float    @default(0)
+  currency    String   @default("KGS") // KGS | USD
+  usdRate     Float? // курс на момент ввода, если currency=USD
+  leads       Int      @default(0)
+  impressions Int      @default(0)
+  inquiries   Int      @default(0)
+  notes       String?
+  authorId    String?
+  author      User?    @relation(fields: [authorId], references: [id], onDelete: SetNull)
+  clientId    String?
+  client      Client?  @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  createdAt   DateTime @default(now())
+
+  @@index([date])
 }
 
 model Setting {

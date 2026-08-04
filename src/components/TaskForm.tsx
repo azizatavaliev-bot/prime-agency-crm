@@ -1,9 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { Target, Code2, Clapperboard, CalendarDays } from "lucide-react";
+import { Target, Code2, Clapperboard, CalendarDays, Flag, Repeat, ListChecks } from "lucide-react";
 import { saveTask } from "@/lib/actions";
-import { BOARDS, stagesFor } from "@/lib/constants";
+import { BOARDS, stagesFor, PRIORITY, RECURRENCE } from "@/lib/constants";
 import { toInputDate } from "@/lib/format";
 import Select from "./Select";
 import DatePicker from "./DatePicker";
@@ -31,6 +31,7 @@ export default function TaskForm({
   fixedClientId,
   defaultBoard = "TARGET",
   stagesByBoard,
+  tags = [],
 }: {
   clients: { id: string; name: string }[];
   users: UserOpt[];
@@ -43,13 +44,18 @@ export default function TaskForm({
     assigneeId: string | null;
     dueAt: Date | null;
     comment: string | null;
+    priority?: string;
+    tags?: string;
+    recurrence?: string | null;
   };
   fixedClientId?: string;
   defaultBoard?: string;
   stagesByBoard?: Record<string, Opt[]>;
+  tags?: Opt[];
 }) {
   const [board, setBoard] = useState(task?.board ?? defaultBoard);
   const [due, setDue] = useState(toInputDate(task?.dueAt ?? new Date()));
+  const selectedTags = task?.tags ? task.tags.split(",").filter(Boolean) : [];
 
   const stages: [string, string][] = stagesByBoard?.[board]
     ? stagesByBoard[board].map((s) => [s.key, s.name])
@@ -181,6 +187,69 @@ export default function TaskForm({
         <DatePicker key={due} name="dueAt" defaultValue={due} />
       </div>
 
+      {/* Приоритет — чипами, цвет тот же, что и полоса на карточке */}
+      <div>
+        <div className="label flex items-center gap-1.5">
+          <Flag size={13} /> Приоритет
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {Object.entries(PRIORITY).map(([key, label]) => (
+            <label key={key} className="cursor-pointer">
+              <input
+                type="radio"
+                name="priority"
+                value={key}
+                defaultChecked={(task?.priority ?? "MEDIUM") === key}
+                className="peer sr-only"
+              />
+              <span className="chip border-zinc-200 text-muted transition peer-checked:accent-gradient peer-checked:border-transparent peer-checked:text-white">
+                {label}
+              </span>
+            </label>
+          ))}
+        </div>
+      </div>
+
+      {tags.length > 0 && (
+        <div>
+          <div className="label">Метки</div>
+          <div className="flex flex-wrap gap-2">
+            {tags.map((t) => (
+              <label key={t.key} className="cursor-pointer">
+                <input
+                  type="checkbox"
+                  name="tags"
+                  value={t.key}
+                  defaultChecked={selectedTags.includes(t.key)}
+                  className="peer sr-only"
+                />
+                <span className="chip border-zinc-200 text-muted transition peer-checked:accent-gradient peer-checked:border-transparent peer-checked:text-white">
+                  {t.name}
+                </span>
+              </label>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div>
+        <label className="label flex items-center gap-1.5">
+          <Repeat size={13} /> Повторять
+        </label>
+        <Select
+          name="recurrence"
+          defaultValue={task?.recurrence ?? ""}
+          placeholder="— не повторять —"
+          options={[
+            { value: "", label: "— не повторять —" },
+            ...Object.entries(RECURRENCE).map(([value, label]) => ({ value, label })),
+          ]}
+        />
+        <div className="mt-1 text-xs text-muted">
+          Следующая задача создастся, когда вы закроете текущую
+        </div>
+      </div>
+
       <div>
         <label className="label">Комментарий</label>
         <textarea
@@ -191,6 +260,20 @@ export default function TaskForm({
           placeholder="Детали, ссылки, что важно не забыть"
         />
       </div>
+
+      {!task && (
+        <div>
+          <label className="label flex items-center gap-1.5">
+            <ListChecks size={13} /> Чеклист
+          </label>
+          <textarea
+            className="input"
+            name="checklist"
+            rows={3}
+            placeholder={"Каждый пункт с новой строки\nНапример: снять сторис\nсобрать креативы"}
+          />
+        </div>
+      )}
 
       <button className="btn-primary w-full !py-2.5">{task ? "Сохранить" : "Добавить задачу"}</button>
     </form>

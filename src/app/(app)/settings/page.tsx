@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { SlidersHorizontal, Landmark, ExternalLink, Info, Send, CheckCircle2, XCircle } from "lucide-react";
 import { prisma } from "@/lib/prisma";
-import { getShares } from "@/lib/finance";
+import { getShares, getUsdRate } from "@/lib/finance";
 import { saveSettings } from "@/lib/actions";
 import { telegramEnabled } from "@/lib/telegram";
 import { dict, labelOf } from "@/lib/dict";
@@ -12,9 +12,10 @@ export const dynamic = "force-dynamic";
 
 export default async function SettingsGeneralPage() {
   const s = await getShares();
-  const [accounts, accountKinds] = await Promise.all([
+  const [accounts, accountKinds, usdRate] = await Promise.all([
     prisma.account.findMany({ orderBy: { name: "asc" } }),
     dict("ACCOUNT_KIND"),
+    getUsdRate(),
   ]);
   const enabled = telegramEnabled();
 
@@ -49,6 +50,11 @@ export default async function SettingsGeneralPage() {
           <div>
             <label className="label">Лимит проектов на таргетолога</label>
             <input className="input" name="projectLimit" type="number" defaultValue={s.projectLimit} />
+          </div>
+          <div>
+            <label className="label">Курс доллара, сом</label>
+            <input className="input" name="usdRate" type="number" step="0.01" defaultValue={usdRate} />
+            <div className="mt-1 text-xs text-muted">Для рекламных расходов, введённых в USD</div>
           </div>
           <div className="sm:col-span-2 lg:col-span-4">
             <button className="btn-primary">Сохранить</button>

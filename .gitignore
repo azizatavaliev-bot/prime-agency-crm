@@ -5,3 +5,4 @@ node_modules
 *.db-journal
 dist
 .next-build
+tsconfig.tsbuildinfo

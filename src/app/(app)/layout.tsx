@@ -23,6 +23,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     items.push({ href: "/finance", label: "Финансы и счета", icon: "finance" });
   if (user.role !== "CONTRACTOR")
     items.push({ href: "/reports", label: "Отчёты по таргету", icon: "reports" });
+  if (user.role === "OWNER" || user.role === "TARGETOLOG")
+    items.push({ href: "/marketing", label: "Маркетинг", icon: "marketing" });
   items.push({ href: "/tasks", label: "Задачи", icon: "tasks" });
 
   if (user.role === "OWNER") {

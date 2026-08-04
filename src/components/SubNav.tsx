@@ -9,6 +9,7 @@ import {
   Download,
   Bell,
   Plug,
+  Layers,
   type LucideIcon,
 } from "lucide-react";
 
@@ -19,6 +20,7 @@ const ICONS: Record<string, LucideIcon> = {
   export: Download,
   notifications: Bell,
   integrations: Plug,
+  templates: Layers,
 };
 
 export type SubNavItem = { href: string; label: string; icon: keyof typeof ICONS };
