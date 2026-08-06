@@ -21,6 +21,17 @@ export async function hashPassword(pw: string) {
   return bcrypt.hash(pw, 10);
 }
 
+/**
+ * Демо-вход в один клик. Включён при локальной разработке автоматически,
+ * на проде — только если явно выставлен DEMO_MODE=1.
+ * NODE_ENV на Railway всегда production, поэтому боевой стенд закрыт
+ * даже если про переменную забыли.
+ */
+export function demoLoginEnabled(): boolean {
+  if (process.env.DEMO_MODE === "1") return true;
+  return process.env.NODE_ENV !== "production";
+}
+
 export async function login(email: string, password: string): Promise<SessionUser | null> {
   const user = await prisma.user.findUnique({ where: { email: email.trim().toLowerCase() } });
   if (!user || !user.active) return null;

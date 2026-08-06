@@ -14,6 +14,8 @@ import {
   CircleAlert,
   Plus,
   TrendingDown,
+  LayoutGrid,
+  Settings2,
 } from "lucide-react";
 import type { SessionUser } from "@/lib/auth";
 import { can } from "@/lib/access";
@@ -46,11 +48,14 @@ import {
   EXPENSE_STATUS,
   EXPENSE_STATUS_COLOR,
 } from "@/lib/constants";
+import ClientOverview from "./ClientOverview";
+import ClientStages from "./ClientStages";
 import { Avatar, Badge, Field, MiniStat, MiniTable, Section } from "@/components/ui";
 import Modal from "@/components/Modal";
 import ClientForm from "@/components/ClientForm";
 import FormModal from "@/components/FormModal";
 import MembersBlock from "@/components/MembersBlock";
+import SideTabs from "@/components/SideTabs";
 import PaymentForm from "@/components/PaymentForm";
 import ReportForm from "@/components/ReportForm";
 import TaskForm from "@/components/TaskForm";
@@ -210,6 +215,11 @@ export function ClientModal({
   const lastM = last ? reportMetrics(last) : null;
   const contractors = users.filter((u) => u.role === "CONTRACTOR");
   const openTasks = client.tasks.filter((t) => !t.done).length;
+  const paidList = client.payments.filter((p) => p.status === "PAID" && p.paidAt);
+  const ownerNet = paidList.reduce((s, p) => s + p.ownerNet, 0);
+  const firstPaymentAt = paidList.length
+    ? paidList.reduce((min, p) => (p.paidAt! < min ? p.paidAt! : min), paidList[0].paidAt!)
+    : null;
 
   return (
     <Modal
@@ -263,301 +273,387 @@ export function ClientModal({
         </div>
       )}
 
-      <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
-        <MiniStat label="Абонплата" value={som(client.avgCheck)} />
-        {showMoney && <MiniStat label="Оплачено всего" value={som(paidTotal)} tone="good" />}
-        {showMoney && (
-          <MiniStat label="Долг / ожидается" value={som(debtTotal)} tone={debtTotal ? "bad" : "good"} />
-        )}
-        <MiniStat
-          label="Последний CPL"
-          value={lastM?.cpl ? `${num(lastM.cpl)} сом` : "—"}
-          tone={lastM?.inTarget === null || !lastM ? "default" : lastM.inTarget ? "good" : "bad"}
+      <ClientOverview
+        data={{
+          avgCheck: client.avgCheck,
+          paidTotal,
+          ownerNet,
+          profitPercent: client.profitPercent ?? null,
+          openTasks,
+          totalTasks: client.tasks.length,
+          contractStart: client.contractStart ?? null,
+          firstPaymentAt,
+          paymentDay: client.paymentDay ?? null,
+          nextPaymentAt: client.nextPaymentAt ?? null,
+        }}
+        showMoney={showMoney}
+        showProfit={can.seeAgencyFinance(user)}
+      />
+
+      {dict && (
+        <div className="mt-3">
+          <ClientStages
+            clientId={client.id}
+            current={client.status}
+            stages={dict.CLIENT_STATUS}
+            canEdit={can.manageClients(user)}
+          />
+        </div>
+      )}
+
+      <div className="mt-4">
+        <SideTabs
+          tabs={[
+            {
+              key: "overview",
+              label: "Обзор",
+              icon: "overview",
+              content: (
+                <div className="space-y-4">
+                  <div className="grid gap-3 grid-cols-2 lg:grid-cols-3">
+                    {showMoney && (
+                      <MiniStat
+                        label="Долг / ожидается"
+                        value={som(debtTotal)}
+                        tone={debtTotal ? "bad" : "good"}
+                      />
+                    )}
+                    <MiniStat
+                      label="Последний CPL"
+                      value={lastM?.cpl ? `${num(lastM.cpl)} сом` : "—"}
+                      tone={lastM?.inTarget === null || !lastM ? "default" : lastM.inTarget ? "good" : "bad"}
+                    />
+                    <MiniStat label="Рекламный кабинет" value={client.adAccount || "не указан"} />
+                  </div>
+                        <Section title="Данные проекта" icon={UserIcon}>
+                          <div className="grid gap-4 rounded-2xl border border-zinc-200 p-4 sm:grid-cols-2 lg:grid-cols-3">
+                            <Field label="Контакт" value={client.contact || "—"} />
+                            <Field label="Таргетолог" value={client.targetolog?.name ?? "не назначен"} />
+                            <Field label="Аккаунт-менеджер" value={client.account?.name ?? "—"} />
+                            <Field label="Источник заявки" value={client.source || "—"} />
+                            <Field
+                              label="Услуги"
+                              value={
+                                dict
+                                  ? client.services
+                                      .split(",")
+                                      .filter(Boolean)
+                                      .map((sv) => dict.SERVICE.find((x) => x.key === sv)?.name ?? sv)
+                                      .join(", ") || "—"
+                                  : servicesLabel(client.services)
+                              }
+                            />
+                            <Field label="Целевой CPL" value={client.targetCpl ? som(client.targetCpl) : "—"} />
+                            <Field label="Цель клиента" value={client.goal || "—"} />
+                            <Field label="Договорённости" value={client.agreement || "—"} />
+                            <Field
+                              label="Цены доп. услуг"
+                              value={
+                                [
+                                  client.sitePrice ? `сайт ${som(client.sitePrice)}` : null,
+                                  client.botPrice ? `бот ${som(client.botPrice)}` : null,
+                                  client.videoPrice ? `монтаж ${som(client.videoPrice)}` : null,
+                                ]
+                                  .filter(Boolean)
+                                  .join(" · ") || "—"
+                              }
+                            />
+                            <Field label="Заметки" value={client.notes || "—"} />
+                          </div>
+                        </Section>
+
+                        {client.members && (
+                          <MembersBlock
+                            clientId={client.id}
+                            members={client.members}
+                            users={users}
+                            canEdit={user.role === "OWNER"}
+                            avgCheck={client.avgCheck}
+                          />
+                        )}
+
+                </div>
+              ),
+            },
+            ...(showMoney
+              ? [
+                  {
+                    key: "payments",
+                    label: "Оплаты",
+                    icon: "payments",
+                    count: client.payments.length,
+                    content: (
+                      <>
+                              {showMoney && (
+                                <Section
+                                  title="История оплат"
+                                  icon={Wallet}
+                                  right={
+                                    <FormModal
+                                      label="Платёж"
+                                      title={`Новый платёж — ${client.name}`}
+                                      variant="ghost"
+                                      icon={<Plus size={15} />}
+                                      hint="Сумма делится автоматически: доля исполнителя → резерв на развитие → остаток владельцу. Статус «Ожидается» ставит напоминание за 3 дня до даты."
+                                    >
+                                      <PaymentForm clients={[]} contractors={contractors} fixedClientId={client.id} />
+                                    </FormModal>
+                                  }
+                                >
+
+                                  <MiniTable head={["Тип", "Сумма", "Статус", "План", "Оплачено", "Метод", ""]}>
+                                    {client.payments.map((p) => (
+                                      <tr key={p.id}>
+                                        <td className="px-3 py-2 text-sm">{PAYMENT_KIND[p.kind as keyof typeof PAYMENT_KIND]}</td>
+                                        <td className="px-3 py-2 text-sm font-medium whitespace-nowrap">{som(p.amount)}</td>
+                                        <td className="px-3 py-2">
+                                          <PayStatusBadge status={p.status} />
+                                        </td>
+                                        <td className="px-3 py-2 text-sm whitespace-nowrap">{dateRu(p.dueAt)}</td>
+                                        <td className="px-3 py-2 text-sm whitespace-nowrap">{dateRu(p.paidAt)}</td>
+                                        <td className="px-3 py-2 text-sm text-zinc-500">
+                                          {PAYMENT_METHOD[p.method as keyof typeof PAYMENT_METHOD]}
+                                        </td>
+                                        <td className="px-3 py-2">
+                                          {p.status !== "PAID" && (
+                                            <MarkPaidButton
+                                              paymentId={p.id}
+                                              clientName={client.name}
+                                              amount={som(p.amount)}
+                                              dueAt={dateRu(p.dueAt)}
+                                              compact
+                                            />
+                                          )}
+                                        </td>
+                                      </tr>
+                                    ))}
+                                    {client.payments.length === 0 && (
+                                      <tr>
+                                        <td className="px-3 py-3 text-sm text-zinc-500" colSpan={7}>
+                                          Оплат пока нет
+                                        </td>
+                                      </tr>
+                                    )}
+                                  </MiniTable>
+                                </Section>
+                              )}
+
+                      </>
+                    ),
+                  },
+                ]
+              : []),
+            {
+              key: "reports",
+              label: "Отчёты",
+              icon: "reports",
+              count: client.reports.length,
+              content: (
+                <>
+                        <Section
+                          title="Отчёты по таргету"
+                          icon={TrendingUp}
+                          right={
+                            can.writeReports(user) ? (
+                              <FormModal
+                                label="Отчёт"
+                                title={`Отчёт за период — ${client.name}`}
+                                variant="ghost"
+                                icon={<Plus size={15} />}
+                                hint="Целевой CPL — порог решения: выше него связки отключаем, ниже — масштабируем. При превышении система пришлёт алерт таргетологу и владельцу."
+                              >
+                                <ReportForm clients={[]} fixedClientId={client.id} defaultTargetCpl={client.targetCpl} />
+                              </FormModal>
+                            ) : undefined
+                          }
+                        >
+
+                          <MiniTable head={["Период", "Потрачено", "Заявки", "CPL", "Цель", "Статус", ""]}>
+                            {client.reports.map((r) => {
+                              const m = reportMetrics(r);
+                              return (
+                                <tr key={r.id} className={m.inTarget === false ? "bg-red-50" : m.inTarget ? "bg-emerald-50" : ""}>
+                                  <td className="px-3 py-2 text-sm whitespace-nowrap">
+                                    {dateRu(r.periodFrom)} — {dateRu(r.periodTo)}
+                                  </td>
+                                  <td className="px-3 py-2 text-sm whitespace-nowrap">{som(r.spent)}</td>
+                                  <td className="px-3 py-2 text-sm">{r.leads}</td>
+                                  <td
+                                    className={`px-3 py-2 text-sm font-medium whitespace-nowrap ${
+                                      m.cplOk === false ? "text-red-600" : m.cplOk ? "text-emerald-600" : ""
+                                    }`}
+                                  >
+                                    {m.cpl ? `${num(m.cpl)} сом` : "—"}
+                                  </td>
+                                  <td className="px-3 py-2 text-sm text-zinc-500 whitespace-nowrap">{som(r.targetCpl)}</td>
+                                  <td className="px-3 py-2 text-sm whitespace-nowrap">
+                                    {m.inTarget === null ? (
+                                      "—"
+                                    ) : m.inTarget ? (
+                                      <span className="inline-flex items-center gap-1.5 text-emerald-600">
+                                        <CircleCheck size={14} /> в цели
+                                      </span>
+                                    ) : (
+                                      <span className="inline-flex items-center gap-1.5 text-red-600">
+                                        <CircleAlert size={14} /> превышение
+                                      </span>
+                                    )}
+                                  </td>
+                                  <td className="px-3 py-2">
+                                    <Link href={`/reports/${r.id}`} className="btn-ghost !px-2.5 !py-1 !text-xs">
+                                      <ExternalLink size={13} /> Клиенту
+                                    </Link>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                            {client.reports.length === 0 && (
+                              <tr>
+                                <td className="px-3 py-3 text-sm text-zinc-500" colSpan={7}>
+                                  Отчётов пока нет
+                                </td>
+                              </tr>
+                            )}
+                          </MiniTable>
+                        </Section>
+
+                        {client.expenses && client.expenses.length > 0 && (
+                          <Section
+                            title="Расходы по проекту"
+                            icon={TrendingDown}
+                            right={
+                              <span className="text-xs text-muted">
+                                всего {som(client.expenses.reduce((s, e) => s + e.amount, 0))}
+                              </span>
+                            }
+                          >
+                            <MiniTable head={["Расход", "Категория", "Сумма", "Статус", "Дата"]}>
+                              {client.expenses.map((e) => (
+                                <tr key={e.id}>
+                                  <td className="px-3 py-2 text-sm">{e.title}</td>
+                                  <td className="px-3 py-2">
+                                    <ExpenseCategoryBadge category={e.category} />
+                                  </td>
+                                  <td className="px-3 py-2 text-sm font-medium whitespace-nowrap">{som(e.amount)}</td>
+                                  <td className="px-3 py-2">
+                                    <ExpenseStatusBadge status={e.status} />
+                                  </td>
+                                  <td className="px-3 py-2 text-sm text-muted whitespace-nowrap">{dateRu(e.spentAt)}</td>
+                                </tr>
+                              ))}
+                            </MiniTable>
+                          </Section>
+                        )}
+
+                </>
+              ),
+            },
+            {
+              key: "tasks",
+              label: "Задачи",
+              icon: "tasks",
+              count: openTasks,
+              content: (
+                <>
+                        <Section
+                          title="Задачи проекта"
+                          icon={KanbanSquare}
+                          right={
+                            user.role !== "CONTRACTOR" ? (
+                              <FormModal
+                                label="Задача"
+                                title={`Новая задача — ${client.name}`}
+                                variant="ghost"
+                                icon={<Plus size={15} />}
+                                hint="Этапы доски «Таргет» повторяют конвейер заявок: бриф → гипотезы → съёмка → тест → отсев → масштаб."
+                              >
+                                <TaskForm clients={[]} users={users} fixedClientId={client.id} />
+                              </FormModal>
+                            ) : undefined
+                          }
+                        >
+
+                          <MiniTable head={["Задача", "Доска", "Этап", "Ответственный", "Дедлайн", ""]}>
+                            {client.tasks.map((t) => (
+                              <tr key={t.id} className={t.done ? "opacity-50" : ""}>
+                                <td className={`px-3 py-2 text-sm ${t.done ? "line-through" : ""}`}>{t.title}</td>
+                                <td className="px-3 py-2 text-sm text-zinc-500">{t.board}</td>
+                                <td className="px-3 py-2 text-sm whitespace-nowrap">{stagesFor(t.board)[t.stage] ?? t.stage}</td>
+                                <td className="px-3 py-2 text-sm">{t.assignee?.name ?? "—"}</td>
+                                <td className="px-3 py-2 text-sm text-zinc-500 whitespace-nowrap">{dateRu(t.dueAt)}</td>
+                                <td className="px-3 py-2">
+                                  <form action={toggleTask}>
+                                    <input type="hidden" name="id" value={t.id} />
+                                    <button className="btn-ghost !px-2.5 !py-1 !text-xs">
+                                      <CheckCircle2 size={13} /> {t.done ? "Вернуть" : "Готово"}
+                                    </button>
+                                  </form>
+                                </td>
+                              </tr>
+                            ))}
+                            {client.tasks.length === 0 && (
+                              <tr>
+                                <td className="px-3 py-3 text-sm text-zinc-500" colSpan={6}>
+                                  Задач пока нет
+                                </td>
+                              </tr>
+                            )}
+                          </MiniTable>
+                        </Section>
+
+                </>
+              ),
+            },
+            ...(can.manageClients(user)
+              ? [
+                  {
+                    key: "settings",
+                    label: "Правка",
+                    icon: "settings",
+                    content: (
+                      <>
+                              {can.manageClients(user) && (
+                                <Section title="Управление" icon={Pencil}>
+                                  <div className="flex flex-wrap gap-2">
+                                    <FormModal
+                                      label="Редактировать карточку"
+                                      title={`Карточка клиента — ${client.name}`}
+                                      width="max-w-3xl"
+                                      icon={<Pencil size={16} />}
+                                      hint="Цель и договорённости видны всей команде проекта — это основа для отчётов и задач."
+                                    >
+                                      <ClientForm
+                                      users={users}
+                                      client={client}
+                                      canAssignAccount={user.role === "OWNER"}
+                                      statuses={dict?.CLIENT_STATUS}
+                                      services={dict?.SERVICE}
+                                      sources={dict?.SOURCE}
+                                      niches={dict?.NICHE}
+                                    />
+                                      {user.role === "OWNER" && (
+                                        <form action={deleteClient} className="mt-6 border-t border-zinc-200 pt-4">
+                                          <input type="hidden" name="id" value={client.id} />
+                                          <button className="btn-ghost text-red-600">
+                                            <Trash2 size={15} /> Удалить клиента и все его данные
+                                          </button>
+                                        </form>
+                                      )}
+                                    </FormModal>
+                                    <Link href={`/clients/${client.id}`} className="btn-ghost">
+                                      <ExternalLink size={15} /> Открыть страницей
+                                    </Link>
+                                  </div>
+                                </Section>
+                              )}
+                      </>
+                    ),
+                  },
+                ]
+              : []),
+          ]}
         />
       </div>
-
-      <Section title="Данные проекта" icon={UserIcon}>
-        <div className="grid gap-4 rounded-2xl border border-zinc-200 p-4 sm:grid-cols-2 lg:grid-cols-3">
-          <Field label="Контакт" value={client.contact || "—"} />
-          <Field label="Таргетолог" value={client.targetolog?.name ?? "не назначен"} />
-          <Field label="Аккаунт-менеджер" value={client.account?.name ?? "—"} />
-          <Field label="Источник заявки" value={client.source || "—"} />
-          <Field
-            label="Услуги"
-            value={
-              dict
-                ? client.services
-                    .split(",")
-                    .filter(Boolean)
-                    .map((sv) => dict.SERVICE.find((x) => x.key === sv)?.name ?? sv)
-                    .join(", ") || "—"
-                : servicesLabel(client.services)
-            }
-          />
-          <Field label="Рекламный кабинет" value={client.adAccount || "—"} />
-          <Field
-            label="День оплаты"
-            value={client.paymentDay ? `${client.paymentDay} числа каждого месяца` : "не задан"}
-          />
-          <Field label="Следующая оплата" value={dateRu(client.nextPaymentAt)} />
-          <Field label="Открытых задач" value={String(openTasks)} />
-          <Field label="Целевой CPL" value={client.targetCpl ? som(client.targetCpl) : "—"} />
-          <Field label="Цель клиента" value={client.goal || "—"} />
-          <Field label="Договорённости" value={client.agreement || "—"} />
-          <Field
-            label="Цены доп. услуг"
-            value={
-              [
-                client.sitePrice ? `сайт ${som(client.sitePrice)}` : null,
-                client.botPrice ? `бот ${som(client.botPrice)}` : null,
-                client.videoPrice ? `монтаж ${som(client.videoPrice)}` : null,
-              ]
-                .filter(Boolean)
-                .join(" · ") || "—"
-            }
-          />
-          <Field label="Заметки" value={client.notes || "—"} />
-        </div>
-      </Section>
-
-      {client.members && (
-        <MembersBlock
-          clientId={client.id}
-          members={client.members}
-          users={users}
-          canEdit={user.role === "OWNER"}
-        />
-      )}
-
-      {showMoney && (
-        <Section
-          title="История оплат"
-          icon={Wallet}
-          right={
-            <FormModal
-              label="Платёж"
-              title={`Новый платёж — ${client.name}`}
-              variant="ghost"
-              icon={<Plus size={15} />}
-              hint="Сумма делится автоматически: доля исполнителя → резерв на развитие → остаток владельцу. Статус «Ожидается» ставит напоминание за 3 дня до даты."
-            >
-              <PaymentForm clients={[]} contractors={contractors} fixedClientId={client.id} />
-            </FormModal>
-          }
-        >
-
-          <MiniTable head={["Тип", "Сумма", "Статус", "План", "Оплачено", "Метод", ""]}>
-            {client.payments.map((p) => (
-              <tr key={p.id}>
-                <td className="px-3 py-2 text-sm">{PAYMENT_KIND[p.kind as keyof typeof PAYMENT_KIND]}</td>
-                <td className="px-3 py-2 text-sm font-medium whitespace-nowrap">{som(p.amount)}</td>
-                <td className="px-3 py-2">
-                  <PayStatusBadge status={p.status} />
-                </td>
-                <td className="px-3 py-2 text-sm whitespace-nowrap">{dateRu(p.dueAt)}</td>
-                <td className="px-3 py-2 text-sm whitespace-nowrap">{dateRu(p.paidAt)}</td>
-                <td className="px-3 py-2 text-sm text-zinc-500">
-                  {PAYMENT_METHOD[p.method as keyof typeof PAYMENT_METHOD]}
-                </td>
-                <td className="px-3 py-2">
-                  {p.status !== "PAID" && (
-                    <MarkPaidButton
-                      paymentId={p.id}
-                      clientName={client.name}
-                      amount={som(p.amount)}
-                      dueAt={dateRu(p.dueAt)}
-                      compact
-                    />
-                  )}
-                </td>
-              </tr>
-            ))}
-            {client.payments.length === 0 && (
-              <tr>
-                <td className="px-3 py-3 text-sm text-zinc-500" colSpan={7}>
-                  Оплат пока нет
-                </td>
-              </tr>
-            )}
-          </MiniTable>
-        </Section>
-      )}
-
-      <Section
-        title="Отчёты по таргету"
-        icon={TrendingUp}
-        right={
-          can.writeReports(user) ? (
-            <FormModal
-              label="Отчёт"
-              title={`Отчёт за период — ${client.name}`}
-              variant="ghost"
-              icon={<Plus size={15} />}
-              hint="Целевой CPL — порог решения: выше него связки отключаем, ниже — масштабируем. При превышении система пришлёт алерт таргетологу и владельцу."
-            >
-              <ReportForm clients={[]} fixedClientId={client.id} defaultTargetCpl={client.targetCpl} />
-            </FormModal>
-          ) : undefined
-        }
-      >
-
-        <MiniTable head={["Период", "Потрачено", "Заявки", "CPL", "Цель", "Статус", ""]}>
-          {client.reports.map((r) => {
-            const m = reportMetrics(r);
-            return (
-              <tr key={r.id} className={m.inTarget === false ? "bg-red-50" : m.inTarget ? "bg-emerald-50" : ""}>
-                <td className="px-3 py-2 text-sm whitespace-nowrap">
-                  {dateRu(r.periodFrom)} — {dateRu(r.periodTo)}
-                </td>
-                <td className="px-3 py-2 text-sm whitespace-nowrap">{som(r.spent)}</td>
-                <td className="px-3 py-2 text-sm">{r.leads}</td>
-                <td
-                  className={`px-3 py-2 text-sm font-medium whitespace-nowrap ${
-                    m.cplOk === false ? "text-red-600" : m.cplOk ? "text-emerald-600" : ""
-                  }`}
-                >
-                  {m.cpl ? `${num(m.cpl)} сом` : "—"}
-                </td>
-                <td className="px-3 py-2 text-sm text-zinc-500 whitespace-nowrap">{som(r.targetCpl)}</td>
-                <td className="px-3 py-2 text-sm whitespace-nowrap">
-                  {m.inTarget === null ? (
-                    "—"
-                  ) : m.inTarget ? (
-                    <span className="inline-flex items-center gap-1.5 text-emerald-600">
-                      <CircleCheck size={14} /> в цели
-                    </span>
-                  ) : (
-                    <span className="inline-flex items-center gap-1.5 text-red-600">
-                      <CircleAlert size={14} /> превышение
-                    </span>
-                  )}
-                </td>
-                <td className="px-3 py-2">
-                  <Link href={`/reports/${r.id}`} className="btn-ghost !px-2.5 !py-1 !text-xs">
-                    <ExternalLink size={13} /> Клиенту
-                  </Link>
-                </td>
-              </tr>
-            );
-          })}
-          {client.reports.length === 0 && (
-            <tr>
-              <td className="px-3 py-3 text-sm text-zinc-500" colSpan={7}>
-                Отчётов пока нет
-              </td>
-            </tr>
-          )}
-        </MiniTable>
-      </Section>
-
-      {client.expenses && client.expenses.length > 0 && (
-        <Section
-          title="Расходы по проекту"
-          icon={TrendingDown}
-          right={
-            <span className="text-xs text-muted">
-              всего {som(client.expenses.reduce((s, e) => s + e.amount, 0))}
-            </span>
-          }
-        >
-          <MiniTable head={["Расход", "Категория", "Сумма", "Статус", "Дата"]}>
-            {client.expenses.map((e) => (
-              <tr key={e.id}>
-                <td className="px-3 py-2 text-sm">{e.title}</td>
-                <td className="px-3 py-2">
-                  <ExpenseCategoryBadge category={e.category} />
-                </td>
-                <td className="px-3 py-2 text-sm font-medium whitespace-nowrap">{som(e.amount)}</td>
-                <td className="px-3 py-2">
-                  <ExpenseStatusBadge status={e.status} />
-                </td>
-                <td className="px-3 py-2 text-sm text-muted whitespace-nowrap">{dateRu(e.spentAt)}</td>
-              </tr>
-            ))}
-          </MiniTable>
-        </Section>
-      )}
-
-      <Section
-        title="Задачи проекта"
-        icon={KanbanSquare}
-        right={
-          user.role !== "CONTRACTOR" ? (
-            <FormModal
-              label="Задача"
-              title={`Новая задача — ${client.name}`}
-              variant="ghost"
-              icon={<Plus size={15} />}
-              hint="Этапы доски «Таргет» повторяют конвейер заявок: бриф → гипотезы → съёмка → тест → отсев → масштаб."
-            >
-              <TaskForm clients={[]} users={users} fixedClientId={client.id} />
-            </FormModal>
-          ) : undefined
-        }
-      >
-
-        <MiniTable head={["Задача", "Доска", "Этап", "Ответственный", "Дедлайн", ""]}>
-          {client.tasks.map((t) => (
-            <tr key={t.id} className={t.done ? "opacity-50" : ""}>
-              <td className={`px-3 py-2 text-sm ${t.done ? "line-through" : ""}`}>{t.title}</td>
-              <td className="px-3 py-2 text-sm text-zinc-500">{t.board}</td>
-              <td className="px-3 py-2 text-sm whitespace-nowrap">{stagesFor(t.board)[t.stage] ?? t.stage}</td>
-              <td className="px-3 py-2 text-sm">{t.assignee?.name ?? "—"}</td>
-              <td className="px-3 py-2 text-sm text-zinc-500 whitespace-nowrap">{dateRu(t.dueAt)}</td>
-              <td className="px-3 py-2">
-                <form action={toggleTask}>
-                  <input type="hidden" name="id" value={t.id} />
-                  <button className="btn-ghost !px-2.5 !py-1 !text-xs">
-                    <CheckCircle2 size={13} /> {t.done ? "Вернуть" : "Готово"}
-                  </button>
-                </form>
-              </td>
-            </tr>
-          ))}
-          {client.tasks.length === 0 && (
-            <tr>
-              <td className="px-3 py-3 text-sm text-zinc-500" colSpan={6}>
-                Задач пока нет
-              </td>
-            </tr>
-          )}
-        </MiniTable>
-      </Section>
-
-      {can.manageClients(user) && (
-        <Section title="Управление" icon={Pencil}>
-          <div className="flex flex-wrap gap-2">
-            <FormModal
-              label="Редактировать карточку"
-              title={`Карточка клиента — ${client.name}`}
-              width="max-w-3xl"
-              icon={<Pencil size={16} />}
-              hint="Цель и договорённости видны всей команде проекта — это основа для отчётов и задач."
-            >
-              <ClientForm
-              users={users}
-              client={client}
-              canAssignAccount={user.role === "OWNER"}
-              statuses={dict?.CLIENT_STATUS}
-              services={dict?.SERVICE}
-              sources={dict?.SOURCE}
-              niches={dict?.NICHE}
-            />
-              {user.role === "OWNER" && (
-                <form action={deleteClient} className="mt-6 border-t border-zinc-200 pt-4">
-                  <input type="hidden" name="id" value={client.id} />
-                  <button className="btn-ghost text-red-600">
-                    <Trash2 size={15} /> Удалить клиента и все его данные
-                  </button>
-                </form>
-              )}
-            </FormModal>
-            <Link href={`/clients/${client.id}`} className="btn-ghost">
-              <ExternalLink size={15} /> Открыть страницей
-            </Link>
-          </div>
-        </Section>
-      )}
     </Modal>
   );
 }

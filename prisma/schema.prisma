@@ -32,6 +32,7 @@ model User {
   expenses            Expense[]
   marketingReports    MarketingReport[]
   taskComments        TaskComment[]
+  regulations         Regulation[]      @relation("regulationOwner")
 }
 
 // Статусы: TEST | ACTIVE | RISK | PAUSED | CHURNED
@@ -74,6 +75,8 @@ model Client {
   expenses         Expense[]
   incomes          Income[]
   marketingReports MarketingReport[]
+  snapshots        ClientSnapshot[]
+  links            ClientLink[]
   createdAt        DateTime          @default(now())
 }
 
@@ -360,6 +363,58 @@ model MarketingReport {
   createdAt   DateTime @default(now())
 
   @@index([date])
+}
+
+/// Замер показателей клиента: «Точка А» — как было на старте, «Точка Б» — как стало.
+/// Для агентства меряем заявки, цену заявки, бюджет и выручку клиента.
+model ClientSnapshot {
+  id         String   @id @default(cuid())
+  clientId   String
+  client     Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  type       String // POINT_A | POINT_B
+  takenAt    DateTime
+  leads      Int? // заявок в месяц
+  cpl        Float? // цена заявки
+  adSpend    Float? // рекламный бюджет в месяц
+  revenue    Float? // выручка клиента
+  conversion Float? // конверсия заявки в продажу, %
+  note       String?
+  createdAt  DateTime @default(now())
+
+  @@index([clientId, type])
+}
+
+/// Полезные ссылки по клиенту: кабинет, таблица, сайт, доступы.
+model ClientLink {
+  id        String   @id @default(cuid())
+  clientId  String
+  client    Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  title     String
+  url       String
+  type      String   @default("OTHER") // ADS | SHEETS | SITE | CRM | OTHER
+  createdAt DateTime @default(now())
+
+  @@index([clientId])
+}
+
+/// Регламент = зона ответственности сотрудника: чек-лист того, что он ведёт.
+/// items — JSON-массив строк, строка с «#» в начале открывает новый блок.
+model Regulation {
+  id          String   @id @default(cuid())
+  title       String
+  description String?
+  color       String   @default("#6d5efc")
+  items       String   @default("[]")
+  notes       String?
+  ownerId     String?
+  owner       User?    @relation("regulationOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  assignees   String   @default("") // CSV id сотрудников, кроме основного
+  order       Int      @default(100)
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([ownerId])
 }
 
 model Setting {

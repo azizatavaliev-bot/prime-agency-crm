@@ -415,3 +415,22 @@ body {
     transform: none;
   }
 }
+
+/* Крупное поле суммы в «Новой операции»: стрелки спиннера ломают вид числа */
+.amount-big::-webkit-outer-spin-button,
+.amount-big::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.amount-big {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+/* Экран входа: мягкий фон, чтобы карточка не висела на пустом белом */
+.login-bg {
+  background:
+    radial-gradient(60rem 40rem at 15% -10%, color-mix(in oklab, var(--accent) 12%, transparent), transparent),
+    radial-gradient(50rem 35rem at 110% 110%, color-mix(in oklab, var(--accent-2) 12%, transparent), transparent),
+    var(--bg);
+}

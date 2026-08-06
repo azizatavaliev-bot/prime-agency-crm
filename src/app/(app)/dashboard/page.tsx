@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { dict } from "@/lib/dict";
 import { clientScope, taskScope } from "@/lib/access";
 import { getShares, reportMetrics } from "@/lib/finance";
 import { runReminders } from "@/lib/reminders";
@@ -25,6 +26,7 @@ import { stagesFor } from "@/lib/constants";
 import { PageHeader, Stat, Table, Section, MiniStat } from "@/components/ui";
 import RevenueChart from "@/components/RevenueChart";
 import { PaymentModal, StatusBadge, ClientModal, TaskModal } from "@/components/details";
+import ProjectsOverview, { type ProjectRow } from "@/components/ProjectsOverview";
 
 export const dynamic = "force-dynamic";
 
@@ -204,6 +206,7 @@ export default async function DashboardPage() {
     prisma.goal.findMany({ where: { month: mk, clientId: null } }),
   ]);
 
+
   const [expenses, otherIncomes] = await Promise.all([
     prisma.expense.findMany({ where: { periodMonth: mk } }),
     prisma.income.findMany({ where: { periodMonth: mk } }),
@@ -228,6 +231,65 @@ export default async function DashboardPage() {
   const monthReports = reports.filter((r) => monthKey(r.periodTo) === mk);
   const leads = monthReports.reduce((s, r) => s + r.leads, 0);
   const adSpent = monthReports.reduce((s, r) => s + r.spent, 0);
+
+  const [allTasks, statusDict] = await Promise.all([
+    prisma.task.findMany({ where: { archivedAt: null }, select: { clientId: true, done: true, dueAt: true } }),
+    dict("CLIENT_STATUS"),
+  ]);
+
+  // Сводка по каждому проекту: деньги, реклама, задачи и что требует внимания
+  const today = new Date();
+  const projectRows: ProjectRow[] = clients
+    .filter((c) => activeStatuses.includes(c.status))
+    .map((c) => {
+      const cPays = monthPayments.filter((p) => p.clientId === c.id);
+      const cReports = reports
+        .filter((r) => r.clientId === c.id)
+        .sort((a, b) => b.periodTo.getTime() - a.periodTo.getTime());
+      const last = cReports[0] ?? null;
+      const prev = cReports[1] ?? null;
+      const cplOf = (r: typeof last) => (r && r.leads > 0 ? r.spent / r.leads : null);
+      const cpl = cplOf(last);
+      const prevCpl = cplOf(prev);
+      const cTasks = allTasks.filter((t: { clientId: string | null; done: boolean; dueAt: Date | null }) => t.clientId === c.id && !t.done);
+      const overdue = cTasks.filter((t: { dueAt: Date | null }) => t.dueAt && t.dueAt < today).length;
+      const debt = cPays.filter((p) => p.status !== "PAID").reduce((s, p) => s + p.amount, 0);
+
+      const risks: string[] = [];
+      if (debt > 0) risks.push("долг");
+      if (cpl !== null && c.targetCpl && cpl > c.targetCpl) risks.push("CPL выше цели");
+      if (overdue > 0) risks.push("просрочки");
+      if (!last || (today.getTime() - last.periodTo.getTime()) / 86400000 > 10)
+        risks.push("нет отчёта");
+      if (c.status === "RISK") risks.push("риск оттока");
+
+      return {
+        id: c.id,
+        name: c.name,
+        status: c.status,
+        statusLabel: statusDict.find((x: { key: string; name: string }) => x.key === c.status)?.name ?? c.status,
+        statusColor: statusDict.find((x: { key: string; color?: string | null }) => x.key === c.status)?.color,
+        targetologName: c.targetolog?.name ?? null,
+        avgCheck: c.avgCheck,
+        paidThisMonth: cPays.filter((p) => p.status === "PAID").reduce((s, p) => s + p.amount, 0),
+        debt,
+        cpl,
+        targetCpl: c.targetCpl,
+        cplTrend:
+          cpl === null || prevCpl === null
+            ? null
+            : cpl > prevCpl * 1.05
+              ? ("up" as const)
+              : cpl < prevCpl * 0.95
+                ? ("down" as const)
+                : ("flat" as const),
+        openTasks: cTasks.length,
+        overdueTasks: overdue,
+        lastReportAt: last?.periodTo ?? null,
+        risks,
+      };
+    })
+    .sort((a, b) => b.risks.length - a.risks.length || b.paidThisMonth - a.paidThisMonth);
   const cpls = monthReports
     .map((r) => ({ name: r.client.name, ...reportMetrics(r) }))
     .filter((x) => x.cpl !== null)
@@ -364,6 +426,18 @@ export default async function DashboardPage() {
           icon={CalendarClock}
         />
       </div>
+
+      <Section
+        title="Все проекты"
+        icon={Users}
+        right={
+          <span className="text-xs text-muted">
+            {projectRows.filter((r) => r.risks.length > 0).length} требуют внимания
+          </span>
+        }
+      >
+        <ProjectsOverview rows={projectRows} />
+      </Section>
 
       <Section title="Реклама за месяц" icon={Target}>
         <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">

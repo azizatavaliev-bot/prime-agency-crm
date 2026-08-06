@@ -425,6 +425,7 @@ export async function saveUser(fd: FormData) {
   const base = {
     email: req(fd, "email").toLowerCase(),
     name: req(fd, "name"),
+    phone: str(fd, "phone"),
     role,
     rate: n(fd, "rate") || null,
     rateType: req(fd, "rateType") || "PERCENT",
@@ -588,7 +589,7 @@ export async function unlinkTelegram() {
 
 export async function saveExpense(fd: FormData) {
   const user = await requireUser();
-  if (user.role !== "OWNER") redirect("/no-access");
+  if (!can.manageMoney(user)) redirect("/no-access");
   const id = str(fd, "id");
   const spentAt = date(fd, "spentAt") ?? new Date();
   const data = {
@@ -615,7 +616,7 @@ export async function saveExpense(fd: FormData) {
 
 export async function markExpensePaid(fd: FormData) {
   const user = await requireUser();
-  if (user.role !== "OWNER") redirect("/no-access");
+  if (!can.manageMoney(user)) redirect("/no-access");
   const id = req(fd, "id");
   // periodMonth не трогаем: июльский расход, оплаченный в августе, должен
   // остаться в июльском отчёте, иначе закрытый месяц меняется задним числом.
@@ -629,7 +630,7 @@ export async function markExpensePaid(fd: FormData) {
 
 export async function deleteExpense(fd: FormData) {
   const user = await requireUser();
-  if (user.role !== "OWNER") redirect("/no-access");
+  if (!can.manageMoney(user)) redirect("/no-access");
   await prisma.expense.delete({ where: { id: req(fd, "id") } });
   revalidatePath("/expenses");
   revalidatePath("/dashboard");
@@ -706,7 +707,7 @@ export async function payoutTeam(fd: FormData) {
 
 export async function saveAccount(fd: FormData) {
   const user = await requireUser();
-  if (user.role !== "OWNER") redirect("/no-access");
+  if (!can.manageMoney(user)) redirect("/no-access");
   const id = str(fd, "id");
   const data = {
     name: req(fd, "name"),
@@ -740,7 +741,7 @@ export async function deleteAccount(fd: FormData) {
 
 export async function saveIncome(fd: FormData) {
   const user = await requireUser();
-  if (user.role !== "OWNER") redirect("/no-access");
+  if (!can.manageMoney(user)) redirect("/no-access");
   const id = str(fd, "id");
   const receivedAt = date(fd, "receivedAt") ?? new Date();
   const data = {
@@ -762,7 +763,7 @@ export async function saveIncome(fd: FormData) {
 
 export async function deleteIncome(fd: FormData) {
   const user = await requireUser();
-  if (user.role !== "OWNER") redirect("/no-access");
+  if (!can.manageMoney(user)) redirect("/no-access");
   await prisma.income.delete({ where: { id: req(fd, "id") } });
   revalidatePath("/finance");
   revalidatePath("/dashboard");
@@ -770,7 +771,7 @@ export async function deleteIncome(fd: FormData) {
 
 export async function saveTransfer(fd: FormData) {
   const user = await requireUser();
-  if (user.role !== "OWNER") redirect("/no-access");
+  if (!can.manageMoney(user)) redirect("/no-access");
   const fromAccountId = req(fd, "fromAccountId");
   const toAccountId = req(fd, "toAccountId");
   if (fromAccountId === toAccountId) return;
@@ -790,7 +791,7 @@ export async function saveTransfer(fd: FormData) {
 
 export async function deleteTransfer(fd: FormData) {
   const user = await requireUser();
-  if (user.role !== "OWNER") redirect("/no-access");
+  if (!can.manageMoney(user)) redirect("/no-access");
   await prisma.transfer.delete({ where: { id: req(fd, "id") } });
   revalidatePath("/finance");
 }
@@ -1091,4 +1092,182 @@ export async function applyTaskTemplate(fd: FormData) {
   }
 
   revalidatePath("/tasks");
+}
+
+/** Смена этапа клиента одним кликом из карточки — как в FADAMOS. */
+export async function setClientStatus(fd: FormData) {
+  const user = await requireUser();
+  if (!can.manageClients(user)) redirect("/no-access");
+  const id = req(fd, "id");
+  const status = req(fd, "status");
+  const client = await prisma.client.findFirst({
+    where: { AND: [{ id }, clientScope(user)] },
+  });
+  if (!client) redirect("/no-access");
+
+  await prisma.client.update({
+    where: { id },
+    data: {
+      status,
+      // Дата оттока проставляется автоматически, чтобы не считать её руками.
+      churnedAt: status === "CHURNED" ? client.churnedAt ?? new Date() : null,
+    },
+  });
+  revalidatePath("/clients");
+  revalidatePath(`/clients/${id}`);
+  revalidatePath("/dashboard");
+}
+
+/**
+ * Единая операция: приход и расход в одном окне (как «Новая операция» в FADAMOS).
+ * Раньше это были две разные формы в разных местах — при ежедневном учёте
+ * приходилось помнить, куда идти.
+ */
+export async function saveOperation(fd: FormData) {
+  const user = await requireUser();
+  if (!can.manageMoney(user)) redirect("/no-access");
+
+  const kind = req(fd, "kind") === "EXPENSE" ? "EXPENSE" : "INCOME";
+  const when = date(fd, "when") ?? new Date();
+  const amount = n(fd, "amount");
+  const title = req(fd, "title") || (kind === "EXPENSE" ? "Расход" : "Приход");
+
+  if (kind === "EXPENSE") {
+    await prisma.expense.create({
+      data: {
+        title,
+        category: req(fd, "category") || "OTHER",
+        amount,
+        status: "PAID",
+        method: req(fd, "method") || "TRANSFER",
+        spentAt: when,
+        periodMonth: monthKey(when),
+        comment: str(fd, "comment"),
+        clientId: str(fd, "clientId"),
+        userId: str(fd, "userId"),
+        accountId: str(fd, "accountId"),
+      },
+    });
+  } else {
+    await prisma.income.create({
+      data: {
+        title,
+        category: req(fd, "category") || "OTHER",
+        amount,
+        receivedAt: when,
+        periodMonth: monthKey(when),
+        comment: str(fd, "comment"),
+        clientId: str(fd, "clientId"),
+        accountId: str(fd, "accountId"),
+      },
+    });
+  }
+
+  revalidatePath("/finance");
+  revalidatePath("/expenses");
+  revalidatePath("/dashboard");
+}
+
+/* ---------------- Регламенты (зоны ответственности) ---------------- */
+
+export async function saveRegulation(fd: FormData) {
+  const user = await requireUser();
+  if (user.role !== "OWNER") redirect("/no-access");
+  const id = str(fd, "id");
+
+  // Пункты вводятся построчно: строка с «#» открывает новый блок регламента.
+  const items = (str(fd, "items") ?? "")
+    .split("\n")
+    .map((l) => l.trimEnd())
+    .filter((l) => l.trim().length > 0);
+
+  const data = {
+    title: req(fd, "title"),
+    description: str(fd, "description"),
+    color: req(fd, "color") || "#6d5efc",
+    items: JSON.stringify(items),
+    notes: str(fd, "notes"),
+    ownerId: str(fd, "ownerId"),
+    assignees: fd.getAll("assignees").map(String).filter(Boolean).join(","),
+  };
+
+  if (id) await prisma.regulation.update({ where: { id }, data });
+  else await prisma.regulation.create({ data });
+  revalidatePath("/regulations");
+}
+
+export async function deleteRegulation(fd: FormData) {
+  const user = await requireUser();
+  if (user.role !== "OWNER") redirect("/no-access");
+  await prisma.regulation.delete({ where: { id: req(fd, "id") } });
+  revalidatePath("/regulations");
+}
+
+/* ---------------- Замеры клиента и ссылки ---------------- */
+
+export async function saveSnapshot(fd: FormData) {
+  const user = await requireUser();
+  if (!can.manageClients(user)) redirect("/no-access");
+  const clientId = req(fd, "clientId");
+  const client = await prisma.client.findFirst({
+    where: { AND: [{ id: clientId }, clientScope(user)] },
+  });
+  if (!client) redirect("/no-access");
+
+  const id = str(fd, "id");
+  const data = {
+    clientId,
+    type: req(fd, "type") === "POINT_B" ? "POINT_B" : "POINT_A",
+    takenAt: date(fd, "takenAt") ?? new Date(),
+    leads: Math.round(n(fd, "leads")) || null,
+    cpl: n(fd, "cpl") || null,
+    adSpend: n(fd, "adSpend") || null,
+    revenue: n(fd, "revenue") || null,
+    conversion: n(fd, "conversion") || null,
+    note: str(fd, "note"),
+  };
+  if (id) await prisma.clientSnapshot.update({ where: { id }, data });
+  else await prisma.clientSnapshot.create({ data });
+  revalidatePath(`/clients/${clientId}`);
+}
+
+export async function deleteSnapshot(fd: FormData) {
+  const user = await requireUser();
+  if (!can.manageClients(user)) redirect("/no-access");
+  const id = req(fd, "id");
+  const snap = await prisma.clientSnapshot.findFirst({
+    where: { AND: [{ id }, { client: clientScope(user) }] },
+  });
+  if (!snap) redirect("/no-access");
+  await prisma.clientSnapshot.delete({ where: { id } });
+  revalidatePath(`/clients/${snap.clientId}`);
+}
+
+export async function saveClientLink(fd: FormData) {
+  const user = await requireUser();
+  if (!can.manageClients(user)) redirect("/no-access");
+  const clientId = req(fd, "clientId");
+  const client = await prisma.client.findFirst({
+    where: { AND: [{ id: clientId }, clientScope(user)] },
+  });
+  if (!client) redirect("/no-access");
+
+  let url = req(fd, "url");
+  if (url && !/^https?:\/\//i.test(url)) url = `https://${url}`;
+  await prisma.clientLink.create({
+    data: { clientId, title: req(fd, "title") || url, url, type: req(fd, "type") || "OTHER" },
+  });
+  revalidatePath(`/clients/${clientId}`);
+}
+
+export async function deleteClientLink(fd: FormData) {
+  const user = await requireUser();
+  if (!can.manageClients(user)) redirect("/no-access");
+  const id = req(fd, "id");
+  const link = await prisma.clientLink.findFirst({
+    where: { AND: [{ id }, { client: clientScope(user) }] },
+  });
+  if (!link) redirect("/no-access");
+  await prisma.clientLink.delete({ where: { id } });
+  revalidatePath(`/clients/${link.clientId}`);
 }

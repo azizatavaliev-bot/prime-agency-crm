@@ -14,12 +14,22 @@ import {
 } from "@/lib/marketing";
 import { PageHeader, Stat, Section, Table } from "@/components/ui";
 import MarketingTabs from "@/components/MarketingTabs";
+import ClientReportsTab from "./_tabs/ClientReportsTab";
+import DailyReportsTab from "./_tabs/DailyReportsTab";
+import MarketingCalendarTab from "./_tabs/MarketingCalendarTab";
 
 export const dynamic = "force-dynamic";
 
-export default async function MarketingAnalyticsPage() {
+export default async function MarketingPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ tab?: string; clientId?: string; y?: string; m?: string }>;
+}) {
   const user = await requireUser();
   if (!can.writeReports(user)) redirect("/no-access");
+  const sp = await searchParams;
+  const tab =
+    sp.tab === "clients" || sp.tab === "daily" || sp.tab === "calendar" ? sp.tab : "analytics";
 
   const scope = marketingScope(user);
   const from = monthStartUtc();
@@ -42,10 +52,17 @@ export default async function MarketingAnalyticsPage() {
   return (
     <div>
       <PageHeader
-        title="Маркетинг"
-        subtitle={`Аналитика с ${dateRu(from)} по сегодня`}
+        title="Маркетинг и реклама"
+        subtitle="Вся реклама агентства и отчёты по проектам в одном разделе"
       />
-      <MarketingTabs />
+      <MarketingTabs active={tab} />
+
+      {tab === "clients" && <ClientReportsTab sp={{ clientId: sp.clientId }} />}
+      {tab === "daily" && <DailyReportsTab />}
+      {tab === "calendar" && <MarketingCalendarTab sp={{ y: sp.y, m: sp.m }} />}
+
+      {tab === "analytics" && (
+      <>
 
       <Section title="Эта неделя" icon={TrendingUp}>
         <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
@@ -128,6 +145,8 @@ export default async function MarketingAnalyticsPage() {
           )}
         </Table>
       </Section>
+      </>
+      )}
     </div>
   );
 }

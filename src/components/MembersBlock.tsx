@@ -1,9 +1,10 @@
-import { UserPlus, Trash2, Users } from "lucide-react";
+import { UserPlus, Trash2, Users, Percent, Wallet } from "lucide-react";
 import { saveMember, deleteMember } from "@/lib/actions";
 import { ROLES } from "@/lib/constants";
 import { som } from "@/lib/format";
-import { MiniTable, Section } from "@/components/ui";
+import { Avatar } from "@/components/ui";
 import FormModal from "@/components/FormModal";
+import Select from "@/components/Select";
 
 type Member = {
   id: string;
@@ -14,103 +15,159 @@ type Member = {
   user: { id: string; name: string; role: string };
 };
 
+const PROJECT_ROLE = {
+  TARGETOLOG: "Таргетолог",
+  ACCOUNT: "Аккаунт-менеджер",
+  CONTRACTOR: "Подрядчик",
+};
+
 /** Команда проекта: кто работает и на какой ставке (процент или фикс). */
 export default function MembersBlock({
   clientId,
   members,
   users,
   canEdit,
+  avgCheck = 0,
 }: {
   clientId: string;
   members: Member[];
   users: { id: string; name: string; role: string }[];
   canEdit: boolean;
+  /** Абонплата клиента — чтобы сразу показать, сколько выходит участнику. */
+  avgCheck?: number;
 }) {
+  const addForm = (
+    <form action={saveMember} className="space-y-4">
+      <input type="hidden" name="clientId" value={clientId} />
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div>
+          <label className="label">Сотрудник</label>
+          <Select
+            name="userId"
+            required
+            options={users.map((u) => ({
+              value: u.id,
+              label: u.name,
+              hint: ROLES[u.role as keyof typeof ROLES],
+            }))}
+            defaultValue={users[0]?.id}
+          />
+        </div>
+        <div>
+          <label className="label">Роль на проекте</label>
+          <Select
+            name="role"
+            defaultValue="TARGETOLOG"
+            options={Object.entries(PROJECT_ROLE).map(([value, label]) => ({ value, label }))}
+          />
+        </div>
+        <div>
+          <label className="label">Тип ставки</label>
+          <Select
+            name="rateType"
+            defaultValue="PERCENT"
+            options={[
+              { value: "PERCENT", label: "Процент от чека" },
+              { value: "FIXED", label: "Фикс за месяц" },
+            ]}
+          />
+        </div>
+        <div>
+          <label className="label">Значение</label>
+          <input
+            className="input"
+            name="rate"
+            type="number"
+            min="0"
+            step="any"
+            placeholder="34 или 15000"
+          />
+        </div>
+      </div>
+      <div>
+        <label className="label">Что делает на проекте</label>
+        <input className="input" name="note" placeholder="ведёт переписку и оплаты" />
+      </div>
+      <button className="btn-primary w-full">Добавить в команду</button>
+    </form>
+  );
+
   return (
-    <Section
-      title="Команда проекта"
-      icon={Users}
-      right={
-        canEdit ? (
+    <div className="card p-4">
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2 text-sm font-semibold">
+          <span className="stat-icon !h-7 !w-7 accent-soft accent-text">
+            <Users size={14} strokeWidth={2} />
+          </span>
+          Кто работает
+          {members.length > 0 && (
+            <span className="rounded-md bg-subtle px-1.5 text-[11px] text-muted">
+              {members.length}
+            </span>
+          )}
+        </div>
+        {canEdit && (
           <FormModal
             label="Добавить"
             title="Участник проекта"
             variant="ghost"
             icon={<UserPlus size={15} />}
-            hint="Ставка считается от суммы платежей клиента: процент — доля с каждого чека, фикс — сумма за месяц."
+            hint="Процент считается с каждого платежа клиента, фикс — сумма за месяц. Индивидуальная ставка важнее общих настроек агентства."
           >
-            <form action={saveMember} className="grid gap-4 sm:grid-cols-2">
-              <input type="hidden" name="clientId" value={clientId} />
-              <div>
-                <label className="label">Сотрудник *</label>
-                <select className="input" name="userId" required>
-                  {users.map((u) => (
-                    <option key={u.id} value={u.id}>
-                      {u.name} — {ROLES[u.role as keyof typeof ROLES]}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="label">Роль на проекте</label>
-                <select className="input" name="role" defaultValue="TARGETOLOG">
-                  <option value="TARGETOLOG">Таргетолог</option>
-                  <option value="ACCOUNT">Аккаунт-менеджер</option>
-                  <option value="CONTRACTOR">Подрядчик (разработка/монтаж)</option>
-                </select>
-              </div>
-              <div>
-                <label className="label">Тип ставки</label>
-                <select className="input" name="rateType" defaultValue="PERCENT">
-                  <option value="PERCENT">Процент от чека</option>
-                  <option value="FIXED">Фикс за месяц</option>
-                </select>
-              </div>
-              <div>
-                <label className="label">Значение</label>
-                <input className="input" name="rate" type="number" min="0" step="any" placeholder="34 или 15000" />
-              </div>
-              <div className="sm:col-span-2">
-                <label className="label">Комментарий</label>
-                <input className="input" name="note" placeholder="что делает на проекте" />
-              </div>
-              <div className="sm:col-span-2">
-                <button className="btn-primary">Сохранить участника</button>
-              </div>
-            </form>
+            {addForm}
           </FormModal>
-        ) : undefined
-      }
-    >
-      <MiniTable head={["Сотрудник", "Роль на проекте", "Ставка", "Комментарий", ""]}>
-        {members.map((m) => (
-          <tr key={m.id}>
-            <td className="px-3 py-2 text-sm font-medium">{m.user.name}</td>
-            <td className="px-3 py-2 text-sm">{ROLES[m.role as keyof typeof ROLES]}</td>
-            <td className="px-3 py-2 text-sm whitespace-nowrap">
-              {m.rateType === "PERCENT" ? `${m.rate}% от чека` : `${som(m.rate)} в месяц`}
-            </td>
-            <td className="px-3 py-2 text-sm text-muted">{m.note || "—"}</td>
-            <td className="px-3 py-2">
-              {canEdit && (
-                <form action={deleteMember}>
-                  <input type="hidden" name="id" value={m.id} />
-                  <button className="rounded-lg p-1 text-muted transition hover:text-red-600">
-                    <Trash2 size={13} />
-                  </button>
-                </form>
-              )}
-            </td>
-          </tr>
-        ))}
-        {members.length === 0 && (
-          <tr>
-            <td className="px-3 py-3 text-sm text-muted" colSpan={5}>
-              Участники не назначены — ставки берутся из общих настроек агентства
-            </td>
-          </tr>
         )}
-      </MiniTable>
-    </Section>
+      </div>
+
+      {members.length === 0 ? (
+        <div className="rounded-2xl bg-subtle p-5 text-center text-sm text-muted">
+          Участники не назначены — ставки берутся из общих настроек агентства
+        </div>
+      ) : (
+        <div className="grid gap-2 sm:grid-cols-2">
+          {members.map((m) => {
+            const isPercent = m.rateType === "PERCENT";
+            // Сколько выйдет с текущей абонплаты — видно сразу, без калькулятора.
+            const perMonth = isPercent ? Math.round((avgCheck * m.rate) / 100) : m.rate;
+            return (
+              <div
+                key={m.id}
+                className="group flex items-start gap-3 rounded-2xl border border-zinc-200 p-3"
+              >
+                <Avatar name={m.user.name} size={38} />
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-sm font-medium">{m.user.name}</div>
+                  <div className="text-xs text-muted">
+                    {PROJECT_ROLE[m.role as keyof typeof PROJECT_ROLE] ??
+                      ROLES[m.role as keyof typeof ROLES]}
+                  </div>
+
+                  <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                    <span className="flex items-center gap-1 rounded-lg accent-soft accent-text px-1.5 py-0.5 text-[11px] font-medium">
+                      {isPercent ? <Percent size={10} /> : <Wallet size={10} />}
+                      {isPercent ? `${m.rate}% от чека` : `${som(m.rate)} в месяц`}
+                    </span>
+                    {perMonth > 0 && (
+                      <span className="text-[11px] text-muted">≈ {som(perMonth)} с проекта</span>
+                    )}
+                  </div>
+
+                  {m.note && <div className="mt-1 text-[11px] text-muted">{m.note}</div>}
+                </div>
+
+                {canEdit && (
+                  <form action={deleteMember} className="opacity-0 transition group-hover:opacity-100">
+                    <input type="hidden" name="id" value={m.id} />
+                    <button className="rounded-lg p-1 text-zinc-300 transition hover:text-red-600">
+                      <Trash2 size={13} />
+                    </button>
+                  </form>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
   );
 }

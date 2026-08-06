@@ -9,6 +9,7 @@ import { paymentChip, daysToPayment } from "@/lib/payday";
 import { PageHeader, Stat, Avatar } from "@/components/ui";
 import ClientForm from "@/components/ClientForm";
 import FormModal from "@/components/FormModal";
+import FilterSelect from "@/components/FilterSelect";
 import { ClientModal } from "@/components/details";
 
 export const dynamic = "force-dynamic";
@@ -120,14 +121,14 @@ export default async function ClientsPage({
 
       <form className="my-4 flex flex-wrap gap-2">
         <input className="input max-w-xs" name="q" placeholder="Поиск по названию" defaultValue={sp.q ?? ""} />
-        <select className="input max-w-[200px]" name="status" defaultValue={sp.status ?? ""}>
-          <option value="">Все статусы</option>
-          {d.CLIENT_STATUS.map((st) => (
-            <option key={st.key} value={st.key}>
-              {st.name}
-            </option>
-          ))}
-        </select>
+        <FilterSelect
+          name="status"
+          defaultValue={sp.status ?? ""}
+          options={[
+            { value: "", label: "Все статусы" },
+            ...d.CLIENT_STATUS.map((x) => ({ value: x.key, label: x.name })),
+          ]}
+        />
         <button className="btn-ghost">
           <Search size={15} /> Фильтр
         </button>
