@@ -28,8 +28,8 @@ export async function hashPassword(pw: string) {
  * даже если про переменную забыли.
  */
 export function demoLoginEnabled(): boolean {
-  if (process.env.DEMO_MODE === "1") return true;
-  return process.env.NODE_ENV !== "production";
+  // Включается только явно: в системе живые данные, а не демо.
+  return process.env.DEMO_MODE === "1";
 }
 
 export async function login(email: string, password: string): Promise<SessionUser | null> {
