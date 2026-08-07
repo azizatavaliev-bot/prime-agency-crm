@@ -419,6 +419,8 @@ export async function saveUser(fd: FormData) {
   if (!can.manageTeam(user)) redirect("/no-access");
   const id = str(fd, "id");
   const password = str(fd, "password");
+  // Короткий пароль подбирается за минуты — не пускаем такие в систему.
+  if (password && password.length < 8) redirect("/team?error=short-password");
   // Роль только из известного списка: неизвестная снимает фильтры доступа.
   const role = req(fd, "role");
   if (!Object.keys(ROLES).includes(role)) redirect("/no-access");
@@ -435,7 +437,14 @@ export async function saveUser(fd: FormData) {
   if (id) {
     await prisma.user.update({
       where: { id },
-      data: password ? { ...base, passwordHash: await hashPassword(password) } : base,
+      data: password
+        ? {
+            ...base,
+            passwordHash: await hashPassword(password),
+            // Отметка времени гасит сессии, выданные со старым паролем.
+            passwordChangedAt: new Date(),
+          }
+        : base,
     });
   } else {
     await prisma.user.create({

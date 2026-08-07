@@ -6,8 +6,44 @@ import bcrypt from "bcryptjs";
 import { prisma } from "./prisma";
 import type { Role } from "./constants";
 
-const secret = new TextEncoder().encode(process.env.JWT_SECRET || "dev-secret");
+/**
+ * Ключ подписи сессий. На проде обязателен: с общеизвестным запасным
+ * значением любой смог бы подделать токен и войти владельцем.
+ */
+function sessionSecret() {
+  const s = process.env.JWT_SECRET;
+  if (s && s.length >= 16) return s;
+  if (process.env.NODE_ENV === "production")
+    throw new Error("JWT_SECRET не задан или короче 16 символов — вход отключён");
+  return "dev-secret-local-only";
+}
+
+const secret = new TextEncoder().encode(sessionSecret());
 const COOKIE = "prime_session";
+
+/**
+ * Счётчик неудачных попыток входа: 5 промахов подряд — минута паузы.
+ * Хранится в памяти процесса, этого хватает для одного контейнера.
+ */
+const attempts = new Map<string, { count: number; until: number }>();
+const MAX_ATTEMPTS = 5;
+const LOCK_MS = 60_000;
+
+function tooManyAttempts(key: string) {
+  const a = attempts.get(key);
+  return Boolean(a && a.until > Date.now());
+}
+
+function noteFailure(key: string) {
+  const now = Date.now();
+  const a = attempts.get(key);
+  if (!a || a.until <= now) {
+    attempts.set(key, { count: 1, until: 0 });
+    return;
+  }
+  a.count += 1;
+  if (a.count >= MAX_ATTEMPTS) a.until = now + LOCK_MS;
+}
 
 export type SessionUser = {
   id: string;
@@ -33,9 +69,19 @@ export function demoLoginEnabled(): boolean {
 }
 
 export async function login(email: string, password: string): Promise<SessionUser | null> {
-  const user = await prisma.user.findUnique({ where: { email: email.trim().toLowerCase() } });
-  if (!user || !user.active) return null;
-  if (!(await bcrypt.compare(password, user.passwordHash))) return null;
+  const key = email.trim().toLowerCase();
+  if (tooManyAttempts(key)) return null;
+
+  const user = await prisma.user.findUnique({ where: { email: key } });
+  if (!user || !user.active) {
+    noteFailure(key);
+    return null;
+  }
+  if (!(await bcrypt.compare(password, user.passwordHash))) {
+    noteFailure(key);
+    return null;
+  }
+  attempts.delete(key);
 
   const token = await new SignJWT({ uid: user.id })
     .setProtectedHeader({ alg: "HS256" })
@@ -74,6 +120,11 @@ export async function getSession(): Promise<SessionUser | null> {
     const { payload } = await jwtVerify(token, secret);
     const user = await prisma.user.findUnique({ where: { id: String(payload.uid) } });
     if (!user || !user.active) return null;
+
+    // Пароль сменили — все выданные до этого сессии больше не действуют.
+    if (user.passwordChangedAt && payload.iat) {
+      if (payload.iat * 1000 < user.passwordChangedAt.getTime()) return null;
+    }
     return {
       id: user.id,
       email: user.email,

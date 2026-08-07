@@ -9,19 +9,21 @@ datasource db {
 
 // Роли: OWNER (владелец), TARGETOLOG, ACCOUNT (аккаунт-менеджер), CONTRACTOR (программист/монтажёр)
 model User {
-  id           String   @id @default(cuid())
-  email        String   @unique
-  passwordHash String
-  name         String
-  role         String
-  rate         Float? // % от чека (таргетолог/программист) или фикс-ставка
-  rateType     String   @default("PERCENT") // PERCENT | FIXED
-  projectLimit Int      @default(5)
-  active       Boolean  @default(true)
-  phone        String?
-  tgChatId     String? // привязанный чат Telegram
-  tgLinkCode   String?  @unique // одноразовый код привязки
-  createdAt    DateTime @default(now())
+  id                String    @id @default(cuid())
+  email             String    @unique
+  passwordHash      String
+  name              String
+  role              String
+  rate              Float? // % от чека (таргетолог/программист) или фикс-ставка
+  rateType          String    @default("PERCENT") // PERCENT | FIXED
+  projectLimit      Int       @default(5)
+  active            Boolean   @default(true)
+  phone             String?
+  tgChatId          String? // привязанный чат Telegram
+  tgLinkCode        String?   @unique // одноразовый код привязки
+  createdAt         DateTime  @default(now())
+  /// Момент смены пароля: выданные раньше сессии становятся недействительными.
+  passwordChangedAt DateTime?
 
   clientsAsTargetolog Client[]          @relation("targetolog")
   clientsAsAccount    Client[]          @relation("account")
