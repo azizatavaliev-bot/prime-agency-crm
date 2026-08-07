@@ -9,6 +9,7 @@ import { PageHeader, Table, Badge } from "@/components/ui";
 import FormModal from "@/components/FormModal";
 import { TeamModal } from "@/components/details";
 import UserForm from "@/components/UserForm";
+import ShareAccess from "@/components/ShareAccess";
 
 export const dynamic = "force-dynamic";
 
@@ -38,6 +39,8 @@ export default async function TeamPage() {
   });
   const paidOutMap = Object.fromEntries(paidOut.map((p) => [p.userId, p._sum.amount ?? 0]));
   const activeStatuses = ["TEST", "ACTIVE", "RISK"];
+  // Адрес системы попадает в сообщение сотруднику
+  const appUrl = process.env.APP_URL || "http://localhost:5210";
 
   return (
     <div>
@@ -57,7 +60,7 @@ export default async function TeamPage() {
       />
 
       <Table
-        head={["Сотрудник", "Роль", "Ставка", "Загрузка", "Задачи", "Начислено", "Выплачено", ""]}
+        head={["Сотрудник", "Роль", "Ставка", "Загрузка", "Задачи", "Начислено", "Выплачено", "Доступ", ""]}
       >
         {users.map((u) => {
           const projects = u.role === "ACCOUNT" ? u.clientsAsAccount : u.clientsAsTargetolog;
@@ -113,6 +116,15 @@ export default async function TeamPage() {
                   <td className="td font-medium">{som(payoutMap[u.id] ?? 0)}</td>
                   <td className={`td ${(paidOutMap[u.id] ?? 0) > 0 ? "text-emerald-600" : "text-muted"}`}>
                     {som(paidOutMap[u.id] ?? 0)}
+                  </td>
+                  <td className="td">
+                    <ShareAccess
+                      userId={u.id}
+                      name={u.name}
+                      email={u.email}
+                      roleLabel={ROLES[u.role as keyof typeof ROLES]}
+                      appUrl={appUrl}
+                    />
                   </td>
                   <td className="td">
                     {(payoutMap[u.id] ?? 0) - (paidOutMap[u.id] ?? 0) > 0 && (

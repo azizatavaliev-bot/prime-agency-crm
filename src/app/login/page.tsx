@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { Crown, Target, Headset, Code2, Zap, Calculator, ArrowRight } from "lucide-react";
 import { getSession, login, demoLoginEnabled } from "@/lib/auth";
+import LoginForm from "@/components/LoginForm";
 
 const DEMO: { email: string; label: string; hint: string; icon: typeof Crown; wide?: boolean }[] = [
   { email: "owner@prime.kg", label: "Владелец", hint: "всё: финансы, прибыль, команда", icon: Crown, wide: true },
@@ -43,7 +44,7 @@ export default async function LoginPage({
   }
 
   return (
-    <div className="login-bg flex min-h-screen items-center justify-center p-4">
+    <div className="login-bg flex min-h-screen items-center justify-center p-4 max-sm:items-start max-sm:pt-12">
       <div className="card w-full max-w-[420px] p-6 shadow-lg">
         <div className="flex items-center gap-2.5">
           <span className="accent-gradient flex h-10 w-10 items-center justify-center rounded-xl text-white">
@@ -55,24 +56,7 @@ export default async function LoginPage({
           </div>
         </div>
 
-        <form action={action} className="mt-6 space-y-4">
-          <div>
-            <label className="label">Email</label>
-            <input className="input" name="email" type="email" required autoComplete="email" />
-          </div>
-          <div>
-            <label className="label">Пароль</label>
-            <input
-              className="input"
-              name="password"
-              type="password"
-              required
-              autoComplete="current-password"
-            />
-          </div>
-          {sp.error && <div className="text-sm text-red-600">Неверный email или пароль</div>}
-          <button className="btn-primary w-full">Войти</button>
-        </form>
+        <LoginForm action={action} error={Boolean(sp.error)} />
 
         {demoMode && (
           <div className="mt-6 border-t border-zinc-200 pt-5">

@@ -1280,3 +1280,34 @@ export async function deleteClientLink(fd: FormData) {
   await prisma.clientLink.delete({ where: { id } });
   revalidatePath(`/clients/${link.clientId}`);
 }
+
+/**
+ * Сгенерировать сотруднику новый пароль и вернуть его один раз.
+ * В базе лежит только хеш, поэтому показать пароль повторно нельзя —
+ * владелец копирует его сразу и передаёт человеку.
+ */
+export async function resetUserPassword(fd: FormData): Promise<string> {
+  const user = await requireUser();
+  if (user.role !== "OWNER") redirect("/no-access");
+
+  const id = req(fd, "id");
+  const target = await prisma.user.findUnique({ where: { id } });
+  if (!target) redirect("/no-access");
+
+  // Без похожих символов: 0/O и 1/l/I путают, когда пароль передают голосом.
+  const abc = "abcdefghijkmnpqrstuvwxyzACDEFGHJKLMNPQRSTUVWXYZ23456789";
+  const bytes = new Uint32Array(12);
+  crypto.getRandomValues(bytes);
+  const password = Array.from(bytes, (b) => abc[b % abc.length]).join("");
+
+  await prisma.user.update({
+    where: { id },
+    data: {
+      passwordHash: await hashPassword(password),
+      // Старые сессии этого сотрудника гасим: пароль сменился.
+      passwordChangedAt: new Date(),
+    },
+  });
+  revalidatePath("/team");
+  return password;
+}
