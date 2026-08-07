@@ -10,22 +10,23 @@ import type { Role } from "./constants";
  * Ключ подписи сессий. На проде обязателен: с общеизвестным запасным
  * значением любой смог бы подделать токен и войти владельцем.
  */
-function sessionSecret() {
+/**
+ * Настоящий ли ключ подписи. На проде обязателен: с общеизвестным запасным
+ * значением любой смог бы подделать токен и войти владельцем.
+ *
+ * Проверяем здесь, а не при загрузке модуля: при сборке переменных окружения
+ * ещё нет, и страницы просто не собирались бы.
+ */
+function secretConfigured(): boolean {
   const s = process.env.JWT_SECRET;
-  if (s && s.length >= 16) return s;
-  // Во время сборки переменных окружения ещё нет, а страницы уже собираются.
-  // Настоящая проверка нужна в рантайме, когда кто-то реально входит.
-  if (process.env.NEXT_PHASE === "phase-production-build") return "build-time-placeholder";
-  if (process.env.NODE_ENV === "production")
-    throw new Error("JWT_SECRET не задан или короче 16 символов — вход отключён");
-  return "dev-secret-local-only";
+  if (s && s.length >= 16) return true;
+  return process.env.NODE_ENV !== "production";
 }
 
-/** Ключ считаем при первом обращении: на уровне модуля он ломал сборку. */
-let cachedSecret: Uint8Array | null = null;
 function secretKey(): Uint8Array {
-  if (!cachedSecret) cachedSecret = new TextEncoder().encode(sessionSecret());
-  return cachedSecret;
+  const s = process.env.JWT_SECRET;
+  const value = s && s.length >= 16 ? s : "dev-secret-local-only";
+  return new TextEncoder().encode(value);
 }
 const COOKIE = "prime_session";
 
@@ -77,6 +78,10 @@ export function demoLoginEnabled(): boolean {
 }
 
 export async function login(email: string, password: string): Promise<SessionUser | null> {
+  if (!secretConfigured()) {
+    console.error("JWT_SECRET не задан или короче 16 символов — вход отключён");
+    return null;
+  }
   const key = email.trim().toLowerCase();
   if (tooManyAttempts(key)) return null;
 
@@ -121,6 +126,7 @@ export async function login(email: string, password: string): Promise<SessionUse
  * подписью, поэтому пароль не спрашиваем.
  */
 export async function issueSession(userId: string): Promise<SessionUser | null> {
+  if (!secretConfigured()) return null;
   const user = await prisma.user.findUnique({ where: { id: userId } });
   if (!user || !user.active) return null;
 
@@ -156,7 +162,7 @@ export async function logout() {
 export async function getSession(): Promise<SessionUser | null> {
   const jar = await cookies();
   const token = jar.get(COOKIE)?.value;
-  if (!token) return null;
+  if (!token || !secretConfigured()) return null;
   try {
     const { payload } = await jwtVerify(token, secretKey());
     const user = await prisma.user.findUnique({ where: { id: String(payload.uid) } });
