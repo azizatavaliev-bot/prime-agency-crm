@@ -13,12 +13,20 @@ import type { Role } from "./constants";
 function sessionSecret() {
   const s = process.env.JWT_SECRET;
   if (s && s.length >= 16) return s;
+  // Во время сборки переменных окружения ещё нет, а страницы уже собираются.
+  // Настоящая проверка нужна в рантайме, когда кто-то реально входит.
+  if (process.env.NEXT_PHASE === "phase-production-build") return "build-time-placeholder";
   if (process.env.NODE_ENV === "production")
     throw new Error("JWT_SECRET не задан или короче 16 символов — вход отключён");
   return "dev-secret-local-only";
 }
 
-const secret = new TextEncoder().encode(sessionSecret());
+/** Ключ считаем при первом обращении: на уровне модуля он ломал сборку. */
+let cachedSecret: Uint8Array | null = null;
+function secretKey(): Uint8Array {
+  if (!cachedSecret) cachedSecret = new TextEncoder().encode(sessionSecret());
+  return cachedSecret;
+}
 const COOKIE = "prime_session";
 
 /**
@@ -87,7 +95,7 @@ export async function login(email: string, password: string): Promise<SessionUse
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setExpirationTime("30d")
-    .sign(secret);
+    .sign(secretKey());
 
   const jar = await cookies();
   jar.set(COOKIE, token, {
@@ -120,7 +128,7 @@ export async function issueSession(userId: string): Promise<SessionUser | null> 
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setExpirationTime("30d")
-    .sign(secret);
+    .sign(secretKey());
 
   const jar = await cookies();
   jar.set(COOKIE, token, {
@@ -150,7 +158,7 @@ export async function getSession(): Promise<SessionUser | null> {
   const token = jar.get(COOKIE)?.value;
   if (!token) return null;
   try {
-    const { payload } = await jwtVerify(token, secret);
+    const { payload } = await jwtVerify(token, secretKey());
     const user = await prisma.user.findUnique({ where: { id: String(payload.uid) } });
     if (!user || !user.active) return null;
 
