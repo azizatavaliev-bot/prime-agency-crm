@@ -44,6 +44,12 @@ export function mainMenu(user: User): TgButton[][] {
     { text: "🗂 Мои задачи", data: "tasks" },
     { text: "👤 Кто я", data: "me" },
   ]);
+  // Кнопка открытия мини-приложения: Telegram принимает только https,
+  // на локальном адресе её просто не показываем.
+  const appUrl = process.env.APP_URL;
+  if (appUrl?.startsWith("https://"))
+    rows.unshift([{ text: "📱 Открыть систему", url: appUrl }]);
+
   return rows;
 }
 

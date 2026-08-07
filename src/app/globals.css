@@ -434,3 +434,63 @@ body {
     radial-gradient(50rem 35rem at 110% 110%, color-mix(in oklab, var(--accent-2) 12%, transparent), transparent),
     var(--bg);
 }
+
+/* ---------- Telegram Mini App и телефоны ---------- */
+
+/* Внутри Telegram шапка приложения не нужна — сверху уже шапка мессенджера */
+.tg-app .lg\:hidden.sticky.top-0 { display: none; }
+
+/* Учитываем «чёлку» и нижнюю панель жестов */
+.tg-app body,
+.tg-app .bottom-nav {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+@media (max-width: 640px) {
+  /* Плитки показателей по две в ряд: по четыре на телефоне нечитаемо */
+  .grid.lg\:grid-cols-4 > *,
+  .grid.lg\:grid-cols-5 > * { min-width: 0; }
+
+  /* Крупные суммы не должны ломать сетку */
+  .text-2xl, .text-3xl { font-size: 1.35rem; line-height: 1.75rem; }
+  .text-4xl { font-size: 1.75rem; line-height: 2rem; }
+
+  /* Таблицы прокручиваются по горизонтали, а не растягивают страницу */
+  table { font-size: 13px; }
+  .td, .th { padding-left: .6rem; padding-right: .6rem; }
+
+  /* Модалка занимает почти весь экран — так удобнее заполнять формы */
+  .surface { max-height: 94vh; }
+
+  /* Поля не меньше 16px, иначе iOS приближает экран при фокусе */
+  input, textarea, select, .input { font-size: 16px; }
+
+  /* Кнопки в шапке разделов переносятся, а не сжимаются в точку */
+  .btn-primary, .btn-ghost { padding-left: .75rem; padding-right: .75rem; }
+}
+
+/* Горизонтальные ленты вкладок листаются пальцем без полосы прокрутки */
+@media (max-width: 1023px) {
+  .scroll-hint::-webkit-scrollbar { height: 0; }
+  .scroll-hint { -webkit-overflow-scrolling: touch; }
+}
+
+/* Сумма не должна разрываться между числом и «сом» — читается как две строки */
+.stat-value,
+.card .text-2xl,
+.card .text-3xl,
+.card .text-xl {
+  white-space: nowrap;
+}
+
+@media (max-width: 640px) {
+  /* На узком экране лучше уменьшить сумму, чем перенести её на две строки */
+  .card .text-2xl { font-size: 1.05rem; line-height: 1.5rem; }
+  .card .text-3xl { font-size: 1.2rem; line-height: 1.6rem; }
+
+  /* Иконка уезжает наверх: рядом с суммой она съедала половину карточки */
+  .card .flex.items-start.gap-3 { flex-direction: column; gap: .5rem; }
+  .stat-icon { height: 1.9rem; width: 1.9rem; }
+  /* Подписи в нижнем меню — одной строкой */
+  .bottom-nav-item span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+}

@@ -9,6 +9,13 @@ import { NAV_ICONS, type NavItem } from "./Nav";
  * Нижняя панель вкладок для телефона — как в Unity: четыре главных раздела
  * под большим пальцем плюс «Ещё» для остальных. На десктопе скрыта.
  */
+/** На узкой полосе внизу длинные названия не помещаются. */
+const SHORT: Record<string, string> = {
+  "Финансы и счета": "Финансы",
+  "Отчёты по таргету": "Отчёты",
+  "Уведомления": "Уведомл.",
+};
+
 export default function BottomNav({
   items,
   unread,
@@ -37,7 +44,7 @@ export default function BottomNav({
                 </span>
               )}
             </span>
-            <span className="bottom-nav-label">{i.label}</span>
+            <span className="bottom-nav-label">{SHORT[i.label] ?? i.label}</span>
           </Link>
         );
       })}

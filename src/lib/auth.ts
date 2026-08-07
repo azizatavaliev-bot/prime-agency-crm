@@ -107,6 +107,39 @@ export async function login(email: string, password: string): Promise<SessionUse
   };
 }
 
+/**
+ * Выдать сессию по id пользователя — без пароля.
+ * Нужно для входа из Telegram: личность там подтверждает сам Telegram
+ * подписью, поэтому пароль не спрашиваем.
+ */
+export async function issueSession(userId: string): Promise<SessionUser | null> {
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+  if (!user || !user.active) return null;
+
+  const token = await new SignJWT({ uid: user.id })
+    .setProtectedHeader({ alg: "HS256" })
+    .setIssuedAt()
+    .setExpirationTime("30d")
+    .sign(secret);
+
+  const jar = await cookies();
+  jar.set(COOKIE, token, {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    path: "/",
+    maxAge: 60 * 60 * 24 * 30,
+  });
+
+  return {
+    id: user.id,
+    email: user.email,
+    name: user.name,
+    role: user.role as Role,
+    projectLimit: user.projectLimit,
+  };
+}
+
 export async function logout() {
   const jar = await cookies();
   jar.delete(COOKIE);
