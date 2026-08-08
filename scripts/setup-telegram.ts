@@ -39,6 +39,20 @@ async function main() {
     menu_button: { type: "web_app", text: "Открыть систему", web_app: { url: appUrl } },
   });
 
+  // Команды в меню Telegram: без них о них никак не узнать.
+  await call("setMyCommands", {
+    commands: [
+      { command: "start", description: "Открыть систему" },
+      { command: "menu", description: "Главное меню" },
+      { command: "tasks", description: "Мои задачи" },
+      { command: "report", description: "Отчёт за месяц" },
+      { command: "balance", description: "Остатки на счетах" },
+      { command: "debts", description: "Кто не оплатил" },
+      { command: "schedule", description: "Кто когда платит" },
+      { command: "help", description: "Что умеет бот" },
+    ],
+  });
+
   await call("setWebhook", {
     url: `${appUrl}/api/telegram`,
     ...(secret ? { secret_token: secret } : {}),

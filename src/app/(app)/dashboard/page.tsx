@@ -17,10 +17,11 @@ import {
 } from "lucide-react";
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { isOverdue, startOfToday } from "@/lib/tasks";
 import { dict } from "@/lib/dict";
 import { clientScope, taskScope } from "@/lib/access";
 import { getShares, reportMetrics } from "@/lib/finance";
-import { runReminders } from "@/lib/reminders";
+import { runRemindersIfDue } from "@/lib/reminders";
 import { som, monthKey, monthLabel, dateRu, daysUntil, num } from "@/lib/format";
 import { stagesFor } from "@/lib/constants";
 import { PageHeader, Stat, Table, Section, MiniStat } from "@/components/ui";
@@ -71,7 +72,7 @@ export default async function DashboardPage() {
     const leads = monthReports.reduce((s, r) => s + r.leads, 0);
     const spent = monthReports.reduce((s, r) => s + r.spent, 0);
     const inTarget = monthReports.filter((r) => reportMetrics(r).inTarget === true).length;
-    const overdue = tasks.filter((t) => t.dueAt && t.dueAt < new Date()).length;
+    const overdue = tasks.filter((t) => isOverdue(t.dueAt, t.done)).length;
     const needReport = clients.filter((c) => {
       if (!["TEST", "ACTIVE", "RISK"].includes(c.status)) return false;
       const last = c.reports[0];
@@ -192,7 +193,7 @@ export default async function DashboardPage() {
   }
 
   /* ---------- дашборд владельца ---------- */
-  await runReminders();
+  await runRemindersIfDue();
   const shares = await getShares();
 
   const [clients, payments, targetologs, reports, goals] = await Promise.all([
@@ -252,7 +253,7 @@ export default async function DashboardPage() {
       const cpl = cplOf(last);
       const prevCpl = cplOf(prev);
       const cTasks = allTasks.filter((t: { clientId: string | null; done: boolean; dueAt: Date | null }) => t.clientId === c.id && !t.done);
-      const overdue = cTasks.filter((t: { dueAt: Date | null }) => t.dueAt && t.dueAt < today).length;
+      const overdue = cTasks.filter((t: { dueAt: Date | null }) => isOverdue(t.dueAt)).length;
       const debt = cPays.filter((p) => p.status !== "PAID").reduce((s, p) => s + p.amount, 0);
 
       const risks: string[] = [];
@@ -327,7 +328,7 @@ export default async function DashboardPage() {
 
   const [openTasksCount, overdueTasks] = await Promise.all([
     prisma.task.count({ where: { done: false } }),
-    prisma.task.count({ where: { done: false, dueAt: { lt: new Date() } } }),
+    prisma.task.count({ where: { done: false, dueAt: { lt: startOfToday() } } }),
   ]);
 
   const upcoming = payments

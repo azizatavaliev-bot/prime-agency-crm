@@ -19,7 +19,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   if (user.role === "OWNER" || user.role === "ACCOUNTANT")
     items.push({ href: "/finance", label: "Финансы и счета", icon: "finance" });
   else if (user.role === "ACCOUNT")
-    items.push({ href: "/payments", label: "Оплаты", icon: "payments" });
+    items.push({ href: "/finance?tab=payments", label: "Оплаты", icon: "payments" });
   // Отчёты по таргету и реклама агентства — один раздел с вкладками.
   if (user.role !== "CONTRACTOR")
     items.push({ href: "/marketing", label: "Маркетинг", icon: "marketing" });

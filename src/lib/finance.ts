@@ -52,10 +52,29 @@ export async function getShares(): Promise<Shares> {
   };
 }
 
-/** Разбивка суммы: доля исполнителя, резерв, чистая прибыль владельца. */
-export function split(kind: string, amount: number, s: Shares) {
-  const execRate = kind === "SUBSCRIPTION" ? s.targetologShare : s.devShare;
-  const execShare = Math.round(amount * execRate);
+/**
+ * Разбивка платежа: доля исполнителя, резерв, остаток владельцу.
+ *
+ * Если на проекте задана индивидуальная ставка участника, она важнее
+ * общих настроек агентства — иначе выставленный подрядчику процент
+ * оставался бы просто надписью в карточке.
+ */
+export function split(
+  kind: string,
+  amount: number,
+  s: Shares,
+  member?: { rateType: string; rate: number } | null
+) {
+  let execShare: number;
+  if (member && member.rate > 0) {
+    execShare =
+      member.rateType === "FIXED"
+        ? Math.min(Math.round(member.rate), amount) // фикс не может превышать сам платёж
+        : Math.round((amount * member.rate) / 100);
+  } else {
+    const execRate = kind === "SUBSCRIPTION" ? s.targetologShare : s.devShare;
+    execShare = Math.round(amount * execRate);
+  }
   const reserve = Math.round(amount * s.reserveShare);
   const ownerNet = amount - execShare - reserve;
   return { execShare, reserve, ownerNet };

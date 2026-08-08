@@ -21,6 +21,7 @@ export type TaskCardData = {
   checklistDone: number;
   checklistTotal: number;
   commentCount: number;
+  startedAt: string | null;
   badge: { text: string; tone: string; emoji: string };
 };
 
@@ -128,6 +129,9 @@ export default function TaskCard({
             </span>
           )}
           {task.recurrence && <Repeat size={11} />}
+          {task.startedAt && !task.done && (
+            <span className="rounded bg-amber-100 px-1 text-[10px] text-amber-700">в работе</span>
+          )}
         </div>
         <span className={`flex shrink-0 items-center gap-1 ${TONE[task.badge.tone] ?? ""}`}>
           <CalendarDays size={12} /> {task.badge.text}

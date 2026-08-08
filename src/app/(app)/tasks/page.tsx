@@ -7,7 +7,7 @@ import { saveTask } from "@/lib/actions";
 import { BOARDS } from "@/lib/constants";
 import { dict, stagesOf } from "@/lib/dict";
 import { dateRu, daysUntil } from "@/lib/format";
-import { deadlineBadge, sortTasks } from "@/lib/tasks";
+import { deadlineBadge, sortTasks, isOverdue } from "@/lib/tasks";
 import { PageHeader, Stat } from "@/components/ui";
 import FormModal from "@/components/FormModal";
 import TaskForm from "@/components/TaskForm";
@@ -98,6 +98,7 @@ export default async function TasksPage({
     checklistDone: t.checklist.filter((i) => i.done).length,
     checklistTotal: t.checklist.length,
     commentCount: t.comments.length,
+    startedAt: t.startedAt ? t.startedAt.toISOString() : null,
     badge: deadlineBadge(t.dueAt, t.done),
   }));
 
@@ -136,7 +137,7 @@ export default async function TasksPage({
   }
 
   const active = sorted.filter((t) => !t.done);
-  const overdue = active.filter((t) => t.dueAt && daysUntil(t.dueAt)! < 0);
+  const overdue = active.filter((t) => isOverdue(t.dueAt, t.done));
   const todayList = active.filter((t) => t.dueAt && daysUntil(t.dueAt) === 0);
   const groups = {
     overdue: overdue.map((t) => t.id),

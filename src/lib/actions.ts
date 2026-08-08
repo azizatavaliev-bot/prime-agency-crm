@@ -117,7 +117,18 @@ export async function savePayment(fd: FormData) {
   const status = req(fd, "status") || "PENDING";
   const dueAt = date(fd, "dueAt") ?? new Date();
   const paidAt = status === "PAID" ? date(fd, "paidAt") ?? new Date() : null;
-  const s = split(kind, amount, shares);
+
+  // Исполнитель по этому платежу: для абонплаты — таргетолог проекта,
+  // для разовых услуг — тот, кого выбрали в форме.
+  const execUserId = kind === "SUBSCRIPTION" ? client.targetologId : str(fd, "execUserId");
+  // Индивидуальная ставка на проекте важнее общих настроек агентства.
+  const member = execUserId
+    ? await prisma.clientMember.findFirst({
+        where: { clientId, userId: execUserId },
+        select: { rateType: true, rate: true },
+      })
+    : null;
+  const s = split(kind, amount, shares, member);
 
   const id = str(fd, "id");
   const data = {
@@ -130,7 +141,7 @@ export async function savePayment(fd: FormData) {
     paidAt,
     periodMonth: monthKey(paidAt ?? dueAt),
     comment: str(fd, "comment"),
-    execUserId: kind === "SUBSCRIPTION" ? client.targetologId : str(fd, "execUserId"),
+    execUserId,
     accountId: str(fd, "accountId"),
     ...s,
   };
@@ -389,7 +400,18 @@ export async function moveTask(fd: FormData) {
   const id = req(fd, "id");
   const t = await prisma.task.findFirst({ where: { AND: [{ id }, taskScope(user)] } });
   if (!t) redirect("/no-access");
-  await prisma.task.update({ where: { id }, data: { stage: req(fd, "stage") } });
+  const stage = req(fd, "stage");
+  // Карточка встаёт в конец новой колонки, а не прыгает на случайное место
+  // после перезагрузки: раньше поле order вообще не заполнялось.
+  const last = await prisma.task.findFirst({
+    where: { board: t.board, stage, archivedAt: null },
+    orderBy: { order: "desc" },
+    select: { order: true },
+  });
+  await prisma.task.update({
+    where: { id },
+    data: { stage, order: (last?.order ?? 0) + 1 },
+  });
   revalidatePath("/tasks");
 }
 
@@ -914,7 +936,13 @@ export async function generateDuePayments() {
 
     const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
     const dueAt = new Date(now.getFullYear(), now.getMonth(), Math.min(c.paymentDay!, lastDay));
-    const s = split("SUBSCRIPTION", c.avgCheck, shares);
+    const member = c.targetologId
+      ? await prisma.clientMember.findFirst({
+          where: { clientId: c.id, userId: c.targetologId },
+          select: { rateType: true, rate: true },
+        })
+      : null;
+    const s = split("SUBSCRIPTION", c.avgCheck, shares, member);
     await prisma.payment.create({
       data: {
         clientId: c.id,

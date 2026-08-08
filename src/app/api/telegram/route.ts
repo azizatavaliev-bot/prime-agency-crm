@@ -90,7 +90,31 @@ export async function POST(req: Request) {
   }
 
   /* ---------- команды ---------- */
-  if (/^\/(menu|help)/i.test(text)) {
+  if (/^\/help/i.test(text)) {
+    // Раньше /help открывал то же меню — про сами команды узнать было неоткуда.
+    const money = user.role === "OWNER" || user.role === "ACCOUNTANT";
+    const lines = [
+      "<b>Что умеет бот</b>",
+      "",
+      "/menu — главное меню кнопками",
+      "/tasks — мои задачи, закрываются прямо в чате",
+      "/me — кто я в системе",
+    ];
+    if (money)
+      lines.push(
+        "/report — отчёт за месяц",
+        "/balance — остатки на счетах",
+        "/debts — кто не оплатил",
+        "/schedule — кто когда платит",
+        "/pay — отметить оплату",
+        "/expense — записать расход",
+        "/income — записать приход"
+      );
+    lines.push("", "/stop — отвязать этот чат от аккаунта");
+    await sendTg(chatId, lines.join("\n"), undefined, mainMenu(user));
+    return NextResponse.json({ ok: true });
+  }
+  if (/^\/menu/i.test(text)) {
     await sendTg(chatId, greeting(user), undefined, mainMenu(user));
     return NextResponse.json({ ok: true });
   }

@@ -5,7 +5,41 @@ import { reportMetrics, getNotify } from "./finance";
 import { generateDuePayments } from "./actions";
 import { daysToContractEnd } from "./payday";
 import { som, dateRu } from "./format";
-import { deadlineBadge } from "./tasks";
+import { deadlineBadge, isOverdue } from "./tasks";
+
+/**
+ * Прогон напоминаний «по заходу»: внешнего крона может не быть, поэтому
+ * запускаем при обращении к системе, но не чаще раза в час — иначе каждый
+ * переход по страницам дёргал бы всю базу.
+ */
+export async function runRemindersIfDue(): Promise<boolean> {
+  const KEY = "lastRemindersRun";
+  const row = await prisma.setting.findUnique({ where: { key: KEY } });
+  const last = row ? Number(row.value) : 0;
+  const hour = 60 * 60 * 1000;
+  if (Date.now() - last < hour) return false;
+
+  // Отметку ставим до прогона: два одновременных захода не должны
+  // запустить рассылку дважды.
+  await prisma.setting.upsert({
+    where: { key: KEY },
+    create: { key: KEY, value: String(Date.now()) },
+    update: { value: String(Date.now()) },
+  });
+
+  await runReminders();
+
+  // Утренний дайджест — раз в день, не раньше 8 утра по Бишкеку.
+  const hourBishkek = Number(
+    new Intl.DateTimeFormat("en-US", {
+      timeZone: "Asia/Bishkek",
+      hour12: false,
+      hour: "numeric",
+    }).format(new Date())
+  );
+  if (hourBishkek >= 8) await runTaskDigest();
+  return true;
+}
 
 /** Уже отправляли такое уведомление? Защита от дублей по техническому ключу. */
 const alreadySent = async (dedupeKey: string) =>
@@ -192,7 +226,7 @@ export async function runTaskDigest() {
     });
     if (!tasks.length) continue;
 
-    const overdue = tasks.filter((t) => t.dueAt && t.dueAt < today);
+    const overdue = tasks.filter((t) => isOverdue(t.dueAt, t.done));
     const dueToday = tasks.filter((t) => t.dueAt && t.dueAt >= today && t.dueAt <= endOfToday);
 
     const lines = [`☀️ <b>Доброе утро, ${escapeHtml(u.name)}!</b>`, ``];

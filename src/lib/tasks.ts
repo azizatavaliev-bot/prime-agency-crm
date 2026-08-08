@@ -22,6 +22,23 @@ const PRIORITY_EMOJI: Record<string, string> = {
   LOW: "⬇️",
 };
 
+/**
+ * Просрочена ли задача. Просрочка начинается со следующего дня после дедлайна:
+ * задача «на сегодня» в течение дня ещё в срок, а не с первой же минуты.
+ */
+export function isOverdue(dueAt: Date | null | undefined, done = false): boolean {
+  if (!dueAt || done) return false;
+  const now = new Date();
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  return dueAt < startOfToday;
+}
+
+/** Начало сегодняшнего дня — граница для запросов «просрочено». */
+export function startOfToday(): Date {
+  const n = new Date();
+  return new Date(n.getFullYear(), n.getMonth(), n.getDate());
+}
+
 /** Бейдж срока — одна функция на доску, список, календарь и бота. */
 export function deadlineBadge(dueAt: Date | null, done: boolean) {
   if (done) return { text: "выполнена", tone: "good" as const, emoji: "✅" };
@@ -34,9 +51,14 @@ export function deadlineBadge(dueAt: Date | null, done: boolean) {
 }
 
 /** Сортировка: сначала срочные, внутри — по сроку, просроченные выше. */
-export function sortTasks<T extends { priority: string; dueAt: Date | null; done: boolean }>(list: T[]) {
+export function sortTasks<T extends { priority: string; dueAt: Date | null; done: boolean; order?: number }>(
+  list: T[]
+) {
   return [...list].sort((a, b) => {
     if (a.done !== b.done) return a.done ? 1 : -1;
+    // Ручной порядок задан перетаскиванием — уважаем его.
+    if (a.order !== undefined && b.order !== undefined && a.order !== b.order)
+      return a.order - b.order;
     const p = (PRIORITY_ORDER[a.priority] ?? 2) - (PRIORITY_ORDER[b.priority] ?? 2);
     if (p !== 0) return p;
     if (!a.dueAt && !b.dueAt) return 0;

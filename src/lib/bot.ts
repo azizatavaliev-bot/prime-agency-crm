@@ -6,7 +6,7 @@ import { accountBalances, cashflow } from "./accounts";
 import { getShares, split } from "./finance";
 import { dict, labelOf } from "./dict";
 import { daysToPayment } from "./payday";
-import { deadlineBadge, closeOrReopenTask } from "./tasks";
+import { deadlineBadge, closeOrReopenTask, startOfToday } from "./tasks";
 import type { User } from "@prisma/client";
 
 /* ------------------------------------------------------------------ */
@@ -251,7 +251,7 @@ export async function tasksScreen(user: User, filter: "active" | "today" | "over
     done: false,
     archivedAt: null,
     ...(filter === "today" ? { dueAt: { lte: endOfToday } } : {}),
-    ...(filter === "overdue" ? { dueAt: { lt: new Date(now.toDateString()) } } : {}),
+    ...(filter === "overdue" ? { dueAt: { lt: startOfToday() } } : {}),
   };
 
   const tasks = await prisma.task.findMany({
