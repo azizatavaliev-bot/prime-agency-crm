@@ -494,3 +494,10 @@ body {
   /* Подписи в нижнем меню — одной строкой */
   .bottom-nav-item span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
 }
+
+/* Левая половина экрана входа */
+.login-side {
+  background:
+    radial-gradient(30rem 20rem at 20% 10%, rgba(255, 255, 255, .18), transparent),
+    linear-gradient(140deg, var(--accent), var(--accent-2));
+}

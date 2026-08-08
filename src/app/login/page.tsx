@@ -1,5 +1,16 @@
 import { redirect } from "next/navigation";
-import { Crown, Target, Headset, Code2, Zap, Calculator, ArrowRight } from "lucide-react";
+import {
+  Crown,
+  Target,
+  Headset,
+  Code2,
+  Zap,
+  Calculator,
+  Users,
+  Wallet,
+  KanbanSquare,
+  BarChart3,
+} from "lucide-react";
 import { getSession, login, demoLoginEnabled } from "@/lib/auth";
 import LoginForm from "@/components/LoginForm";
 
@@ -11,6 +22,14 @@ const DEMO: { email: string; label: string; hint: string; icon: typeof Crown; wi
   { email: "dev@prime.kg", label: "Подрядчик", hint: "только свои задачи", icon: Code2 },
 ];
 const DEMO_PASSWORD = "prime2026";
+
+/** Что человек увидит внутри — короткий рассказ на экране входа. */
+const FEATURES = [
+  { icon: Users, title: "Клиенты и проекты", text: "договоры, дни оплат, рост в цифрах" },
+  { icon: Wallet, title: "Финансы", text: "оплаты, расходы, счета и прибыль" },
+  { icon: KanbanSquare, title: "Задачи", text: "доски, чеклисты, напоминания" },
+  { icon: BarChart3, title: "Реклама", text: "цена заявки по каждому проекту" },
+];
 
 export default async function LoginPage({
   searchParams,
@@ -44,17 +63,64 @@ export default async function LoginPage({
   }
 
   return (
-    <div className="login-bg flex min-h-screen items-center justify-center p-4 max-sm:items-start max-sm:pt-12">
-      <div className="card w-full max-w-[420px] p-6 shadow-lg">
-        <div className="flex items-center gap-2.5">
-          <span className="accent-gradient flex h-10 w-10 items-center justify-center rounded-xl text-white">
-            <Zap size={20} fill="currentColor" />
-          </span>
+    <div className="login-bg flex min-h-screen items-center justify-center p-4 lg:p-8">
+      <div className="grid w-full max-w-4xl overflow-hidden rounded-3xl bg-white shadow-xl lg:grid-cols-2">
+        {/* Левая половина — только на большом экране: на телефоне она съедала бы форму */}
+        <div className="relative hidden flex-col overflow-hidden p-8 text-white lg:flex login-side">
           <div>
-            <div className="text-lg font-semibold leading-tight tracking-tight">Prime Agency</div>
-            <div className="text-xs text-muted">Система учёта агентства</div>
+            <div className="flex items-center gap-2.5">
+              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/15 backdrop-blur">
+                <Zap size={20} fill="currentColor" />
+              </span>
+              <div>
+                <div className="text-lg font-semibold leading-tight tracking-tight">Prime Agency</div>
+                <div className="text-xs text-white/70">Система учёта агентства</div>
+              </div>
+            </div>
+
+            <div className="mt-8 space-y-3.5">
+              {FEATURES.map((f) => {
+                const Icon = f.icon;
+                return (
+                  <div key={f.title} className="flex items-start gap-3">
+                    <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/15">
+                      <Icon size={15} />
+                    </span>
+                    <div>
+                      <div className="text-sm font-medium leading-tight">{f.title}</div>
+                      <div className="text-xs leading-snug text-white/70">{f.text}</div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* mt-auto прижимает подпись вниз, но не даёт ей наехать на список */}
+          <div className="mt-auto pt-8 text-xs leading-relaxed text-white/60">
+            Доступ только для сотрудников агентства.
+            <br />
+            Логин и пароль выдаёт руководитель.
           </div>
         </div>
+
+        {/* Правая половина — сама форма */}
+        <div className="p-6 sm:p-8">
+          {/* На телефоне логотип показываем здесь: левой панели там нет */}
+          <div className="mb-6 flex items-center gap-2.5 lg:hidden">
+            <span className="accent-gradient flex h-10 w-10 items-center justify-center rounded-xl text-white">
+              <Zap size={20} fill="currentColor" />
+            </span>
+            <div>
+              <div className="text-lg font-semibold leading-tight tracking-tight">Prime Agency</div>
+              <div className="text-xs text-muted">Система учёта агентства</div>
+            </div>
+          </div>
+
+          <div className="hidden lg:block">
+            <h1 className="text-xl font-semibold tracking-tight">Вход в систему</h1>
+            <p className="mt-1 text-sm text-muted">Введите данные, которые вам выдали</p>
+          </div>
 
         <LoginForm action={action} error={Boolean(sp.error)} />
 
@@ -97,6 +163,7 @@ export default async function LoginPage({
             </div>
           </div>
         )}
+        </div>
       </div>
     </div>
   );
