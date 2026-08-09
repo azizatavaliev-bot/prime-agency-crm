@@ -7,9 +7,16 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// Роли: OWNER (владелец), TARGETOLOG, ACCOUNT (аккаунт-менеджер), CONTRACTOR (программист/монтажёр)
+// Роли (строка, без enum): OWNER/SUPER_ADMIN (владелец), ADMIN, TEAM_LEAD (тимлид/аккаунт),
+// TARGETOLOG, ACCOUNTANT (бухгалтер), CONTRACTOR, DEVELOPER, EDITOR, CLIENT.
+// Переименование значений — отдельная задача (см. миграцию данных позже); здесь схема
+// не завязана на конкретный набор строк.
 model User {
   id                String    @id @default(cuid())
+  // Логин для входа — задел под вход без email (см. задачу по порталу/ролям).
+  // Пока не обязателен и не используется в auth.ts — переключение входа на login
+  // выполняется отдельной задачей вместе с переименованием ролей.
+  login             String?   @unique
   email             String    @unique
   passwordHash      String
   name              String
@@ -35,6 +42,8 @@ model User {
   marketingReports    MarketingReport[]
   taskComments        TaskComment[]
   regulations         Regulation[]      @relation("regulationOwner")
+  directionsCreated   Direction[]
+  adTransactions      AdTransaction[]
 }
 
 // Статусы: TEST | ACTIVE | RISK | PAUSED | CHURNED
@@ -69,6 +78,14 @@ model Client {
   botPrice      Float? // стоимость чат-бота
   videoPrice    Float? // стоимость монтажа
 
+  // Портал клиента: логин задаёт агентство, отдельно от таблицы User
+  portalLogin        String? @unique
+  portalPasswordHash String?
+  cardLast4          String? // последние 4 цифры карты клиента (приём оплат/расходов)
+  cardHolder         String?
+  tgChatId           String? // привязанный чат Telegram клиента (портал)
+  tgLinkCode         String? @unique
+
   payments         Payment[]
   reports          AdReport[]
   tasks            Task[]
@@ -79,21 +96,42 @@ model Client {
   marketingReports MarketingReport[]
   snapshots        ClientSnapshot[]
   links            ClientLink[]
+  directions       Direction[]
+  notifications    Notification[]
+  adTransactions   AdTransaction[]
   createdAt        DateTime          @default(now())
+}
+
+/// Направление (продуктовая линейка) внутри проекта клиента — своя отчётность по таргету.
+model Direction {
+  id          String   @id @default(cuid())
+  clientId    String
+  client      Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  name        String
+  createdById String?
+  createdBy   User?    @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  reports AdReport[]
 }
 
 /// Участник проекта с индивидуальной ставкой (процент или фикс)
 model ClientMember {
-  id        String   @id @default(cuid())
-  clientId  String
-  client    Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  role      String // TARGETOLOG | ACCOUNT | CONTRACTOR
-  rateType  String   @default("PERCENT") // PERCENT | FIXED
-  rate      Float    @default(0)
-  note      String?
-  createdAt DateTime @default(now())
+  id          String   @id @default(cuid())
+  clientId    String
+  client      Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role        String // TARGETOLOG | ACCOUNT | CONTRACTOR
+  rateType    String   @default("PERCENT") // PERCENT | FIXED — устар., оставлено для обратной совместимости
+  rate        Float    @default(0) // устар., см. ratePercent/rateFixed
+  ratePercent Float? // % от чека
+  rateFixed   Float? // фикс, сом в месяц
+  note        String?
+  cardLast4   String? // карта для приёма оплат именно по этому проекту
+  cardHolder  String?
+  createdAt   DateTime @default(now())
 
   @@unique([clientId, userId, role])
 }
@@ -115,44 +153,77 @@ model Goal {
 // kind: SUBSCRIPTION (абонплата) | SITE | BOT | VIDEO
 // status: PAID | PENDING | DEBT
 model Payment {
-  id          String    @id @default(cuid())
-  clientId    String
-  client      Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  kind        String    @default("SUBSCRIPTION")
-  amount      Float
-  status      String    @default("PENDING")
-  method      String    @default("TRANSFER") // TRANSFER | CASH | INVOICE
-  dueAt       DateTime // плановая дата оплаты
-  paidAt      DateTime?
-  periodMonth String // "2026-08" — к какому месяцу относится выручка
-  comment     String?
+  id             String    @id @default(cuid())
+  clientId       String
+  client         Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  kind           String    @default("SUBSCRIPTION")
+  amount         Float
+  status         String    @default("PENDING")
+  method         String    @default("TRANSFER") // TRANSFER | CASH | INVOICE
+  dueAt          DateTime // плановая дата оплаты
+  paidAt         DateTime?
+  periodMonth    String // "2026-08" — к какому месяцу относится выручка
+  comment        String?
   // распределение (снимок на момент расчёта)
-  execShare   Float     @default(0) // доля исполнителя (таргетолог/программист)
-  reserve     Float     @default(0) // резерв на развитие
-  ownerNet    Float     @default(0) // чистая прибыль владельца
-  execUserId  String?
-  accountId   String? // на какой счёт пришли деньги
-  account     Account?  @relation(fields: [accountId], references: [id], onDelete: SetNull)
-  createdAt   DateTime  @default(now())
+  execShare      Float     @default(0) // доля исполнителя (таргетолог/программист)
+  reserve        Float     @default(0) // резерв на развитие
+  ownerNet       Float     @default(0) // чистая прибыль владельца
+  execUserId     String?
+  accountId      String? // на какой счёт пришли деньги
+  account        Account?  @relation(fields: [accountId], references: [id], onDelete: SetNull)
+  screenshot     Bytes? // скрин подтверждения оплаты
+  screenshotMime String?
+  createdAt      DateTime  @default(now())
 }
 
 model AdReport {
-  id         String   @id @default(cuid())
-  clientId   String
-  client     Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  authorId   String?
-  author     User?    @relation(fields: [authorId], references: [id])
-  periodFrom DateTime
-  periodTo   DateTime
-  budget     Float    @default(0) // выделенный рекламный бюджет
-  spent      Float    @default(0)
-  leads      Int      @default(0)
-  actions    Int      @default(0) // целевые действия
-  targetCpl  Float // порог решения, обязательное
-  targetCpa  Float?
-  bundles    String? // статус связок
-  comment    String?
-  createdAt  DateTime @default(now())
+  id          String     @id @default(cuid())
+  clientId    String
+  client      Client     @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  directionId String?
+  direction   Direction? @relation(fields: [directionId], references: [id], onDelete: SetNull)
+  authorId    String?
+  author      User?      @relation(fields: [authorId], references: [id])
+  periodFrom  DateTime
+  periodTo    DateTime
+  budget      Float      @default(0) // выделенный рекламный бюджет
+  spent       Float      @default(0)
+  leads       Int        @default(0)
+  actions     Int        @default(0) // целевые действия
+  views       Int        @default(0) // просмотры — альтернативная метрика, когда заявки не считаем
+  targetCpl   Float // порог решения, обязательное
+  targetCpa   Float?
+  bundles     String? // статус связок
+  comment     String?
+
+  // Скриншот рекламного кабинета
+  screenshot     Bytes?
+  screenshotMime String?
+  // На какую карту пришло поступление за период: TARGETOLOG | CLIENT
+  receivedToCard String?
+
+  // Обратная связь клиента по отчёту
+  clientSales       Int?
+  clientConversion  Float?
+  clientLeadQuality Int? // 1–5
+
+  createdAt DateTime @default(now())
+}
+
+/// Финансы рекламного кабинета: разовые приходы/списания по кабинету со скрином подтверждения
+/// (отдельно от еженедельного отчёта — фиксируется каждый раз, когда кабинет что-то списал/получил).
+model AdTransaction {
+  id             String   @id @default(cuid())
+  clientId       String
+  client         Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  kind           String // INCOME (приход) | EXPENSE (списание)
+  amount         Float
+  comment        String?
+  screenshot     Bytes?
+  screenshotMime String?
+  authorId       String?
+  author         User?    @relation(fields: [authorId], references: [id], onDelete: SetNull)
+  createdAt      DateTime @default(now())
 }
 
 // board: TARGET | DEV | VIDEO
@@ -243,9 +314,11 @@ model TaskTemplateItem {
 
 model Notification {
   id        String   @id @default(cuid())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  kind      String // PAYMENT_DUE | CPL_ALERT | NEW_LEAD
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  clientId  String? // альтернатива userId — уведомление клиенту в портале
+  client    Client?  @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  kind      String // PAYMENT_DUE | CPL_ALERT | NEW_LEAD | REPORT_DUE | TASK_DUE | REPORT_READY
   title     String
   body      String?
   link      String?
