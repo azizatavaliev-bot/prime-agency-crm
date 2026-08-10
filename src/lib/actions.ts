@@ -3,11 +3,11 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "./prisma";
-import { requireUser, requireClient, hashPassword } from "./auth";
+import { requireUser, requireClient, hashPassword, impersonate as impersonateSession, stopImpersonating as stopImpersonatingSession } from "./auth";
 import { can, clientScope, taskScope } from "./access";
 import { getShares, split, reportMetrics, getUsdRate } from "./finance";
 import { monthKey } from "./format";
-import { ROLES, DEFAULTS } from "./constants";
+import { ROLES, DEFAULTS, REPORT_OBJECTIVE } from "./constants";
 import { notifyAssignee, closeOrReopenTask } from "./tasks";
 
 function str(fd: FormData, k: string) {
@@ -213,15 +213,20 @@ export async function saveReport(fd: FormData) {
   });
   if (!client) redirect("/no-access");
 
+  const objective = req(fd, "objective") || "LEADS";
   const data = {
     clientId,
     authorId: user.id,
     periodFrom: date(fd, "periodFrom") ?? new Date(),
     periodTo: date(fd, "periodTo") ?? new Date(),
+    objective: Object.keys(REPORT_OBJECTIVE).includes(objective) ? objective : "LEADS",
     budget: n(fd, "budget"),
     spent: n(fd, "spent"),
     leads: Math.round(n(fd, "leads")),
     actions: Math.round(n(fd, "actions")),
+    engagement: Math.round(n(fd, "engagement")),
+    traffic: Math.round(n(fd, "traffic")),
+    profileVisits: Math.round(n(fd, "profileVisits")),
     targetCpl: n(fd, "targetCpl"),
     targetCpa: n(fd, "targetCpa") || null,
     bundles: str(fd, "bundles"),
@@ -481,6 +486,28 @@ export async function saveUser(fd: FormData) {
     });
   }
   revalidatePath("/team");
+}
+
+/**
+ * «Войти как» — админ/супер-админ смотрит интерфейс глазами сотрудника.
+ * Право проверяется дважды: здесь (can.manageTeam) и внутри impersonate()
+ * (роль + запрет цепочки подмен), чтобы обойти проверку можно было только
+ * подделав сам JWT.
+ */
+export async function impersonateUser(fd: FormData) {
+  const user = await requireUser();
+  if (!can.manageTeam(user)) redirect("/no-access");
+  const targetUserId = req(fd, "userId");
+  const session = await impersonateSession(targetUserId);
+  if (!session) redirect("/team?error=impersonate-failed");
+  redirect("/dashboard");
+}
+
+/** Вернуться из режима просмотра «от лица сотрудника» к своей сессии админа. */
+export async function stopImpersonatingAction() {
+  const session = await stopImpersonatingSession();
+  if (!session) redirect("/login");
+  redirect("/team");
 }
 
 /* ---------------- Настройки и уведомления ---------------- */

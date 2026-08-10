@@ -1,6 +1,7 @@
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { ROLES } from "@/lib/constants";
+import { stopImpersonatingAction } from "@/lib/actions";
 import Nav, { type NavItem } from "@/components/Nav";
 import TopBar from "@/components/TopBar";
 
@@ -45,6 +46,18 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     <div className="lg:flex min-h-screen">
       <Nav items={items} user={{ name: user.name, roleLabel: ROLES[user.role] }} unread={unread} />
       <main className="min-w-0 flex-1">
+        {user.impersonating && (
+          <div className="flex flex-wrap items-center justify-between gap-2 bg-amber-500 px-4 py-2 text-sm font-medium text-white">
+            <span>
+              Вы смотрите глазами: {user.name} — вернуться к своему аккаунту ({user.impersonating.realUserName})
+            </span>
+            <form action={stopImpersonatingAction}>
+              <button className="rounded-lg bg-white/20 px-3 py-1 text-xs font-semibold hover:bg-white/30">
+                Вернуться к своему аккаунту
+              </button>
+            </form>
+          </div>
+        )}
         <TopBar
           user={{ name: user.name, roleLabel: ROLES[user.role] }}
           unread={unread}

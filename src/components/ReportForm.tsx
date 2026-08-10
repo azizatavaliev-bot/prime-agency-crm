@@ -4,6 +4,7 @@ import { useState } from "react";
 import { CalendarRange, Banknote, Target, Layers } from "lucide-react";
 import { saveReport } from "@/lib/actions";
 import { toInputDate, num } from "@/lib/format";
+import { REPORT_OBJECTIVE } from "@/lib/constants";
 import Select from "./Select";
 import DatePicker from "./DatePicker";
 import FormSection from "./FormSection";
@@ -28,6 +29,7 @@ export default function ReportForm({
   const [from, setFrom] = useState(daysAgo(7));
   const [spent, setSpent] = useState("");
   const [leads, setLeads] = useState("");
+  const [objective, setObjective] = useState<string>("LEADS");
 
   // цель по CPL обычно задана в карточке клиента — подставляем её
   const clientCpl = clients.find((c) => c.id === clientId)?.targetCpl ?? defaultTargetCpl ?? null;
@@ -87,10 +89,20 @@ export default function ReportForm({
       </FormSection>
 
       <FormSection title="Деньги и результат" hint="Из этих чисел считается цена заявки" icon={Banknote}>
+        <div className="sm:col-span-2">
+          <label className="label">Цель кампании</label>
+          <Select
+            name="objective"
+            defaultValue={objective}
+            onChange={setObjective}
+            options={Object.entries(REPORT_OBJECTIVE).map(([value, label]) => ({ value, label }))}
+          />
+        </div>
         <div>
           <label className="label">Рекламный бюджет, сом</label>
           <input className="input" name="budget" type="number" min="0" step="any" />
         </div>
+        {/* «Потрачено» — общий расход, важен при любой цели кампании */}
         <div>
           <label className="label">Потрачено, сом</label>
           <input
@@ -103,17 +115,37 @@ export default function ReportForm({
             onChange={(e) => setSpent(e.target.value)}
           />
         </div>
-        <div>
-          <label className="label">Заявок</label>
-          <input
-            className="input"
-            name="leads"
-            type="number"
-            min="0"
-            value={leads}
-            onChange={(e) => setLeads(e.target.value)}
-          />
-        </div>
+        {objective === "LEADS" && (
+          <div>
+            <label className="label">Заявок</label>
+            <input
+              className="input"
+              name="leads"
+              type="number"
+              min="0"
+              value={leads}
+              onChange={(e) => setLeads(e.target.value)}
+            />
+          </div>
+        )}
+        {objective === "ENGAGEMENT" && (
+          <div>
+            <label className="label">Вовлечённость (лайки, комментарии, сохранения)</label>
+            <input className="input" name="engagement" type="number" min="0" />
+          </div>
+        )}
+        {objective === "TRAFFIC" && (
+          <div>
+            <label className="label">Переходы по ссылке (трафик)</label>
+            <input className="input" name="traffic" type="number" min="0" />
+          </div>
+        )}
+        {objective === "PROFILE_VISITS" && (
+          <div>
+            <label className="label">Посещения профиля</label>
+            <input className="input" name="profileVisits" type="number" min="0" />
+          </div>
+        )}
         <div>
           <label className="label">Целевых действий</label>
           <input className="input" name="actions" type="number" min="0" />

@@ -1,9 +1,11 @@
-import { UserPlus, Users, HandCoins } from "lucide-react";
-import { requireOwner } from "@/lib/auth";
+import { UserPlus, Users, HandCoins, Eye } from "lucide-react";
+import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getShares } from "@/lib/finance";
-import { saveUser, payoutTeam } from "@/lib/actions";
+import { saveUser, payoutTeam, impersonateUser } from "@/lib/actions";
 import { ROLES } from "@/lib/constants";
+import { can } from "@/lib/access";
+import { redirect } from "next/navigation";
 import { som, monthKey } from "@/lib/format";
 import { PageHeader, Table, Badge } from "@/components/ui";
 import FormModal from "@/components/FormModal";
@@ -14,7 +16,12 @@ import ShareAccess from "@/components/ShareAccess";
 export const dynamic = "force-dynamic";
 
 export default async function TeamPage() {
-  await requireOwner();
+  const me = await requireUser();
+  // Раньше страница была доступна только супер-админу — но действия команды
+  // (saveUser, impersonateUser) уже разрешены и админу через can.manageTeam,
+  // так что и сама страница должна открываться ему, иначе кнопка «Войти как»
+  // была бы недостижима.
+  if (!can.manageTeam(me)) redirect("/no-access");
   const shares = await getShares();
 
   const users = await prisma.user.findMany({
@@ -118,13 +125,26 @@ export default async function TeamPage() {
                     {som(paidOutMap[u.id] ?? 0)}
                   </td>
                   <td className="td">
-                    <ShareAccess
-                      userId={u.id}
-                      name={u.name}
-                      email={u.email}
-                      roleLabel={ROLES[u.role as keyof typeof ROLES]}
-                      appUrl={appUrl}
-                    />
+                    <div className="flex items-center gap-2">
+                      <ShareAccess
+                        userId={u.id}
+                        name={u.name}
+                        email={u.email}
+                        roleLabel={ROLES[u.role as keyof typeof ROLES]}
+                        appUrl={appUrl}
+                      />
+                      {u.id !== me.id && u.active && (
+                        <form action={impersonateUser}>
+                          <input type="hidden" name="userId" value={u.id} />
+                          <button
+                            className="btn-ghost !px-3 !py-1 !text-xs"
+                            title="Смотреть интерфейс от лица этого сотрудника"
+                          >
+                            <Eye size={13} /> Войти как
+                          </button>
+                        </form>
+                      )}
+                    </div>
                   </td>
                   <td className="td">
                     {(payoutMap[u.id] ?? 0) - (paidOutMap[u.id] ?? 0) > 0 && (

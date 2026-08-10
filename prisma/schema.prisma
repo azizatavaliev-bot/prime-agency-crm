@@ -186,11 +186,17 @@ model AdReport {
   author      User?      @relation(fields: [authorId], references: [id])
   periodFrom  DateTime
   periodTo    DateTime
+  // Цель кампании (Meta/Instagram): LEADS | ENGAGEMENT | TRAFFIC | PROFILE_VISITS —
+  // определяет, какие метрики ниже показывать в форме. "Потрачено" видно всегда.
+  objective   String     @default("LEADS")
   budget      Float      @default(0) // выделенный рекламный бюджет
   spent       Float      @default(0)
   leads       Int        @default(0)
   actions     Int        @default(0) // целевые действия
   views       Int        @default(0) // просмотры — альтернативная метрика, когда заявки не считаем
+  engagement  Int        @default(0) // вовлечённость (лайки/комментарии/сохранения/реакции)
+  traffic     Int        @default(0) // переходы/клики по ссылке
+  profileVisits Int      @default(0) // посещения профиля
   targetCpl   Float // порог решения, обязательное
   targetCpa   Float?
   bundles     String? // статус связок

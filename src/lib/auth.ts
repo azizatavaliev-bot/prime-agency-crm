@@ -69,6 +69,8 @@ export type SessionUser = {
   name: string;
   role: Role;
   projectLimit: number;
+  /** Заполнено, когда текущая сессия — «просмотр от лица сотрудника». */
+  impersonating?: { realUserId: string; realUserName: string };
 };
 
 export async function hashPassword(pw: string) {
@@ -183,6 +185,16 @@ export async function getSession(): Promise<SessionUser | null> {
     if (user.passwordChangedAt && payload.iat) {
       if (payload.iat * 1000 < user.passwordChangedAt.getTime()) return null;
     }
+
+    let impersonating: SessionUser["impersonating"];
+    const realUid = payload.realUid ? String(payload.realUid) : null;
+    if (realUid) {
+      const realUser = await prisma.user.findUnique({ where: { id: realUid } });
+      if (realUser && realUser.active) {
+        impersonating = { realUserId: realUser.id, realUserName: realUser.name };
+      }
+    }
+
     return {
       id: user.id,
       login: user.login,
@@ -190,10 +202,85 @@ export async function getSession(): Promise<SessionUser | null> {
       name: user.name,
       role: user.role as Role,
       projectLimit: user.projectLimit,
+      impersonating,
     };
   } catch {
     return null;
   }
+}
+
+/**
+ * Админ смотрит интерфейс глазами сотрудника: выдаём токен на личность
+ * сотрудника, но с меткой realUid, указывающей на настоящего админа —
+ * чтобы можно было вернуться назад и чтобы вложенный вызов impersonate()
+ * не позволял «цепочку» подмен.
+ */
+export async function impersonate(targetUserId: string): Promise<SessionUser | null> {
+  if (!secretConfigured()) return null;
+  const jar = await cookies();
+  const token = jar.get(COOKIE)?.value;
+  if (!token) return null;
+
+  let payload: Record<string, unknown>;
+  try {
+    payload = (await jwtVerify(token, secretKey())).payload;
+  } catch {
+    return null;
+  }
+
+  // Уже смотрим от чужого лица — новую подмену не начинаем (без цепочек).
+  if (payload.realUid) return null;
+
+  const admin = await prisma.user.findUnique({ where: { id: String(payload.uid) } });
+  if (!admin || !admin.active) return null;
+  if (admin.role !== "SUPER_ADMIN" && admin.role !== "ADMIN") return null;
+
+  const target = await prisma.user.findUnique({ where: { id: targetUserId } });
+  if (!target || !target.active) return null;
+  if (target.id === admin.id) return null;
+
+  const newToken = await new SignJWT({ uid: target.id, realUid: admin.id })
+    .setProtectedHeader({ alg: "HS256" })
+    .setIssuedAt()
+    .setExpirationTime("30d")
+    .sign(secretKey());
+
+  jar.set(COOKIE, newToken, {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    path: "/",
+    maxAge: 60 * 60 * 24 * 30,
+  });
+
+  return {
+    id: target.id,
+    login: target.login,
+    email: target.email,
+    name: target.name,
+    role: target.role as Role,
+    projectLimit: target.projectLimit,
+    impersonating: { realUserId: admin.id, realUserName: admin.name },
+  };
+}
+
+/** Вернуться из режима «смотрю от лица сотрудника» к своей собственной сессии. */
+export async function stopImpersonating(): Promise<SessionUser | null> {
+  if (!secretConfigured()) return null;
+  const jar = await cookies();
+  const token = jar.get(COOKIE)?.value;
+  if (!token) return null;
+
+  let payload: Record<string, unknown>;
+  try {
+    payload = (await jwtVerify(token, secretKey())).payload;
+  } catch {
+    return null;
+  }
+  const realUid = payload.realUid ? String(payload.realUid) : null;
+  if (!realUid) return null;
+
+  return issueSession(realUid);
 }
 
 export async function requireUser(): Promise<SessionUser> {
