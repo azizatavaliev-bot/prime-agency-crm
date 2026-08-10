@@ -1,13 +1,3 @@
-/** Перевод долларов в сом по курсу (DEFAULTS.usdRate) — для расходов на рекламу в USD. */
-export function usdToSom(usd: number | null | undefined, rate: number): number {
-  return Math.round((usd ?? 0) * rate);
-}
-
-/** Перевод сом в доллары по курсу — для отображения ранее сохранённого расхода в USD. */
-export function somToUsd(som: number | null | undefined, rate: number): number {
-  return rate > 0 ? (som ?? 0) / rate : 0;
-}
-
 export function som(value: number | null | undefined): string {
   const v = Math.round(value ?? 0);
   return `${v.toLocaleString("ru-RU").replace(/ /g, " ")} сом`;

@@ -214,53 +214,37 @@ export async function saveReport(fd: FormData) {
   if (!client) redirect("/no-access");
 
   const objective = req(fd, "objective") || "LEADS";
-  // «Потрачено» вводится в форме в $, в базе храним в сом (так считается CPL и остальные финансы).
-  const usdRate = n(fd, "usdRate") || (await getUsdRate());
-  const spent = n(fd, "spentUsd") * usdRate;
-  // Порог решения (targetCpl) больше не спрашиваем в форме — берём из карточки клиента,
-  // чтобы алерт по CPL не сломался (поле в схеме обязательное).
-  const targetCpl = client.targetCpl ?? 0;
-
   const data = {
     clientId,
     authorId: user.id,
     periodFrom: date(fd, "periodFrom") ?? new Date(),
     periodTo: date(fd, "periodTo") ?? new Date(),
     objective: Object.keys(REPORT_OBJECTIVE).includes(objective) ? objective : "LEADS",
-    budget: 0,
-    spent,
+    budget: n(fd, "budget"),
+    spent: n(fd, "spent"),
     leads: Math.round(n(fd, "leads")),
     actions: Math.round(n(fd, "actions")),
     engagement: Math.round(n(fd, "engagement")),
     traffic: Math.round(n(fd, "traffic")),
-    profileVisits: 0,
-    targetCpl,
-    targetCpa: null as number | null,
-    bundles: null as string | null,
-    comment: null as string | null,
+    profileVisits: Math.round(n(fd, "profileVisits")),
+    targetCpl: n(fd, "targetCpl"),
+    targetCpa: n(fd, "targetCpa") || null,
+    bundles: str(fd, "bundles"),
+    comment: str(fd, "comment"),
   };
-
-  const screenshotFile = fd.get("screenshot");
-  const screenshotData: Record<string, unknown> = {};
-  if (screenshotFile instanceof File && screenshotFile.size > 0) {
-    screenshotData.screenshot = Buffer.from(await screenshotFile.arrayBuffer());
-    screenshotData.screenshotMime = screenshotFile.type || "image/png";
-  }
-
   const id = str(fd, "id");
   if (id) {
     const existing = await prisma.adReport.findFirst({
       where: { AND: [{ id }, { client: clientScope(user) }] },
     });
     if (!existing) redirect("/no-access");
-    await prisma.adReport.update({ where: { id }, data: { ...data, ...screenshotData } });
+    await prisma.adReport.update({ where: { id }, data });
   } else {
-    await prisma.adReport.create({ data: { ...data, ...screenshotData } });
+    await prisma.adReport.create({ data });
   }
 
   const m = reportMetrics(data);
-  // Без настроенного порога у клиента алерт по CPL не имеет смысла — targetCpl тогда 0.
-  if (client.targetCpl && m.inTarget === false) {
+  if (m.inTarget === false) {
     await notify([...(await owners()), client.targetologId, client.accountId], {
       kind: "CPL_ALERT",
       title: `Превышен порог CPL — ${client.name}`,

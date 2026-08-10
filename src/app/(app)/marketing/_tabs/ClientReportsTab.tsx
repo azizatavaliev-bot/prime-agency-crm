@@ -14,7 +14,7 @@ import {
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { clientScope, can } from "@/lib/access";
-import { reportMetrics, getUsdRate } from "@/lib/finance";
+import { reportMetrics } from "@/lib/finance";
 import { deleteReport } from "@/lib/actions";
 import { som, dateRu, num } from "@/lib/format";
 import { Table, Stat } from "@/components/ui";
@@ -42,7 +42,6 @@ export default async function ClientReportsTab({ sp }: { sp: { clientId?: string
     take: 100,
   });
 
-  const usdRate = await getUsdRate();
   const withM = reports.map((r) => ({ r, m: reportMetrics(r) }));
   const inTarget = withM.filter((x) => x.m.inTarget === true).length;
   const spent = reports.reduce((s, r) => s + r.spent, 0);
@@ -58,7 +57,7 @@ export default async function ClientReportsTab({ sp }: { sp: { clientId?: string
             icon={<Plus size={16} />}
             hint="Целевой CPL — порог решения: связки дороже отключаем, дешевле — масштабируем. Если факт выше порога, таргетолог и владелец получат алерт."
           >
-            <ReportForm clients={clients} usdRate={usdRate} />
+            <ReportForm clients={clients} />
           </FormModal>
         </div>
       )}
