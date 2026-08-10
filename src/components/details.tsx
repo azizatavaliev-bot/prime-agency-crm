@@ -303,6 +303,7 @@ export function ClientModal({
 
       <div className="mt-4">
         <SideTabs
+          large
           tabs={[
             {
               key: "overview",
@@ -640,7 +641,7 @@ export function ClientModal({
                                         </form>
                                       )}
                                     </FormModal>
-                                    <Link href={`/clients/${client.id}`} className="btn-ghost">
+                                    <Link href={`/clients/${client.id}`} className="btn-ghost btn-modal">
                                       <ExternalLink size={15} /> Открыть страницей
                                     </Link>
                                   </div>

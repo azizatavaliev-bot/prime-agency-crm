@@ -78,17 +78,30 @@ body {
   @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-medium transition;
 }
 .btn-primary {
-  @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-medium transition;
+  @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition;
   background: linear-gradient(135deg, var(--accent), var(--accent-2));
   color: var(--accent-text);
-  box-shadow: 0 8px 20px -10px color-mix(in srgb, var(--accent) 80%, transparent);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--accent) 45%, transparent),
+    0 10px 24px -8px color-mix(in srgb, var(--accent) 85%, transparent),
+    0 2px 6px -2px color-mix(in srgb, var(--accent) 60%, transparent);
 }
 .btn-primary:hover {
   filter: brightness(1.07);
-  transform: translateY(-1px);
+  transform: translateY(-1.5px);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--accent) 55%, transparent),
+    0 14px 30px -8px color-mix(in srgb, var(--accent) 90%, transparent),
+    0 3px 8px -2px color-mix(in srgb, var(--accent) 65%, transparent);
 }
 .btn-primary:active {
   transform: translateY(0);
+}
+.btn-primary:focus-visible {
+  outline: none;
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, var(--accent) 35%, transparent),
+    0 10px 24px -8px color-mix(in srgb, var(--accent) 85%, transparent);
 }
 .btn-ghost {
   @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-medium transition;
@@ -296,6 +309,24 @@ body {
 /* чип-метка с эмодзи */
 .chip {
   @apply inline-flex items-center gap-1.5 rounded-xl border px-2.5 py-1 text-xs font-medium whitespace-nowrap;
+}
+
+/* Крупные вкладки/кнопки внутри модалки деталей клиента: заметнее, с акцентным кольцом */
+.modal-tabs-lg .modal-tab {
+  padding: 0.6rem 1rem;
+  font-size: 0.85rem;
+  border-radius: 0.85rem;
+}
+.modal-tabs-lg .modal-tab.is-active {
+  box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--accent) 55%, transparent);
+}
+.btn-modal {
+  box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--accent) 45%, transparent);
+}
+.btn-modal.btn-primary {
+  box-shadow:
+    0 0 0 1.5px color-mix(in srgb, var(--accent) 55%, transparent),
+    0 10px 24px -8px color-mix(in srgb, var(--accent) 85%, transparent);
 }
 
 /* «стеклянная» шапка модалки */

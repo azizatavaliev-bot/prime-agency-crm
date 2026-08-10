@@ -40,12 +40,12 @@ export type SideTab = {
  * Горизонтальные вкладки сверху. Содержимое переключается под лентой,
  * лента прокручивается по горизонтали на узком экране.
  */
-export default function SideTabs({ tabs }: { tabs: SideTab[] }) {
+export default function SideTabs({ tabs, large = false }: { tabs: SideTab[]; large?: boolean }) {
   const [active, setActive] = useState(tabs[0]?.key);
   const current = tabs.find((t) => t.key === active) ?? tabs[0];
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className={`flex flex-col gap-4 ${large ? "modal-tabs-lg" : ""}`}>
       <nav className="flex shrink-0 gap-1 overflow-x-auto pb-1">
         {tabs.map((t) => {
           const Icon = ICONS[t.icon] ?? LayoutGrid;
@@ -57,13 +57,13 @@ export default function SideTabs({ tabs }: { tabs: SideTab[] }) {
               onClick={() => setActive(t.key)}
               title={t.label}
               aria-label={t.label}
-              className={`relative flex shrink-0 items-center gap-1.5 rounded-xl px-3 py-2 text-xs transition ${
+              className={`modal-tab relative flex shrink-0 items-center gap-1.5 rounded-xl px-3 py-2 text-xs transition ${
                 isActive
-                  ? "accent-soft accent-text font-medium"
+                  ? "is-active accent-soft accent-text font-medium"
                   : "text-muted hover:bg-subtle hover:text-zinc-900"
               }`}
             >
-              <Icon size={16} strokeWidth={isActive ? 2.2 : 1.8} />
+              <Icon size={large ? 18 : 16} strokeWidth={isActive ? 2.2 : 1.8} />
               <span className="leading-none">{t.label}</span>
               {t.count !== undefined && t.count > 0 && (
                 <span
