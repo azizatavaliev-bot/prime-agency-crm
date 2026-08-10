@@ -15,7 +15,7 @@ import {
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { clientScope, can } from "@/lib/access";
-import { reportMetrics } from "@/lib/finance";
+import { reportMetrics, getUsdRate } from "@/lib/finance";
 import { deleteClient, toggleTask } from "@/lib/actions";
 import { som, dateRu, num } from "@/lib/format";
 import { paymentChip, daysToContractEnd } from "@/lib/payday";
@@ -81,6 +81,7 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
     : null;
   const lastReport = client.reports[0];
   const lastMetrics = lastReport ? reportMetrics(lastReport) : null;
+  const usdRate = await getUsdRate();
 
   return (
     <div>
@@ -337,7 +338,7 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
                       {can.writeReports(user) && (
                         <div className="mb-3">
                           <Collapse title="Новый отчёт" icon={Plus}>
-                            <ReportForm clients={[]} fixedClientId={client.id} defaultTargetCpl={client.targetCpl} />
+                            <ReportForm clients={[]} fixedClientId={client.id} defaultTargetCpl={client.targetCpl} usdRate={usdRate} />
                           </Collapse>
                         </div>
                       )}

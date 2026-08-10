@@ -178,6 +178,8 @@ export async function runReminders() {
     include: { client: true },
   });
   for (const r of cfg.cplAlert ? recentReports : []) {
+    // Без настроенного порога (targetCpl не задан клиенту) алерт по CPL смысла не имеет.
+    if (!r.targetCpl) continue;
     const m = reportMetrics(r);
     if (m.inTarget !== false) continue;
     const dedupeKey = `cpl-${r.id}`;

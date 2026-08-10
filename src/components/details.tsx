@@ -19,7 +19,7 @@ import {
 } from "lucide-react";
 import type { SessionUser } from "@/lib/auth";
 import { can } from "@/lib/access";
-import { reportMetrics } from "@/lib/finance";
+import { reportMetrics, getUsdRate } from "@/lib/finance";
 import {
   markPaid,
   deletePayment,
@@ -57,7 +57,7 @@ import FormModal from "@/components/FormModal";
 import MembersBlock from "@/components/MembersBlock";
 import SideTabs from "@/components/SideTabs";
 import PaymentForm from "@/components/PaymentForm";
-import ReportForm from "@/components/ReportForm";
+import ReportsPanel from "@/components/ReportsPanel";
 import TaskForm from "@/components/TaskForm";
 import ExpenseForm from "@/components/ExpenseForm";
 import MarkPaidButton from "@/components/MarkPaidButton";
@@ -191,7 +191,7 @@ type ClientDict = {
   NICHE?: { key: string; name: string }[];
 };
 
-export function ClientModal({
+export async function ClientModal({
   client,
   users,
   user,
@@ -208,6 +208,7 @@ export function ClientModal({
   row?: React.ReactNode;
   className?: string;
 }) {
+  const usdRate = await getUsdRate();
   const showMoney = can.seePayments(user);
   const paidTotal = client.payments.filter((p) => p.status === "PAID").reduce((s, p) => s + p.amount, 0);
   const debtTotal = client.payments.filter((p) => p.status !== "PAID").reduce((s, p) => s + p.amount, 0);
@@ -451,25 +452,17 @@ export function ClientModal({
               count: client.reports.length,
               content: (
                 <>
-                        <Section
-                          title="Отчёты по таргету"
-                          icon={TrendingUp}
-                          right={
-                            can.writeReports(user) ? (
-                              <FormModal
-                                label="Отчёт"
-                                title={`Отчёт за период — ${client.name}`}
-                                variant="ghost"
-                                icon={<Plus size={15} />}
-                                hint="Целевой CPL — порог решения: выше него связки отключаем, ниже — масштабируем. При превышении система пришлёт алерт таргетологу и владельцу."
-                              >
-                                <ReportForm clients={[]} fixedClientId={client.id} defaultTargetCpl={client.targetCpl} />
-                              </FormModal>
-                            ) : undefined
-                          }
-                        >
-
-                          <MiniTable head={["Период", "Потрачено", "Заявки", "CPL", "Цель", "Статус", ""]}>
+                <ReportsPanel
+                  canWrite={can.writeReports(user)}
+                  clientName={client.name}
+                  formProps={{
+                    clients: [],
+                    fixedClientId: client.id,
+                    defaultTargetCpl: client.targetCpl,
+                    usdRate,
+                  }}
+                >
+                  <MiniTable head={["Период", "Потрачено", "Заявки", "CPL", "Цель", "Статус", ""]}>
                             {client.reports.map((r) => {
                               const m = reportMetrics(r);
                               return (
@@ -516,7 +509,7 @@ export function ClientModal({
                               </tr>
                             )}
                           </MiniTable>
-                        </Section>
+                </ReportsPanel>
 
                         {client.expenses && client.expenses.length > 0 && (
                           <Section

@@ -225,7 +225,6 @@ export const REPORT_OBJECTIVE = {
   LEADS: "Заявки",
   ENGAGEMENT: "Вовлечённость",
   TRAFFIC: "Трафик",
-  PROFILE_VISITS: "Посещения профиля",
 } as const;
 
 export const LEDGER_KIND = {
