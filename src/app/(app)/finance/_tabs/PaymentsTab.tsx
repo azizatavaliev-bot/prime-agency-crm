@@ -36,7 +36,7 @@ export default async function PaymentsTab({ sp }: { sp: { month?: string; status
     orderBy: { name: "asc" },
   });
   const contractors = await prisma.user.findMany({
-    where: { role: "CONTRACTOR", active: true },
+    where: { role: "DEVELOPER", active: true },
     select: { id: true, name: true },
   });
   const accounts = await prisma.account.findMany({
@@ -50,7 +50,7 @@ export default async function PaymentsTab({ sp }: { sp: { month?: string; status
   const revenue = paid.reduce((s, p) => s + p.amount, 0);
   const debt = payments.filter((p) => p.status === "DEBT").reduce((s, p) => s + p.amount, 0);
   const pending = payments.filter((p) => p.status === "PENDING").reduce((s, p) => s + p.amount, 0);
-  const isOwner = user.role === "OWNER";
+  const isOwner = user.role === "SUPER_ADMIN";
 
   const months: string[] = [];
   for (let i = 0; i < 12; i++) {

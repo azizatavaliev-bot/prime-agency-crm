@@ -26,9 +26,9 @@ export default async function TasksPage({
   const user = await requireUser();
   const sp = await searchParams;
   const board =
-    user.role === "CONTRACTOR" ? (sp.board === "VIDEO" ? "VIDEO" : "DEV") : sp.board || "TARGET";
+    (user.role === "DEVELOPER" || user.role === "EDITOR") ? (sp.board === "VIDEO" ? "VIDEO" : "DEV") : sp.board || "TARGET";
   const boards =
-    user.role === "CONTRACTOR"
+    (user.role === "DEVELOPER" || user.role === "EDITOR")
       ? (["DEV", "VIDEO"] as const)
       : (Object.keys(BOARDS) as (keyof typeof BOARDS)[]);
   const showArchived = sp.archived === "1";
@@ -170,7 +170,7 @@ export default async function TasksPage({
             >
               {showArchived ? "Активные" : "Архив"}
             </Link>
-            {user.role !== "CONTRACTOR" && (
+            {user.role !== "DEVELOPER" && user.role !== "EDITOR" && (
               <ApplyTemplate
                 templates={templates.map((t) => ({
                   id: t.id,
@@ -182,7 +182,7 @@ export default async function TasksPage({
                 users={users}
               />
             )}
-            {user.role !== "CONTRACTOR" && (
+            {user.role !== "DEVELOPER" && user.role !== "EDITOR" && (
               <FormModal
                 label="Новая задача"
                 title="Новая задача"
@@ -225,7 +225,7 @@ export default async function TasksPage({
           details={details}
           tagLabels={tagLabels}
           canMove={!showArchived}
-          canEdit={user.role !== "CONTRACTOR"}
+          canEdit={user.role !== "DEVELOPER" && user.role !== "EDITOR"}
           currentUserName={user.name}
           groups={groups}
         />

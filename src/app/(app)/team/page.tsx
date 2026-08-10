@@ -63,12 +63,12 @@ export default async function TeamPage() {
         head={["Сотрудник", "Роль", "Ставка", "Загрузка", "Задачи", "Начислено", "Выплачено", "Доступ", ""]}
       >
         {users.map((u) => {
-          const projects = u.role === "ACCOUNT" ? u.clientsAsAccount : u.clientsAsTargetolog;
+          const projects = u.role === "TEAM_LEAD" ? u.clientsAsAccount : u.clientsAsTargetolog;
           const load = projects.filter((c) => activeStatuses.includes(c.status)).length;
           const limit = u.projectLimit || shares.projectLimit;
           const pct = Math.round((load / limit) * 100);
           const openTasks = u.tasks.filter((t) => !t.done).length;
-          const showLoad = u.role === "TARGETOLOG" || u.role === "ACCOUNT";
+          const showLoad = u.role === "TARGETOLOG" || u.role === "TEAM_LEAD";
           return (
             <TeamModal
               key={u.id}

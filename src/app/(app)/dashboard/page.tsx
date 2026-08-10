@@ -44,7 +44,7 @@ export default async function DashboardPage() {
   const mk = monthKey();
 
   /* ---------- кабинет сотрудника ---------- */
-  if (user.role !== "OWNER") {
+  if (user.role !== "SUPER_ADMIN") {
     const [clients, tasks, users] = await Promise.all([
       prisma.client.findMany({
         where: clientScope(user),
@@ -127,7 +127,7 @@ export default async function DashboardPage() {
                   task={t}
                   clients={clients.map((c) => ({ id: c.id, name: c.name }))}
                   users={users}
-                  canEdit={user.role !== "CONTRACTOR"}
+                  canEdit={user.role !== "DEVELOPER" && user.role !== "EDITOR"}
                   row={
                     <>
                       <td className="td font-medium">{t.title}</td>

@@ -11,10 +11,12 @@ import UserForm from "@/components/UserForm";
 export const dynamic = "force-dynamic";
 
 const ACCESS: [string, string][] = [
-  ["OWNER", "Видит всё: клиентов, финансы, расходы, счета, цели, команду и настройки"],
+  ["SUPER_ADMIN", "Видит всё: клиентов, финансы, расходы, счета, цели, команду и настройки"],
+  ["ADMIN", "Почти всё, кроме прибыли агентства и распределения долей"],
   ["TARGETOLOG", "Только свои проекты: отчёты, задачи, кабинет. Финансы агентства скрыты"],
-  ["ACCOUNT", "Свои клиенты и статусы оплат. Прибыль владельца и расходы скрыты"],
-  ["CONTRACTOR", "Только доски «Разработка» и «Монтаж» со своими задачами"],
+  ["TEAM_LEAD", "Свои клиенты и статусы оплат. Прибыль владельца и расходы скрыты"],
+  ["DEVELOPER", "Только доски «Разработка» и «Монтаж» со своими задачами"],
+  ["EDITOR", "Только доска «Монтаж» со своими задачами"],
 ];
 
 export default async function SettingsTeamPage() {
@@ -49,7 +51,7 @@ export default async function SettingsTeamPage() {
           <MiniTable head={["Сотрудник", "Роль", "Ставка", "Проекты", "Задачи", "Статус", ""]}>
             {users.map((u) => {
               const projects =
-                u.role === "ACCOUNT" ? u.clientsAsAccount.length : u.clientsAsTargetolog.length;
+                u.role === "TEAM_LEAD" ? u.clientsAsAccount.length : u.clientsAsTargetolog.length;
               return (
                 <tr key={u.id} className={u.active ? "" : "opacity-50"}>
                   <td className="px-3 py-2 text-sm">

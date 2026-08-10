@@ -55,7 +55,7 @@ export async function runReminders() {
   const today = new Date();
 
   const cfg = await getNotify();
-  const owners = await prisma.user.findMany({ where: { role: "OWNER", active: true } });
+  const owners = await prisma.user.findMany({ where: { role: "SUPER_ADMIN", active: true } });
   const ownerIds = cfg.notifyOwner ? owners.map((o) => o.id) : [];
 
   /* 0. Сначала заводим ожидаемые платежи по дню оплаты клиента */

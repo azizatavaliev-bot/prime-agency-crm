@@ -14,12 +14,12 @@ import {
 import { getSession, login, demoLoginEnabled } from "@/lib/auth";
 import LoginForm from "@/components/LoginForm";
 
-const DEMO: { email: string; label: string; hint: string; icon: typeof Crown; wide?: boolean }[] = [
-  { email: "owner@prime.kg", label: "Владелец", hint: "всё: финансы, прибыль, команда", icon: Crown, wide: true },
-  { email: "buh@prime.kg", label: "Бухгалтер", hint: "оплаты, долги, расходы", icon: Calculator },
-  { email: "target1@prime.kg", label: "Таргетолог", hint: "свои проекты и отчёты", icon: Target },
-  { email: "account@prime.kg", label: "Аккаунт-менеджер", hint: "клиенты и оплаты", icon: Headset },
-  { email: "dev@prime.kg", label: "Подрядчик", hint: "только свои задачи", icon: Code2 },
+const DEMO: { login: string; label: string; hint: string; icon: typeof Crown; wide?: boolean }[] = [
+  { login: "owner", label: "Владелец", hint: "всё: финансы, прибыль, команда", icon: Crown, wide: true },
+  { login: "buh", label: "Бухгалтер", hint: "оплаты, долги, расходы", icon: Calculator },
+  { login: "target1", label: "Таргетолог", hint: "свои проекты и отчёты", icon: Target },
+  { login: "account", label: "Тимлид", hint: "клиенты и оплаты", icon: Headset },
+  { login: "dev", label: "Разработчик", hint: "только свои задачи", icon: Code2 },
 ];
 const DEMO_PASSWORD = "prime2026";
 
@@ -44,20 +44,20 @@ export default async function LoginPage({
 
   async function action(formData: FormData) {
     "use server";
-    const email = String(formData.get("email") || "");
+    const loginValue = String(formData.get("login") || "");
     const password = String(formData.get("password") || "");
-    const user = await login(email, password);
+    const user = await login(loginValue, password);
     if (!user) redirect("/login?error=1");
     redirect("/dashboard");
   }
 
   async function quickLogin(formData: FormData) {
     "use server";
-    const email = String(formData.get("email") || "");
+    const loginValue = String(formData.get("login") || "");
     // Проверка та же, что и при отрисовке: иначе кнопки спрятаны, а вход работает.
     if (!demoLoginEnabled()) redirect("/login?error=1");
-    if (!DEMO.some((d) => d.email === email)) redirect("/login?error=1");
-    const user = await login(email, DEMO_PASSWORD);
+    if (!DEMO.some((d) => d.login === loginValue)) redirect("/login?error=1");
+    const user = await login(loginValue, DEMO_PASSWORD);
     if (!user) redirect("/login?error=1");
     redirect("/dashboard");
   }
@@ -138,8 +138,8 @@ export default async function LoginPage({
               {DEMO.map((d) => {
                 const Icon = d.icon;
                 return (
-                  <form key={d.email} action={quickLogin} className={d.wide ? "col-span-2" : ""}>
-                    <input type="hidden" name="email" value={d.email} />
+                  <form key={d.login} action={quickLogin} className={d.wide ? "col-span-2" : ""}>
+                    <input type="hidden" name="login" value={d.login} />
                     <button className="group flex w-full items-center gap-2 rounded-xl border border-zinc-200 px-2.5 py-2 text-left transition hover:border-transparent hover:bg-subtle hover:shadow-sm">
                       <span className="accent-soft accent-text flex h-7 w-7 shrink-0 items-center justify-center rounded-lg">
                         <Icon size={14} />

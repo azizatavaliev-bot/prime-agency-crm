@@ -19,7 +19,7 @@ const csv = (rows: (string | number)[][]) =>
 
 export async function GET(req: Request) {
   const user = await getSession();
-  if (!user || user.role !== "OWNER") return new NextResponse("Нет доступа", { status: 403 });
+  if (!user || user.role !== "SUPER_ADMIN") return new NextResponse("Нет доступа", { status: 403 });
 
   const type = new URL(req.url).searchParams.get("type") ?? "payments";
   let rows: (string | number)[][] = [];
@@ -119,7 +119,7 @@ export async function GET(req: Request) {
         u.rate ?? "",
         u.rateType === "PERCENT" ? "% от чека" : "фикс",
         u.projectLimit,
-        u.role === "ACCOUNT" ? u.clientsAsAccount.length : u.clientsAsTargetolog.length,
+        u.role === "TEAM_LEAD" ? u.clientsAsAccount.length : u.clientsAsTargetolog.length,
         u.tasks.filter((t) => !t.done).length,
         u.active ? "да" : "нет",
       ]),

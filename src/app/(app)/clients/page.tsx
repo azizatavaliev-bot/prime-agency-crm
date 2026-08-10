@@ -29,7 +29,7 @@ export default async function ClientsPage({
   searchParams: Promise<{ status?: string; q?: string; sort?: string }>;
 }) {
   const user = await requireUser();
-  if (user.role === "CONTRACTOR") redirect("/no-access");
+  if (user.role === "DEVELOPER" || user.role === "EDITOR") redirect("/no-access");
   const sp = await searchParams;
 
   const clients = await prisma.client.findMany({
@@ -81,7 +81,7 @@ export default async function ClientsPage({
       <PageHeader
         title="Клиенты"
         subtitle={
-          user.role === "OWNER"
+          user.role === "SUPER_ADMIN"
             ? "Клик по карточке открывает проект целиком: оплаты, отчёты, задачи и команду"
             : "Только ваши проекты · клик по карточке открывает детали"
         }
@@ -96,7 +96,7 @@ export default async function ClientsPage({
             >
               <ClientForm
                 users={users}
-                canAssignAccount={user.role === "OWNER"}
+                canAssignAccount={user.role === "SUPER_ADMIN"}
                 statuses={d.CLIENT_STATUS}
                 services={d.SERVICE}
                 sources={d.SOURCE}

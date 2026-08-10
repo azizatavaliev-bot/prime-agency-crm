@@ -26,14 +26,22 @@ async function main() {
   const hash = await bcrypt.hash(PW, 10);
   const mkUser = (email: string, name: string, role: string, rate?: number) =>
     prisma.user.create({
-      data: { email, name, role, passwordHash: hash, rate: rate ?? null, projectLimit: 5 },
+      data: {
+        email,
+        login: email.split("@")[0].toLowerCase(),
+        name,
+        role,
+        passwordHash: hash,
+        rate: rate ?? null,
+        projectLimit: 5,
+      },
     });
 
-  const owner = await mkUser("owner@prime.kg", "Aziz (владелец)", "OWNER");
+  const owner = await mkUser("owner@prime.kg", "Aziz (владелец)", "SUPER_ADMIN");
   const t1 = await mkUser("target1@prime.kg", "Айбек Осмонов", "TARGETOLOG", 34);
   const t2 = await mkUser("target2@prime.kg", "Нурзада Асанова", "TARGETOLOG", 34);
-  const acc = await mkUser("account@prime.kg", "Жанара Керимова", "ACCOUNT", 10);
-  const dev = await mkUser("dev@prime.kg", "Тимур (разработка/монтаж)", "CONTRACTOR", 40);
+  const acc = await mkUser("account@prime.kg", "Жанара Керимова", "TEAM_LEAD", 10);
+  const dev = await mkUser("dev@prime.kg", "Тимур (разработка/монтаж)", "DEVELOPER", 40);
   await mkUser("buh@prime.kg", "Айгуль Бакирова", "ACCOUNTANT");
 
   for (const [key, value] of [
@@ -286,7 +294,7 @@ async function main() {
         data: { clientId: c.id, userId: c.targetologId, role: "TARGETOLOG", rateType: "PERCENT", rate: 34 },
       });
     await prisma.clientMember.create({
-      data: { clientId: c.id, userId: acc.id, role: "ACCOUNT", rateType: "FIXED", rate: 3000, note: "ведёт переписку и оплаты" },
+      data: { clientId: c.id, userId: acc.id, role: "TEAM_LEAD", rateType: "FIXED", rate: 3000, note: "ведёт переписку и оплаты" },
     });
   }
 

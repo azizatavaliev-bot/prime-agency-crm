@@ -92,7 +92,7 @@ export async function POST(req: Request) {
   /* ---------- команды ---------- */
   if (/^\/help/i.test(text)) {
     // Раньше /help открывал то же меню — про сами команды узнать было неоткуда.
-    const money = user.role === "OWNER" || user.role === "ACCOUNTANT";
+    const money = user.role === "SUPER_ADMIN" || user.role === "ADMIN" || user.role === "ACCOUNTANT";
     const lines = [
       "<b>Что умеет бот</b>",
       "",

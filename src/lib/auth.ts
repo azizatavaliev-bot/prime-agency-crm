@@ -56,6 +56,7 @@ function noteFailure(key: string) {
 
 export type SessionUser = {
   id: string;
+  login: string | null;
   email: string;
   name: string;
   role: Role;
@@ -77,15 +78,15 @@ export function demoLoginEnabled(): boolean {
   return process.env.DEMO_MODE === "1";
 }
 
-export async function login(email: string, password: string): Promise<SessionUser | null> {
+export async function login(loginValue: string, password: string): Promise<SessionUser | null> {
   if (!secretConfigured()) {
     console.error("JWT_SECRET не задан или короче 16 символов — вход отключён");
     return null;
   }
-  const key = email.trim().toLowerCase();
+  const key = loginValue.trim().toLowerCase();
   if (tooManyAttempts(key)) return null;
 
-  const user = await prisma.user.findUnique({ where: { email: key } });
+  const user = await prisma.user.findUnique({ where: { login: key } });
   if (!user || !user.active) {
     noteFailure(key);
     return null;
@@ -113,6 +114,7 @@ export async function login(email: string, password: string): Promise<SessionUse
 
   return {
     id: user.id,
+    login: user.login,
     email: user.email,
     name: user.name,
     role: user.role as Role,
@@ -147,6 +149,7 @@ export async function issueSession(userId: string): Promise<SessionUser | null> 
 
   return {
     id: user.id,
+    login: user.login,
     email: user.email,
     name: user.name,
     role: user.role as Role,
@@ -174,6 +177,7 @@ export async function getSession(): Promise<SessionUser | null> {
     }
     return {
       id: user.id,
+      login: user.login,
       email: user.email,
       name: user.name,
       role: user.role as Role,
@@ -197,5 +201,5 @@ export async function requireRole(...roles: Role[]): Promise<SessionUser> {
 }
 
 export async function requireOwner() {
-  return requireRole("OWNER");
+  return requireRole("SUPER_ADMIN");
 }

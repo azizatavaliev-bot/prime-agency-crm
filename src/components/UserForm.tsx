@@ -1,23 +1,44 @@
 "use client";
 
 import { useState } from "react";
-import { Crown, Calculator, Target, Headset, Code2, type LucideIcon } from "lucide-react";
+import { Crown, ShieldCheck, Calculator, Target, Headset, Code2, Film, type LucideIcon } from "lucide-react";
 import { saveUser } from "@/lib/actions";
+import { ROLES } from "@/lib/constants";
 import Select from "./Select";
 import PasswordField from "./PasswordField";
 
 /** Что реально открывает каждая роль — видно прямо при выборе. */
-const ROLE_META: Record<string, { label: string; hint: string; icon: LucideIcon }> = {
-  OWNER: { label: "Владелец", hint: "всё: финансы, прибыль, команда", icon: Crown },
-  ACCOUNTANT: { label: "Бухгалтер", hint: "оплаты, долги, расходы — без вашей прибыли", icon: Calculator },
-  TARGETOLOG: { label: "Таргетолог", hint: "свои проекты, отчёты, маркетинг", icon: Target },
-  ACCOUNT: { label: "Аккаунт-менеджер", hint: "свои клиенты и оплаты", icon: Headset },
-  CONTRACTOR: { label: "Подрядчик", hint: "только свои задачи на досках", icon: Code2 },
+const ROLE_ICONS: Record<keyof typeof ROLES, LucideIcon> = {
+  SUPER_ADMIN: Crown,
+  ADMIN: ShieldCheck,
+  TEAM_LEAD: Headset,
+  TARGETOLOG: Target,
+  ACCOUNTANT: Calculator,
+  DEVELOPER: Code2,
+  EDITOR: Film,
 };
+
+const ROLE_HINTS: Record<keyof typeof ROLES, string> = {
+  SUPER_ADMIN: "всё: финансы, прибыль, команда",
+  ADMIN: "почти всё, кроме прибыли агентства",
+  TEAM_LEAD: "свои клиенты и оплаты",
+  TARGETOLOG: "свои проекты, отчёты, маркетинг",
+  ACCOUNTANT: "оплаты, долги, расходы — без вашей прибыли",
+  DEVELOPER: "только свои задачи на досках",
+  EDITOR: "только свои задачи на досках",
+};
+
+const ROLE_META: Record<string, { label: string; hint: string; icon: LucideIcon }> = Object.fromEntries(
+  Object.entries(ROLES).map(([key, label]) => [
+    key,
+    { label, hint: ROLE_HINTS[key as keyof typeof ROLES], icon: ROLE_ICONS[key as keyof typeof ROLES] },
+  ])
+);
 
 export type TeamMember = {
   id: string;
   name: string;
+  login?: string | null;
   email: string;
   role: string;
   rate: number | null;
@@ -38,7 +59,7 @@ export default function UserForm({
   const [rateType, setRateType] = useState(member?.rateType ?? "PERCENT");
 
   // Ставка нужна тем, кто получает долю с проектов.
-  const needsRate = role === "TARGETOLOG" || role === "CONTRACTOR" || role === "ACCOUNT";
+  const needsRate = role === "TARGETOLOG" || role === "DEVELOPER" || role === "EDITOR" || role === "TEAM_LEAD";
 
   return (
     <form action={saveUser} className="space-y-5">
@@ -66,7 +87,21 @@ export default function UserForm({
           />
         </div>
         <div>
-          <label className="label">Email — это и есть логин</label>
+          <label className="label">Логин — для входа в систему</label>
+          <input
+            className="input"
+            name="login"
+            type="text"
+            required
+            autoCapitalize="none"
+            autoCorrect="off"
+            spellCheck={false}
+            defaultValue={member?.login ?? ""}
+            placeholder="login"
+          />
+        </div>
+        <div>
+          <label className="label">Email — для связи, не для входа</label>
           <input
             className="input"
             name="email"

@@ -213,7 +213,7 @@ export function ClientModal({
   const debtTotal = client.payments.filter((p) => p.status !== "PAID").reduce((s, p) => s + p.amount, 0);
   const last = client.reports[0];
   const lastM = last ? reportMetrics(last) : null;
-  const contractors = users.filter((u) => u.role === "CONTRACTOR");
+  const contractors = users.filter((u) => u.role === "DEVELOPER");
   const openTasks = client.tasks.filter((t) => !t.done).length;
   const paidList = client.payments.filter((p) => p.status === "PAID" && p.paidAt);
   const ownerNet = paidList.reduce((s, p) => s + p.ownerNet, 0);
@@ -367,7 +367,7 @@ export function ClientModal({
                             clientId={client.id}
                             members={client.members}
                             users={users}
-                            canEdit={user.role === "OWNER"}
+                            canEdit={user.role === "SUPER_ADMIN"}
                             avgCheck={client.avgCheck}
                           />
                         )}
@@ -559,7 +559,7 @@ export function ClientModal({
                           title="Задачи проекта"
                           icon={KanbanSquare}
                           right={
-                            user.role !== "CONTRACTOR" ? (
+                            user.role !== "DEVELOPER" ? (
                               <FormModal
                                 label="Задача"
                                 title={`Новая задача — ${client.name}`}
@@ -625,13 +625,13 @@ export function ClientModal({
                                       <ClientForm
                                       users={users}
                                       client={client}
-                                      canAssignAccount={user.role === "OWNER"}
+                                      canAssignAccount={user.role === "SUPER_ADMIN"}
                                       statuses={dict?.CLIENT_STATUS}
                                       services={dict?.SERVICE}
                                       sources={dict?.SOURCE}
                                       niches={dict?.NICHE}
                                     />
-                                      {user.role === "OWNER" && (
+                                      {user.role === "SUPER_ADMIN" && (
                                         <form action={deleteClient} className="mt-6 border-t border-zinc-200 pt-4">
                                           <input type="hidden" name="id" value={client.id} />
                                           <button className="btn-ghost text-red-600">

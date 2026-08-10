@@ -66,7 +66,7 @@ async function main() {
       name,
       email: email.toLowerCase(),
       passwordHash: await bcrypt.hash(password, 10),
-      role: "OWNER",
+      role: "SUPER_ADMIN",
       active: true,
       projectLimit: 999,
     },

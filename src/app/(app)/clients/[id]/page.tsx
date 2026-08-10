@@ -65,7 +65,7 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
     where: { active: true },
     select: { id: true, name: true, role: true },
   });
-  const contractors = users.filter((u) => u.role === "CONTRACTOR");
+  const contractors = users.filter((u) => u.role === "DEVELOPER");
   const clientOpts = [{ id: client.id, name: client.name }];
   const clientStatuses = await dict("CLIENT_STATUS");
   const links = client.links;
@@ -208,7 +208,7 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
                 clientId={client.id}
                 members={client.members}
                 users={users}
-                canEdit={user.role === "OWNER"}
+                canEdit={user.role === "SUPER_ADMIN"}
                 avgCheck={client.avgCheck}
               />
               <GrowthPoints
@@ -221,7 +221,7 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
           tasks: (
             <>
                     <Section title="Задачи проекта" icon={KanbanSquare}>
-                      {user.role !== "CONTRACTOR" && (
+                      {user.role !== "DEVELOPER" && user.role !== "EDITOR" && (
                         <div className="mb-3">
                           <Collapse title="Новая задача" icon={Plus}>
                             <TaskForm clients={[]} users={users} fixedClientId={client.id} />
@@ -235,7 +235,7 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
                             task={t}
                             clients={clientOpts}
                             users={users}
-                            canEdit={user.role !== "CONTRACTOR"}
+                            canEdit={user.role !== "DEVELOPER" && user.role !== "EDITOR"}
                             className={t.done ? "opacity-50" : ""}
                             row={
                               <>
@@ -284,7 +284,7 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
                             "План",
                             "Оплачено",
                             "Метод",
-                            ...(user.role === "OWNER" ? ["Владельцу"] : []),
+                            ...(user.role === "SUPER_ADMIN" ? ["Владельцу"] : []),
                             "",
                           ]}
                         >
@@ -298,7 +298,7 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
                               <td className="td">{dateRu(p.dueAt)}</td>
                               <td className="td">{dateRu(p.paidAt)}</td>
                               <td className="td text-zinc-500">{PAYMENT_METHOD[p.method as keyof typeof PAYMENT_METHOD]}</td>
-                              {user.role === "OWNER" && <td className="td">{som(p.ownerNet)}</td>}
+                              {user.role === "SUPER_ADMIN" && <td className="td">{som(p.ownerNet)}</td>}
                               <td className="td">
                                 {p.status !== "PAID" && (
                                   <MarkPaidButton
@@ -398,8 +398,8 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
                     {can.manageClients(user) && (
                       <div className="mt-8">
                         <Collapse title="Редактировать карточку клиента" icon={Pencil}>
-                          <ClientForm users={users} client={client} canAssignAccount={user.role === "OWNER"} />
-                          {user.role === "OWNER" && (
+                          <ClientForm users={users} client={client} canAssignAccount={user.role === "SUPER_ADMIN"} />
+                          {user.role === "SUPER_ADMIN" && (
                             <form action={deleteClient} className="mt-6 border-t border-zinc-200 pt-4">
                               <input type="hidden" name="id" value={client.id} />
                               <button className="btn-ghost text-red-600">

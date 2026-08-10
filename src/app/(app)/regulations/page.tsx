@@ -28,7 +28,7 @@ function toBlocks(items: string[]) {
 
 export default async function RegulationsPage() {
   const user = await requireUser();
-  const isOwner = user.role === "OWNER";
+  const isOwner = user.role === "SUPER_ADMIN";
 
   // Сотрудник видит только свои зоны — чужие обязанности ему не нужны.
   const all = await prisma.regulation.findMany({

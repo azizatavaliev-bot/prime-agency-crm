@@ -34,7 +34,7 @@ async function notify(userIds: (string | null | undefined)[], data: { kind: stri
 }
 
 async function owners() {
-  const list = await prisma.user.findMany({ where: { role: "OWNER", active: true } });
+  const list = await prisma.user.findMany({ where: { role: "SUPER_ADMIN", active: true } });
   return list.map((u) => u.id);
 }
 
@@ -69,7 +69,7 @@ export async function saveClient(fd: FormData) {
     botPrice: n(fd, "botPrice") || null,
     videoPrice: n(fd, "videoPrice") || null,
     targetologId: str(fd, "targetologId"),
-    accountId: user.role === "ACCOUNT" ? user.id : str(fd, "accountId"),
+    accountId: user.role === "TEAM_LEAD" ? user.id : str(fd, "accountId"),
     churnedAt: req(fd, "status") === "CHURNED" ? new Date() : null,
   };
 
@@ -93,7 +93,7 @@ export async function saveClient(fd: FormData) {
 
 export async function deleteClient(fd: FormData) {
   const user = await requireUser();
-  if (user.role !== "OWNER") redirect("/no-access");
+  if (user.role !== "SUPER_ADMIN") redirect("/no-access");
   await prisma.client.delete({ where: { id: req(fd, "id") } });
   revalidatePath("/clients");
   redirect("/clients");
@@ -189,7 +189,7 @@ export async function markPaid(fd: FormData) {
 
 export async function deletePayment(fd: FormData) {
   const user = await requireUser();
-  if (user.role !== "OWNER") redirect("/no-access");
+  if (user.role !== "SUPER_ADMIN") redirect("/no-access");
   await prisma.payment.delete({ where: { id: req(fd, "id") } });
   revalidatePath("/payments");
   revalidatePath("/dashboard");
@@ -282,7 +282,7 @@ export async function saveTask(fd: FormData) {
     if (data.assigneeId && data.assigneeId !== t.assigneeId && data.assigneeId !== user.id)
       await notifyAssignee(data.assigneeId, { ...t, ...data, id }, "Задача назначена на вас");
   } else {
-    if (user.role === "CONTRACTOR") redirect("/no-access");
+    if (user.role === "DEVELOPER") redirect("/no-access");
     const created = await prisma.task.create({ data });
     const raw = str(fd, "checklist");
     if (raw) {
@@ -371,7 +371,7 @@ export async function deleteTaskComment(fd: FormData) {
   const id = req(fd, "id");
   const c = await prisma.taskComment.findUnique({ where: { id } });
   if (!c) redirect("/no-access");
-  if (user.role !== "OWNER" && c.userId !== user.id) redirect("/no-access");
+  if (user.role !== "SUPER_ADMIN" && c.userId !== user.id) redirect("/no-access");
   await prisma.taskComment.delete({ where: { id } });
   revalidatePath("/tasks");
 }
@@ -429,7 +429,7 @@ export async function deleteTask(fd: FormData) {
   const user = await requireUser();
   const id = req(fd, "id");
   const t = await prisma.task.findFirst({ where: { AND: [{ id }, taskScope(user)] } });
-  if (!t || user.role === "CONTRACTOR") redirect("/no-access");
+  if (!t || user.role === "DEVELOPER") redirect("/no-access");
   await prisma.task.delete({ where: { id } });
   revalidatePath("/tasks");
 }
@@ -447,6 +447,7 @@ export async function saveUser(fd: FormData) {
   const role = req(fd, "role");
   if (!Object.keys(ROLES).includes(role)) redirect("/no-access");
   const base = {
+    login: req(fd, "login").trim().toLowerCase(),
     email: req(fd, "email").toLowerCase(),
     name: req(fd, "name"),
     phone: str(fd, "phone"),
@@ -480,7 +481,7 @@ export async function saveUser(fd: FormData) {
 
 export async function saveSettings(fd: FormData) {
   const user = await requireUser();
-  if (user.role !== "OWNER") redirect("/no-access");
+  if (user.role !== "SUPER_ADMIN") redirect("/no-access");
   const entries: [string, number][] = [
     ["targetologShare", n(fd, "targetologShare") / 100],
     ["devShare", n(fd, "devShare") / 100],
@@ -501,7 +502,7 @@ export async function saveSettings(fd: FormData) {
 
 export async function saveNotifySettings(fd: FormData) {
   const user = await requireUser();
-  if (user.role !== "OWNER") redirect("/no-access");
+  if (user.role !== "SUPER_ADMIN") redirect("/no-access");
   const entries: [string, string][] = [
     ["notifyPaymentDays", String(Math.round(n(fd, "paymentDays")) || 3)],
     ["notifyReportDays", String(Math.round(n(fd, "reportDays")) || 7)],
@@ -528,7 +529,7 @@ export async function readAllNotifications() {
 
 export async function saveMember(fd: FormData) {
   const user = await requireUser();
-  if (user.role !== "OWNER") redirect("/no-access");
+  if (user.role !== "SUPER_ADMIN") redirect("/no-access");
   const clientId = req(fd, "clientId");
   const userId = req(fd, "userId");
   const role = req(fd, "role");
@@ -546,7 +547,7 @@ export async function saveMember(fd: FormData) {
 
   // синхронизируем основного ответственного в карточке
   if (role === "TARGETOLOG") await prisma.client.update({ where: { id: clientId }, data: { targetologId: userId } });
-  if (role === "ACCOUNT") await prisma.client.update({ where: { id: clientId }, data: { accountId: userId } });
+  if (role === "TEAM_LEAD") await prisma.client.update({ where: { id: clientId }, data: { accountId: userId } });
 
   await notify([userId], {
     kind: "NEW_LEAD",
@@ -562,7 +563,7 @@ export async function saveMember(fd: FormData) {
 
 export async function deleteMember(fd: FormData) {
   const user = await requireUser();
-  if (user.role !== "OWNER") redirect("/no-access");
+  if (user.role !== "SUPER_ADMIN") redirect("/no-access");
   const id = req(fd, "id");
   const m = await prisma.clientMember.findUnique({ where: { id } });
   await prisma.clientMember.delete({ where: { id } });
@@ -575,7 +576,7 @@ export async function deleteMember(fd: FormData) {
 
 export async function saveGoal(fd: FormData) {
   const user = await requireUser();
-  if (user.role !== "OWNER") redirect("/no-access");
+  if (user.role !== "SUPER_ADMIN") redirect("/no-access");
   const clientId = str(fd, "clientId");
   const month = req(fd, "month") || monthKey();
   const metric = req(fd, "metric");
@@ -590,7 +591,7 @@ export async function saveGoal(fd: FormData) {
 
 export async function deleteGoal(fd: FormData) {
   const user = await requireUser();
-  if (user.role !== "OWNER") redirect("/no-access");
+  if (user.role !== "SUPER_ADMIN") redirect("/no-access");
   await prisma.goal.delete({ where: { id: req(fd, "id") } });
   revalidatePath("/analytics");
   revalidatePath("/dashboard");
@@ -671,7 +672,7 @@ export async function deleteExpense(fd: FormData) {
 /** Переносит все регулярные расходы месяца в следующий месяц как запланированные. */
 export async function repeatExpenses(fd: FormData) {
   const user = await requireUser();
-  if (user.role !== "OWNER") redirect("/no-access");
+  if (user.role !== "SUPER_ADMIN") redirect("/no-access");
   const from = req(fd, "month") || monthKey();
   const [y, m] = from.split("-").map(Number);
   const nextDate = new Date(y, m, 1);
@@ -709,7 +710,7 @@ export async function repeatExpenses(fd: FormData) {
 /** Создаёт расход-выплату по доле исполнителя за месяц. */
 export async function payoutTeam(fd: FormData) {
   const user = await requireUser();
-  if (user.role !== "OWNER") redirect("/no-access");
+  if (user.role !== "SUPER_ADMIN") redirect("/no-access");
   const month = req(fd, "month") || monthKey();
   const userId = req(fd, "userId");
   const amount = n(fd, "amount");
@@ -757,7 +758,7 @@ export async function saveAccount(fd: FormData) {
 
 export async function deleteAccount(fd: FormData) {
   const user = await requireUser();
-  if (user.role !== "OWNER") redirect("/no-access");
+  if (user.role !== "SUPER_ADMIN") redirect("/no-access");
   const id = req(fd, "id");
   const used =
     (await prisma.payment.count({ where: { accountId: id } })) +
@@ -829,7 +830,7 @@ export async function deleteTransfer(fd: FormData) {
 
 export async function saveDictItem(fd: FormData) {
   const user = await requireUser();
-  if (user.role !== "OWNER") redirect("/no-access");
+  if (user.role !== "SUPER_ADMIN") redirect("/no-access");
   const id = str(fd, "id");
   const type = req(fd, "type");
   const name = req(fd, "name");
@@ -856,7 +857,7 @@ export async function saveDictItem(fd: FormData) {
 
 export async function deleteDictItem(fd: FormData) {
   const user = await requireUser();
-  if (user.role !== "OWNER") redirect("/no-access");
+  if (user.role !== "SUPER_ADMIN") redirect("/no-access");
   const id = req(fd, "id");
   const item = await prisma.dictItem.findUnique({ where: { id } });
   if (!item) return;
@@ -868,7 +869,7 @@ export async function deleteDictItem(fd: FormData) {
 
 export async function toggleDictItem(fd: FormData) {
   const user = await requireUser();
-  if (user.role !== "OWNER") redirect("/no-access");
+  if (user.role !== "SUPER_ADMIN") redirect("/no-access");
   const id = req(fd, "id");
   const item = await prisma.dictItem.findUnique({ where: { id } });
   if (!item) return;
@@ -879,7 +880,7 @@ export async function toggleDictItem(fd: FormData) {
 /** Сдвинуть значение справочника вверх или вниз. */
 export async function moveDictItem(fd: FormData) {
   const user = await requireUser();
-  if (user.role !== "OWNER") redirect("/no-access");
+  if (user.role !== "SUPER_ADMIN") redirect("/no-access");
   const id = req(fd, "id");
   const dir = req(fd, "dir") === "up" ? -1 : 1;
   const item = await prisma.dictItem.findUnique({ where: { id } });
@@ -1010,7 +1011,7 @@ export async function saveMarketingReport(fd: FormData) {
     // Чужой отчёт правит только владелец.
     const existing = await prisma.marketingReport.findUnique({ where: { id } });
     if (!existing) redirect("/no-access");
-    if (user.role !== "OWNER" && existing.authorId !== user.id) redirect("/no-access");
+    if (user.role !== "SUPER_ADMIN" && existing.authorId !== user.id) redirect("/no-access");
     await prisma.marketingReport.update({ where: { id }, data });
   } else {
     await prisma.marketingReport.create({ data });
@@ -1027,7 +1028,7 @@ export async function deleteMarketingReport(fd: FormData) {
   const id = req(fd, "id");
   const existing = await prisma.marketingReport.findUnique({ where: { id } });
   if (!existing) redirect("/no-access");
-  if (user.role !== "OWNER" && existing.authorId !== user.id) redirect("/no-access");
+  if (user.role !== "SUPER_ADMIN" && existing.authorId !== user.id) redirect("/no-access");
   await prisma.marketingReport.delete({ where: { id } });
   revalidatePath("/marketing");
   revalidatePath("/marketing/report");
@@ -1038,7 +1039,7 @@ export async function deleteMarketingReport(fd: FormData) {
 
 export async function saveTaskTemplate(fd: FormData) {
   const user = await requireUser();
-  if (user.role !== "OWNER") redirect("/no-access");
+  if (user.role !== "SUPER_ADMIN") redirect("/no-access");
   const id = str(fd, "id");
   const data = {
     name: req(fd, "name"),
@@ -1077,7 +1078,7 @@ export async function saveTaskTemplate(fd: FormData) {
 
 export async function deleteTaskTemplate(fd: FormData) {
   const user = await requireUser();
-  if (user.role !== "OWNER") redirect("/no-access");
+  if (user.role !== "SUPER_ADMIN") redirect("/no-access");
   await prisma.taskTemplate.delete({ where: { id: req(fd, "id") } });
   revalidatePath("/settings/templates");
 }
@@ -1085,7 +1086,7 @@ export async function deleteTaskTemplate(fd: FormData) {
 /** Применить шаблон: создаёт весь набор задач разом, опционально к клиенту. */
 export async function applyTaskTemplate(fd: FormData) {
   const user = await requireUser();
-  if (user.role === "CONTRACTOR") redirect("/no-access");
+  if (user.role === "DEVELOPER") redirect("/no-access");
 
   const templateId = req(fd, "templateId");
   const tpl = await prisma.taskTemplate.findUnique({
@@ -1209,7 +1210,7 @@ export async function saveOperation(fd: FormData) {
 
 export async function saveRegulation(fd: FormData) {
   const user = await requireUser();
-  if (user.role !== "OWNER") redirect("/no-access");
+  if (user.role !== "SUPER_ADMIN") redirect("/no-access");
   const id = str(fd, "id");
 
   // Пункты вводятся построчно: строка с «#» открывает новый блок регламента.
@@ -1235,7 +1236,7 @@ export async function saveRegulation(fd: FormData) {
 
 export async function deleteRegulation(fd: FormData) {
   const user = await requireUser();
-  if (user.role !== "OWNER") redirect("/no-access");
+  if (user.role !== "SUPER_ADMIN") redirect("/no-access");
   await prisma.regulation.delete({ where: { id: req(fd, "id") } });
   revalidatePath("/regulations");
 }
@@ -1316,7 +1317,7 @@ export async function deleteClientLink(fd: FormData) {
  */
 export async function resetUserPassword(fd: FormData): Promise<string> {
   const user = await requireUser();
-  if (user.role !== "OWNER") redirect("/no-access");
+  if (user.role !== "SUPER_ADMIN") redirect("/no-access");
 
   const id = req(fd, "id");
   const target = await prisma.user.findUnique({ where: { id } });

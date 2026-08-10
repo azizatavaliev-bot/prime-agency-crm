@@ -17,7 +17,7 @@ type Member = {
 
 const PROJECT_ROLE = {
   TARGETOLOG: "Таргетолог",
-  ACCOUNT: "Аккаунт-менеджер",
+  TEAM_LEAD: "Аккаунт-менеджер",
   CONTRACTOR: "Подрядчик",
 };
 

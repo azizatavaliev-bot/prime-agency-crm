@@ -59,7 +59,7 @@ export default function ClientForm({
   const statusList = statuses.length ? statuses : toOpts(CLIENT_STATUS);
   const serviceList = serviceOpts.length ? serviceOpts : toOpts(SERVICES);
   const targetologs = users.filter((u) => u.role === "TARGETOLOG");
-  const accountManagers = users.filter((u) => u.role === "ACCOUNT");
+  const accountManagers = users.filter((u) => u.role === "TEAM_LEAD");
 
   return (
     <form action={saveClient} className="space-y-4">

@@ -13,11 +13,11 @@ import type { User } from "@prisma/client";
 /*  Права внутри бота                                                  */
 /* ------------------------------------------------------------------ */
 
-const isOwner = (u: User) => u.role === "OWNER";
-/** Кто может вносить деньги: владелец и бухгалтер. */
-const canMoney = (u: User) => u.role === "OWNER" || u.role === "ACCOUNTANT";
+const isOwner = (u: User) => u.role === "SUPER_ADMIN";
+/** Кто может вносить деньги: владелец, админ и бухгалтер. */
+const canMoney = (u: User) => u.role === "SUPER_ADMIN" || u.role === "ADMIN" || u.role === "ACCOUNTANT";
 /** Кто видит прибыль владельца и доли команды. */
-const canProfit = (u: User) => u.role === "OWNER";
+const canProfit = (u: User) => u.role === "SUPER_ADMIN";
 
 /* ------------------------------------------------------------------ */
 /*  Главное меню                                                       */
@@ -54,7 +54,7 @@ export function mainMenu(user: User): TgButton[][] {
 }
 
 export function greeting(user: User) {
-  const role = { OWNER: "владелец", ACCOUNTANT: "бухгалтер", TARGETOLOG: "таргетолог", ACCOUNT: "аккаунт-менеджер", CONTRACTOR: "подрядчик" }[user.role] ?? user.role;
+  const role = { SUPER_ADMIN: "владелец", ADMIN: "админ", ACCOUNTANT: "бухгалтер", TARGETOLOG: "таргетолог", TEAM_LEAD: "аккаунт-менеджер", DEVELOPER: "подрядчик", EDITOR: "видеомонтажёр" }[user.role] ?? user.role;
   return `👋 <b>${escapeHtml(user.name)}</b> · ${role}\n\nВыберите действие:`;
 }
 
@@ -493,7 +493,7 @@ export async function handleCallback(
     const t = await prisma.task.findUnique({ where: { id } });
     if (!t) return { text: "Задача не найдена.", buttons: backMenu() };
     // Трогать можно только свои задачи, владелец — любые.
-    if (user.role !== "OWNER" && t.assigneeId !== user.id)
+    if (user.role !== "SUPER_ADMIN" && user.role !== "ADMIN" && t.assigneeId !== user.id)
       return { text: "Это не ваша задача.", buttons: backMenu() };
 
     if (data.startsWith("t_prog_")) {

@@ -30,7 +30,7 @@ export async function GET(req: Request) {
       select: { id: true, title: true, board: true, client: { select: { name: true } } },
       take: 5,
     }),
-    user.role === "OWNER"
+    user.role === "SUPER_ADMIN" || user.role === "ADMIN"
       ? prisma.user.findMany({
           where: { name: { contains: q } },
           select: { id: true, name: true, email: true },

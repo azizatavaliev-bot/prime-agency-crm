@@ -4,14 +4,16 @@ import type { SessionUser } from "./auth";
 /** Какие клиенты видит пользователь. */
 export function clientScope(user: SessionUser): Prisma.ClientWhereInput {
   switch (user.role) {
-    case "OWNER":
+    case "SUPER_ADMIN":
+    case "ADMIN":
     case "ACCOUNTANT": // бухгалтер ведёт деньги по всем клиентам
       return {};
     case "TARGETOLOG":
       return { targetologId: user.id };
-    case "ACCOUNT":
+    case "TEAM_LEAD":
       return { accountId: user.id };
-    case "CONTRACTOR":
+    case "DEVELOPER":
+    case "EDITOR":
       return { tasks: { some: { assigneeId: user.id } } };
     default:
       // Неизвестная роль не должна открывать доступ ко всему: Prisma
@@ -26,29 +28,30 @@ export function clientScope(user: SessionUser): Prisma.ClientWhereInput {
  * рекламный бюджет всего агентства ему знать не нужно.
  */
 export function marketingScope(user: SessionUser): Prisma.MarketingReportWhereInput {
-  if (user.role === "OWNER") return {};
+  if (user.role === "SUPER_ADMIN" || user.role === "ADMIN") return {};
   return { OR: [{ authorId: user.id }, { client: clientScope(user) }] };
 }
 
 /** Какие задачи видит пользователь. */
 export function taskScope(user: SessionUser): Prisma.TaskWhereInput {
-  if (user.role === "OWNER" || user.role === "ACCOUNTANT") return {};
-  if (user.role === "CONTRACTOR") return { assigneeId: user.id, board: { in: ["DEV", "VIDEO"] } };
+  if (user.role === "SUPER_ADMIN" || user.role === "ADMIN" || user.role === "ACCOUNTANT") return {};
+  if (user.role === "DEVELOPER" || user.role === "EDITOR")
+    return { assigneeId: user.id, board: { in: ["DEV", "VIDEO"] } };
   return { OR: [{ assigneeId: user.id }, { client: clientScope(user) }] };
 }
 
 export const can = {
-  /** Прибыль владельца и распределение долей — только владелец. */
-  seeAgencyFinance: (u: SessionUser) => u.role === "OWNER",
-  /** Статусы оплат: владелец, бухгалтер и аккаунт-менеджер по своим клиентам. */
+  /** Прибыль владельца и распределение долей — только супер-админ. */
+  seeAgencyFinance: (u: SessionUser) => u.role === "SUPER_ADMIN",
+  /** Статусы оплат: супер-админ, админ, бухгалтер и тимлид по своим клиентам. */
   seePayments: (u: SessionUser) =>
-    u.role === "OWNER" || u.role === "ACCOUNTANT" || u.role === "ACCOUNT",
+    u.role === "SUPER_ADMIN" || u.role === "ADMIN" || u.role === "ACCOUNTANT" || u.role === "TEAM_LEAD",
   /** Расходы, приходы, счета и переводы. */
-  manageMoney: (u: SessionUser) => u.role === "OWNER" || u.role === "ACCOUNTANT",
-  manageClients: (u: SessionUser) => u.role === "OWNER" || u.role === "ACCOUNT",
-  manageTeam: (u: SessionUser) => u.role === "OWNER",
-  writeReports: (u: SessionUser) => u.role === "OWNER" || u.role === "TARGETOLOG",
-  seeAllBoards: (u: SessionUser) => u.role === "OWNER" || u.role === "ACCOUNTANT",
+  manageMoney: (u: SessionUser) => u.role === "SUPER_ADMIN" || u.role === "ADMIN" || u.role === "ACCOUNTANT",
+  manageClients: (u: SessionUser) => u.role === "SUPER_ADMIN" || u.role === "ADMIN" || u.role === "TEAM_LEAD",
+  manageTeam: (u: SessionUser) => u.role === "SUPER_ADMIN" || u.role === "ADMIN",
+  writeReports: (u: SessionUser) => u.role === "SUPER_ADMIN" || u.role === "ADMIN" || u.role === "TARGETOLOG",
+  seeAllBoards: (u: SessionUser) => u.role === "SUPER_ADMIN" || u.role === "ADMIN" || u.role === "ACCOUNTANT",
 };
 
 /** Проверка, что клиент доступен пользователю (иначе null). */

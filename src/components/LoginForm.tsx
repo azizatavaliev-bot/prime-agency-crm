@@ -30,21 +30,20 @@ export default function LoginForm({
       className="mt-6 space-y-4"
     >
       <div>
-        <label className="label" htmlFor="email">
-          Email
+        <label className="label" htmlFor="login">
+          Логин
         </label>
         <input
-          id="email"
+          id="login"
           className="input"
-          name="email"
-          type="email"
+          name="login"
+          type="text"
           required
-          autoComplete="email"
+          autoComplete="username"
           autoCapitalize="none"
           autoCorrect="off"
           spellCheck={false}
-          inputMode="email"
-          placeholder="name@prime.kg"
+          placeholder="login"
         />
       </div>
 
@@ -81,7 +80,7 @@ export default function LoginForm({
         <div className="flex items-start gap-2 rounded-xl bg-red-50 p-3 text-sm text-red-700">
           <AlertCircle size={16} className="mt-0.5 shrink-0" />
           <span>
-            Неверный email или пароль.
+            Неверный логин или пароль.
             <span className="block text-[13px] opacity-80">
               После пяти неудачных попыток вход блокируется на минуту.
             </span>

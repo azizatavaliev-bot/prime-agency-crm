@@ -25,7 +25,7 @@ import { ReportModal } from "@/components/details";
 
 export default async function ClientReportsTab({ sp }: { sp: { clientId?: string } }) {
   const user = await requireUser();
-  if (user.role === "CONTRACTOR") redirect("/no-access");
+  if (user.role === "DEVELOPER" || user.role === "EDITOR") redirect("/no-access");
 
   const clients = await prisma.client.findMany({
     where: clientScope(user),

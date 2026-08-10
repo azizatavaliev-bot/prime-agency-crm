@@ -11,22 +11,23 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const items: NavItem[] = [];
   items.push({
     href: "/dashboard",
-    label: user.role === "OWNER" ? "Дашборд" : "Мой кабинет",
+    label: user.role === "SUPER_ADMIN" ? "Дашборд" : "Мой кабинет",
     icon: "dashboard",
   });
-  if (user.role !== "CONTRACTOR") items.push({ href: "/clients", label: "Клиенты", icon: "clients" });
+  if (user.role !== "DEVELOPER" && user.role !== "EDITOR")
+    items.push({ href: "/clients", label: "Клиенты", icon: "clients" });
   // Оплаты, расходы и счета — один раздел с вкладками, а не три пункта меню.
-  if (user.role === "OWNER" || user.role === "ACCOUNTANT")
+  if (user.role === "SUPER_ADMIN" || user.role === "ADMIN" || user.role === "ACCOUNTANT")
     items.push({ href: "/finance", label: "Финансы и счета", icon: "finance" });
-  else if (user.role === "ACCOUNT")
+  else if (user.role === "TEAM_LEAD")
     items.push({ href: "/finance?tab=payments", label: "Оплаты", icon: "payments" });
   // Отчёты по таргету и реклама агентства — один раздел с вкладками.
-  if (user.role !== "CONTRACTOR")
+  if (user.role !== "DEVELOPER" && user.role !== "EDITOR")
     items.push({ href: "/marketing", label: "Маркетинг", icon: "marketing" });
   items.push({ href: "/tasks", label: "Задачи", icon: "tasks" });
   items.push({ href: "/regulations", label: "Регламенты", icon: "regulations" });
 
-  if (user.role === "OWNER") {
+  if (user.role === "SUPER_ADMIN" || user.role === "ADMIN") {
     items.push({ href: "/team", label: "Команда", icon: "team", group: "Управление" });
     items.push({ href: "/analytics", label: "Аналитика", icon: "analytics", group: "Управление" });
     items.push({ href: "/settings", label: "Настройки", icon: "settings", group: "Управление" });

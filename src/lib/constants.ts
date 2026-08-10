@@ -1,11 +1,18 @@
 export const ROLES = {
-  OWNER: "Владелец",
-  ACCOUNTANT: "Бухгалтер",
+  SUPER_ADMIN: "Супер-админ",
+  ADMIN: "Админ",
+  TEAM_LEAD: "Тимлид",
   TARGETOLOG: "Таргетолог",
-  ACCOUNT: "Аккаунт-менеджер",
-  CONTRACTOR: "Подрядчик (разработка/монтаж)",
+  ACCOUNTANT: "Бухгалтер",
+  DEVELOPER: "Разработчик",
+  EDITOR: "Видеомонтажёр",
 } as const;
 export type Role = keyof typeof ROLES;
+
+/** Роли с полным доступом к управлению агентством. */
+export const MANAGEMENT_ROLES: Role[] = ["SUPER_ADMIN", "ADMIN", "TEAM_LEAD"];
+/** Исполнительские роли без доступа к финансам агентства. */
+export const WORKER_ROLES: Role[] = ["DEVELOPER", "EDITOR"];
 
 export const CLIENT_STATUS = {
   TEST: "Тест",
