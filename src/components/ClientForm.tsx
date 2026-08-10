@@ -52,6 +52,9 @@ export default function ClientForm({
     sitePrice?: number | null;
     botPrice?: number | null;
     videoPrice?: number | null;
+    portalLogin?: string | null;
+    cardLast4?: string | null;
+    cardHolder?: string | null;
   };
   canAssignAccount: boolean;
 }) {
@@ -305,6 +308,41 @@ export default function ClientForm({
         <div>
           <label className="label">Заметки</label>
           <textarea className="input" name="notes" rows={2} defaultValue={client?.notes ?? ""} />
+        </div>
+      </FormSection>
+
+      <FormSection title="Портал клиента" hint="Логин и пароль для входа клиента в личный кабинет" icon={Wallet}>
+        <div>
+          <label className="label">Логин портала</label>
+          <input
+            className="input"
+            name="portalLogin"
+            defaultValue={client?.portalLogin ?? ""}
+            placeholder="например, aktish"
+            autoCapitalize="none"
+            autoCorrect="off"
+            spellCheck={false}
+          />
+        </div>
+        <div>
+          <label className="label">{client?.portalLogin ? "Новый пароль (необязательно)" : "Пароль"}</label>
+          <input
+            className="input"
+            name="portalPassword"
+            type="text"
+            placeholder={client?.portalLogin ? "оставьте пустым, чтобы не менять" : "придумайте пароль"}
+            autoCapitalize="none"
+            autoCorrect="off"
+            spellCheck={false}
+          />
+        </div>
+        <div>
+          <label className="label">Последние 4 цифры карты</label>
+          <input className="input" name="cardLast4" maxLength={4} defaultValue={client?.cardLast4 ?? ""} placeholder="1234" />
+        </div>
+        <div>
+          <label className="label">Держатель карты</label>
+          <input className="input" name="cardHolder" defaultValue={client?.cardHolder ?? ""} placeholder="Имя Фамилия" />
         </div>
       </FormSection>
 

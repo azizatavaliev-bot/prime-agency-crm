@@ -71,6 +71,7 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
   const links = client.links;
 
   const showMoney = can.seePayments(user);
+  const showCard = can.seeCard(user, client);
   const paidTotal = client.payments.filter((p) => p.status === "PAID").reduce((s, p) => s + p.amount, 0);
   const debtTotal = client.payments.filter((p) => p.status !== "PAID").reduce((s, p) => s + p.amount, 0);
   const paidList = client.payments.filter((p) => p.status === "PAID" && p.paidAt);
@@ -201,6 +202,12 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
                         <Field label="Аккаунт-менеджер" value={client.account?.name ?? "—"} />
                         <Field label="Источник заявки" value={client.source || "—"} />
                         <Field label="Услуги" value={servicesLabel(client.services)} />
+                        {showCard && (
+                          <Field
+                            label="Карта клиента"
+                            value={client.cardLast4 ? `•• ${client.cardLast4}${client.cardHolder ? ` — ${client.cardHolder}` : ""}` : "—"}
+                          />
+                        )}
                           <Field label="Заметки" value={client.notes || "—"} />
                       </div>
                     </div>

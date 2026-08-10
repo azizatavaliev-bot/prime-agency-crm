@@ -52,6 +52,17 @@ export const can = {
   manageTeam: (u: SessionUser) => u.role === "SUPER_ADMIN" || u.role === "ADMIN",
   writeReports: (u: SessionUser) => u.role === "SUPER_ADMIN" || u.role === "ADMIN" || u.role === "TARGETOLOG",
   seeAllBoards: (u: SessionUser) => u.role === "SUPER_ADMIN" || u.role === "ADMIN" || u.role === "ACCOUNTANT",
+  /**
+   * Карта клиента (последние 4 цифры) — менеджмент, бухгалтер и сотрудники,
+   * у которых этот клиент в скоупе (таргетолог/тимлид проекта). Не для списков —
+   * только на карточке конкретного клиента, куда доступ уже проверен.
+   */
+  seeCard: (u: SessionUser, client: { targetologId: string | null; accountId: string | null }) =>
+    u.role === "SUPER_ADMIN" ||
+    u.role === "ADMIN" ||
+    u.role === "ACCOUNTANT" ||
+    (u.role === "TARGETOLOG" && client.targetologId === u.id) ||
+    (u.role === "TEAM_LEAD" && client.accountId === u.id),
 };
 
 /** Проверка, что клиент доступен пользователю (иначе null). */

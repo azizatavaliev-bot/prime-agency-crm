@@ -29,6 +29,14 @@ function secretKey(): Uint8Array {
   return new TextEncoder().encode(value);
 }
 const COOKIE = "prime_session";
+/**
+ * Отдельная кука для сессии клиента в портале — не пересекается с кукой
+ * сотрудника: один и тот же браузер может держать сразу обе сессии
+ * (например, сотрудник открывает портал клиента для проверки), и роль
+ * "CLIENT" не входит в перечень ролей сотрудника (`Role`), поэтому
+ * клиентская сессия описывается отдельным типом, а не `SessionUser`.
+ */
+const PORTAL_COOKIE = "prime_portal_session";
 
 /**
  * Счётчик неудачных попыток входа: 5 промахов подряд — минута паузы.
@@ -202,4 +210,79 @@ export async function requireRole(...roles: Role[]): Promise<SessionUser> {
 
 export async function requireOwner() {
   return requireRole("SUPER_ADMIN");
+}
+
+/* ---------------- Портал клиента ---------------- */
+
+/**
+ * Сессия клиента в портале. Отдельный тип от `SessionUser`: клиент — это
+ * запись `Client`, а не `User`, и у него нет роли сотрудника.
+ */
+export type ClientSession = {
+  clientId: string;
+  login: string;
+  name: string;
+};
+
+/** Вход клиента в портал по логину и паролю, выданным агентством. */
+export async function clientLogin(loginValue: string, password: string): Promise<ClientSession | null> {
+  if (!secretConfigured()) {
+    console.error("JWT_SECRET не задан или короче 16 символов — вход отключён");
+    return null;
+  }
+  const key = `portal:${loginValue.trim().toLowerCase()}`;
+  if (tooManyAttempts(key)) return null;
+
+  const client = await prisma.client.findUnique({ where: { portalLogin: loginValue.trim().toLowerCase() } });
+  if (!client || !client.portalPasswordHash) {
+    noteFailure(key);
+    return null;
+  }
+  if (!(await bcrypt.compare(password, client.portalPasswordHash))) {
+    noteFailure(key);
+    return null;
+  }
+  attempts.delete(key);
+
+  const token = await new SignJWT({ cid: client.id })
+    .setProtectedHeader({ alg: "HS256" })
+    .setIssuedAt()
+    .setExpirationTime("30d")
+    .sign(secretKey());
+
+  const jar = await cookies();
+  jar.set(PORTAL_COOKIE, token, {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    path: "/",
+    maxAge: 60 * 60 * 24 * 30,
+  });
+
+  return { clientId: client.id, login: client.portalLogin!, name: client.name };
+}
+
+export async function clientLogout() {
+  const jar = await cookies();
+  jar.delete(PORTAL_COOKIE);
+}
+
+export async function getClientSession(): Promise<ClientSession | null> {
+  const jar = await cookies();
+  const token = jar.get(PORTAL_COOKIE)?.value;
+  if (!token || !secretConfigured()) return null;
+  try {
+    const { payload } = await jwtVerify(token, secretKey());
+    const client = await prisma.client.findUnique({ where: { id: String(payload.cid) } });
+    if (!client || !client.portalLogin || !client.portalPasswordHash) return null;
+    return { clientId: client.id, login: client.portalLogin, name: client.name };
+  } catch {
+    return null;
+  }
+}
+
+export async function requireClient(): Promise<ClientSession> {
+  const session = await getClientSession();
+  if (!session) redirect("/portal/login");
+  return session;
 }

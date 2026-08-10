@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "./prisma";
-import { requireUser, hashPassword } from "./auth";
+import { requireUser, requireClient, hashPassword } from "./auth";
 import { can, clientScope, taskScope } from "./access";
 import { getShares, split, reportMetrics, getUsdRate } from "./finance";
 import { monthKey } from "./format";
@@ -46,6 +46,8 @@ export async function saveClient(fd: FormData) {
 
   const id = str(fd, "id");
   const services = fd.getAll("services").map(String).join(",");
+  const portalLogin = str(fd, "portalLogin");
+  const portalPassword = str(fd, "portalPassword");
   const data = {
     name: req(fd, "name"),
     niche: str(fd, "niche"),
@@ -71,6 +73,10 @@ export async function saveClient(fd: FormData) {
     targetologId: str(fd, "targetologId"),
     accountId: user.role === "TEAM_LEAD" ? user.id : str(fd, "accountId"),
     churnedAt: req(fd, "status") === "CHURNED" ? new Date() : null,
+    portalLogin: portalLogin ? portalLogin.toLowerCase() : null,
+    cardLast4: str(fd, "cardLast4"),
+    cardHolder: str(fd, "cardHolder"),
+    ...(portalPassword ? { portalPasswordHash: await hashPassword(portalPassword) } : {}),
   };
 
   if (id) {
@@ -522,6 +528,33 @@ export async function readAllNotifications() {
   await prisma.notification.updateMany({ where: { userId: user.id }, data: { read: true } });
   revalidatePath("/notifications");
   revalidatePath("/", "layout"); // обновить счётчик непрочитанных в шапке
+}
+
+/* ---------------- Портал клиента ---------------- */
+
+export async function readAllPortalNotifications() {
+  const session = await requireClient();
+  await prisma.notification.updateMany({ where: { clientId: session.clientId }, data: { read: true } });
+  revalidatePath("/portal/notifications");
+  revalidatePath("/portal", "layout");
+}
+
+/** Обратная связь клиента по отчёту: продажи, конверсия, оценка качества лидов. */
+export async function saveClientFeedback(fd: FormData) {
+  const session = await requireClient();
+  const id = req(fd, "id");
+  const r = await prisma.adReport.findFirst({ where: { id, clientId: session.clientId } });
+  if (!r) redirect("/no-access");
+
+  await prisma.adReport.update({
+    where: { id },
+    data: {
+      clientSales: n(fd, "clientSales") ? Math.round(n(fd, "clientSales")) : null,
+      clientConversion: n(fd, "clientConversion") || null,
+      clientLeadQuality: n(fd, "clientLeadQuality") ? Math.round(n(fd, "clientLeadQuality")) : null,
+    },
+  });
+  revalidatePath(`/portal/reports/${id}`);
 }
 
 
