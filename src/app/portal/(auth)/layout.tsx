@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { LogOut, Bell, Zap } from "lucide-react";
+import { LogOut, Bell, Zap, ListTodo } from "lucide-react";
 import { requireClient } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
@@ -20,6 +20,9 @@ export default async function PortalLayout({ children }: { children: React.React
           </div>
         </Link>
         <div className="flex items-center gap-3">
+          <Link href="/portal/tasks" className="btn-ghost !px-3 !py-1.5">
+            <ListTodo size={15} />
+          </Link>
           <Link href="/portal/notifications" className="btn-ghost !px-3 !py-1.5 relative">
             <Bell size={15} />
             {unread > 0 && (
