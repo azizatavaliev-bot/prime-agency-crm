@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { CalendarDays, Plus, Trash2, TrendingUp } from "lucide-react";
 import { saveMarketingReport } from "@/lib/actions";
 import FormSection from "./FormSection";
@@ -45,9 +45,9 @@ export default function MarketingReportForm({
     inquiries: number;
   };
 
-  let rowKeySeq = 0;
+  const rowKeySeq = useRef(0);
   const newRow = (init?: Partial<Row>): Row => ({
-    key: `row-${++rowKeySeq}-${Date.now()}`,
+    key: `row-${++rowKeySeq.current}`,
     spend: 0,
     currency: "KGS",
     leads: 0,
