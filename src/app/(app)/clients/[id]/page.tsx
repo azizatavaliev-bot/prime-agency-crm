@@ -181,7 +181,7 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
           ...(showMoney ? (["payments"] as const) : []),
           "reports",
           "links",
-          ...(can.manageClients(user) ? (["settings"] as const) : []),
+          ...(can.editClient(user, client) ? (["settings"] as const) : []),
         ]}
         counts={{
           tasks: client.tasks.filter((t) => !t.done).length,
@@ -402,7 +402,7 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
           ),
           settings: (
             <>
-                    {can.manageClients(user) && (
+                    {can.editClient(user, client) && (
                       <div className="mt-8">
                         <Collapse title="Редактировать карточку клиента" icon={Pencil}>
                           <ClientForm users={users} client={client} canAssignAccount={user.role === "SUPER_ADMIN"} />

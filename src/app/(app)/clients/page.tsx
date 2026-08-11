@@ -86,7 +86,7 @@ export default async function ClientsPage({
             : "Только ваши проекты · клик по карточке открывает детали"
         }
         right={
-          can.manageClients(user) ? (
+          can.createClients(user) ? (
             <FormModal
               label="Новый клиент"
               title="Новый клиент"
