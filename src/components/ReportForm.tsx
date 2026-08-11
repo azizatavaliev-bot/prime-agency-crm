@@ -20,16 +20,34 @@ export default function ReportForm({
   clients,
   fixedClientId,
   defaultTargetCpl,
+  report,
 }: {
   clients: { id: string; name: string; targetCpl?: number | null }[];
   fixedClientId?: string;
   defaultTargetCpl?: number | null;
+  report?: {
+    id: string;
+    periodFrom: Date | string;
+    periodTo: Date | string;
+    objective: string;
+    budget: number;
+    spent: number;
+    leads: number;
+    actions: number;
+    engagement: number;
+    traffic: number;
+    profileVisits: number;
+    targetCpl: number;
+    targetCpa: number | null;
+    bundles: string | null;
+    comment: string | null;
+  };
 }) {
   const [clientId, setClientId] = useState(fixedClientId ?? clients[0]?.id ?? "");
-  const [from, setFrom] = useState(daysAgo(7));
-  const [spent, setSpent] = useState("");
-  const [leads, setLeads] = useState("");
-  const [objective, setObjective] = useState<string>("LEADS");
+  const [from, setFrom] = useState(report ? toInputDate(new Date(report.periodFrom)) : daysAgo(7));
+  const [spent, setSpent] = useState(report ? String(report.spent) : "");
+  const [leads, setLeads] = useState(report ? String(report.leads) : "");
+  const [objective, setObjective] = useState<string>(report?.objective ?? "LEADS");
 
   // цель по CPL обычно задана в карточке клиента — подставляем её
   const clientCpl = clients.find((c) => c.id === clientId)?.targetCpl ?? defaultTargetCpl ?? null;
@@ -45,6 +63,7 @@ export default function ReportForm({
 
   return (
     <form action={saveReport} className="space-y-4">
+      {report && <input type="hidden" name="id" value={report.id} />}
       <FormSection title="Проект и период" icon={CalendarRange}>
         {fixedClientId ? (
           <input type="hidden" name="clientId" value={fixedClientId} />
@@ -84,7 +103,10 @@ export default function ReportForm({
         </div>
         <div>
           <label className="label">по</label>
-          <DatePicker name="periodTo" defaultValue={toInputDate(new Date())} />
+          <DatePicker
+            name="periodTo"
+            defaultValue={report ? toInputDate(new Date(report.periodTo)) : toInputDate(new Date())}
+          />
         </div>
       </FormSection>
 
@@ -100,7 +122,7 @@ export default function ReportForm({
         </div>
         <div>
           <label className="label">Рекламный бюджет, сом</label>
-          <input className="input" name="budget" type="number" min="0" step="any" />
+          <input className="input" name="budget" type="number" min="0" step="any" defaultValue={report?.budget || ""} />
         </div>
         {/* «Потрачено» — общий расход, важен при любой цели кампании */}
         <div>
@@ -131,24 +153,24 @@ export default function ReportForm({
         {objective === "ENGAGEMENT" && (
           <div>
             <label className="label">Вовлечённость (лайки, комментарии, сохранения)</label>
-            <input className="input" name="engagement" type="number" min="0" />
+            <input className="input" name="engagement" type="number" min="0" defaultValue={report?.engagement || ""} />
           </div>
         )}
         {objective === "TRAFFIC" && (
           <div>
             <label className="label">Переходы по ссылке (трафик)</label>
-            <input className="input" name="traffic" type="number" min="0" />
+            <input className="input" name="traffic" type="number" min="0" defaultValue={report?.traffic || ""} />
           </div>
         )}
         {objective === "PROFILE_VISITS" && (
           <div>
             <label className="label">Посещения профиля</label>
-            <input className="input" name="profileVisits" type="number" min="0" />
+            <input className="input" name="profileVisits" type="number" min="0" defaultValue={report?.profileVisits || ""} />
           </div>
         )}
         <div>
           <label className="label">Целевых действий</label>
-          <input className="input" name="actions" type="number" min="0" />
+          <input className="input" name="actions" type="number" min="0" defaultValue={report?.actions || ""} />
         </div>
       </FormSection>
 
@@ -162,13 +184,13 @@ export default function ReportForm({
             min="0"
             step="any"
             required
-            defaultValue={clientCpl ?? ""}
+            defaultValue={report ? report.targetCpl : clientCpl ?? ""}
             placeholder="порог решения"
           />
         </div>
         <div>
           <label className="label">Целевой CPA, сом</label>
-          <input className="input" name="targetCpa" type="number" min="0" step="any" />
+          <input className="input" name="targetCpa" type="number" min="0" step="any" defaultValue={report?.targetCpa || ""} />
         </div>
       </FormSection>
 
@@ -192,15 +214,15 @@ export default function ReportForm({
       <FormSection title="Связки и комментарий" icon={Layers} columns={1}>
         <div>
           <label className="label">Статус связок</label>
-          <input className="input" name="bundles" placeholder="3 связки в тесте, 1 масштабируем" />
+          <input className="input" name="bundles" placeholder="3 связки в тесте, 1 масштабируем" defaultValue={report?.bundles ?? ""} />
         </div>
         <div>
           <label className="label">Комментарий</label>
-          <textarea className="input" name="comment" rows={2} placeholder="что меняем в следующем периоде" />
+          <textarea className="input" name="comment" rows={2} placeholder="что меняем в следующем периоде" defaultValue={report?.comment ?? ""} />
         </div>
       </FormSection>
 
-      <button className="btn-primary w-full !py-2.5">Сохранить отчёт</button>
+      <button className="btn-primary w-full !py-2.5">{report ? "Сохранить" : "Сохранить отчёт"}</button>
     </form>
   );
 }

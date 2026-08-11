@@ -84,10 +84,14 @@ type ReportRow = {
   id: string;
   periodFrom: Date;
   periodTo: Date;
+  objective: string;
   budget: number;
   spent: number;
   leads: number;
   actions: number;
+  engagement: number;
+  traffic: number;
+  profileVisits: number;
   targetCpl: number;
   targetCpa: number | null;
   bundles: string | null;
@@ -501,9 +505,35 @@ export function ClientModal({
                                     )}
                                   </td>
                                   <td className="px-3 py-2">
-                                    <Link href={`/reports/${r.id}`} className="btn-ghost !px-2.5 !py-1 !text-xs">
-                                      <ExternalLink size={13} /> Клиенту
-                                    </Link>
+                                    <div className="flex flex-wrap items-center gap-1.5">
+                                      <Link href={`/reports/${r.id}`} className="btn-ghost !px-2.5 !py-1 !text-xs">
+                                        <ExternalLink size={13} /> Клиенту
+                                      </Link>
+                                      {can.writeReports(user) && (
+                                        <>
+                                          <FormModal
+                                            label="Изменить"
+                                            title={`Отчёт за период — ${client.name}`}
+                                            variant="ghost"
+                                            icon={<Pencil size={13} />}
+                                            hint="Если ошиблись в цифрах — поправьте и сохраните заново."
+                                          >
+                                            <ReportForm
+                                              clients={[]}
+                                              fixedClientId={client.id}
+                                              defaultTargetCpl={client.targetCpl}
+                                              report={r}
+                                            />
+                                          </FormModal>
+                                          <form action={deleteReport}>
+                                            <input type="hidden" name="id" value={r.id} />
+                                            <button className="btn-ghost !px-2.5 !py-1 !text-xs text-red-600 hover:bg-red-50">
+                                              <Trash2 size={13} /> Удалить
+                                            </button>
+                                          </form>
+                                        </>
+                                      )}
+                                    </div>
                                   </td>
                                 </tr>
                               );
