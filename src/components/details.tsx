@@ -291,7 +291,7 @@ export function ClientModal({
       />
 
       {dict && (
-        <div className="mt-3">
+        <div className="mt-4">
           <ClientStages
             clientId={client.id}
             current={client.status}
@@ -301,7 +301,7 @@ export function ClientModal({
         </div>
       )}
 
-      <div className="mt-4">
+      <div className="mt-6">
         <SideTabs
           large
           tabs={[

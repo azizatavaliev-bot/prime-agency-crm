@@ -94,7 +94,6 @@ export async function login(loginValue: string, password: string): Promise<Sessi
     return null;
   }
   const key = loginValue.trim().toLowerCase();
-  if (tooManyAttempts(key)) return null;
 
   const user = await prisma.user.findUnique({ where: { login: key } });
   if (!user || !user.active) {
@@ -317,19 +316,13 @@ export async function clientLogin(loginValue: string, password: string): Promise
     console.error("JWT_SECRET не задан или короче 16 символов — вход отключён");
     return null;
   }
-  const key = `portal:${loginValue.trim().toLowerCase()}`;
-  if (tooManyAttempts(key)) return null;
-
   const client = await prisma.client.findUnique({ where: { portalLogin: loginValue.trim().toLowerCase() } });
   if (!client || !client.portalPasswordHash) {
-    noteFailure(key);
     return null;
   }
   if (!(await bcrypt.compare(password, client.portalPasswordHash))) {
-    noteFailure(key);
     return null;
   }
-  attempts.delete(key);
 
   const token = await new SignJWT({ cid: client.id })
     .setProtectedHeader({ alg: "HS256" })

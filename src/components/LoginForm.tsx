@@ -79,12 +79,7 @@ export default function LoginForm({
       {error && (
         <div className="flex items-start gap-2 rounded-xl bg-red-50 p-3 text-sm text-red-700">
           <AlertCircle size={16} className="mt-0.5 shrink-0" />
-          <span>
-            Неверный логин или пароль.
-            <span className="block text-[13px] opacity-80">
-              После пяти неудачных попыток вход блокируется на минуту.
-            </span>
-          </span>
+          <span>Неверный логин или пароль.</span>
         </div>
       )}
 
