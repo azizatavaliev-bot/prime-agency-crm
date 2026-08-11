@@ -68,15 +68,34 @@ export const BOARDS = {
   VIDEO: "Монтаж",
 } as const;
 
+/**
+ * Универсальные этапы доски «Таргет»: раньше здесь был длинный конвейер
+ * рекламного отдела (бриф → гипотезы → съёмка → запуск → отсев → масштаб →
+ * обновление). Упростили по просьбе владельца до статусов, которые подходят
+ * для любой задачи, а не только для рекламного конвейера.
+ */
 export const TARGET_STAGES = {
-  BRIEF: "Бриф",
-  HYPOTHESES: "Гипотезы / ТЗ",
-  SHOOTING: "Клиент снимает видео",
-  LAUNCH: "Запуск теста",
-  FILTER: "Отсев",
-  SCALE: "Масштаб",
-  UPDATE: "Обновление",
+  TODO: "К выполнению",
+  IN_PROGRESS: "В работе",
+  DONE: "Выполнено",
 } as const;
+
+/** Старые ключи этапов доски «Таргет» → новые, для миграции и подстраховки в коде. */
+export const LEGACY_TARGET_STAGE_MAP: Record<string, keyof typeof TARGET_STAGES> = {
+  BRIEF: "TODO",
+  HYPOTHESES: "TODO",
+  SHOOTING: "TODO",
+  LAUNCH: "IN_PROGRESS",
+  FILTER: "IN_PROGRESS",
+  SCALE: "IN_PROGRESS",
+  UPDATE: "IN_PROGRESS",
+};
+
+/** Приводит любой (в т.ч. устаревший) ключ этапа доски «Таргет» к новой схеме. */
+export function normalizeTargetStage(stage: string): string {
+  if (stage in TARGET_STAGES) return stage;
+  return LEGACY_TARGET_STAGE_MAP[stage] ?? "TODO";
+}
 
 export const DEV_STAGES = {
   BRIEF: "Бриф",

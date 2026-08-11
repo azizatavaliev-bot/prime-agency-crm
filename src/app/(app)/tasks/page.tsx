@@ -4,7 +4,7 @@ import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { taskScope, clientScope } from "@/lib/access";
 import { saveTask } from "@/lib/actions";
-import { BOARDS } from "@/lib/constants";
+import { BOARDS, normalizeTargetStage } from "@/lib/constants";
 import { dict, stagesOf } from "@/lib/dict";
 import { dateRu, daysUntil } from "@/lib/format";
 import { deadlineBadge, sortTasks, isOverdue } from "@/lib/tasks";
@@ -53,6 +53,11 @@ export default async function TasksPage({
     orderBy: { createdAt: "desc" },
   });
 
+  // Подстраховка: если у какой-то задачи остался старый (до упрощения) этап
+  // доски «Таргет», не даём ей пропасть с доски — переносим в новую схему на лету.
+  for (const t of rows) {
+    if (t.board === "TARGET") t.stage = normalizeTargetStage(t.stage);
+  }
   const sorted = sortTasks(rows);
   const [targetStages, devStages, videoStages, tagList] = await Promise.all([
     dict("STAGE_TARGET"),
@@ -123,6 +128,7 @@ export default async function TasksPage({
       recurrence: t.recurrence,
       comment: t.comment,
       clientName: t.client?.name ?? null,
+      assigneeId: t.assigneeId,
       assigneeName: t.assignee?.name ?? null,
       archived: Boolean(t.archivedAt),
       checklist: t.checklist.map((i) => ({ id: i.id, text: i.text, done: i.done })),
@@ -227,6 +233,7 @@ export default async function TasksPage({
           canMove={!showArchived}
           canEdit={user.role !== "DEVELOPER" && user.role !== "EDITOR"}
           currentUserName={user.name}
+          currentUserId={user.id}
           groups={groups}
         />
       )}

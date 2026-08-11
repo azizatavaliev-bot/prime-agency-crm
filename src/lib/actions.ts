@@ -38,6 +38,29 @@ async function owners() {
   return list.map((u) => u.id);
 }
 
+/**
+ * Уведомление о создании/выполнении задачи: супер-админам, тимлиду проекта
+ * (client.accountId) и клиенту в портал (Notification.clientId), если задача
+ * привязана к клиенту. Один путь для saveTask и toggleTask.
+ */
+async function notifyTaskStakeholders(
+  t: { id: string; clientId: string | null; board: string },
+  client: { targetologId: string | null; accountId: string | null } | null | undefined,
+  kind: string,
+  title: string
+) {
+  await notify([...(await owners()), client?.accountId], {
+    kind,
+    title,
+    link: `/tasks?board=${t.board}`,
+  });
+  if (t.clientId) {
+    await prisma.notification.create({
+      data: { clientId: t.clientId, kind, title, link: `/tasks?board=${t.board}` },
+    });
+  }
+}
+
 /* ---------------- Клиенты ---------------- */
 
 export async function saveClient(fd: FormData) {
@@ -276,7 +299,7 @@ export async function saveTask(fd: FormData) {
   const data = {
     title: req(fd, "title"),
     board: req(fd, "board") || "TARGET",
-    stage: req(fd, "stage") || "BRIEF",
+    stage: req(fd, "stage") || (req(fd, "board") === "TARGET" || !req(fd, "board") ? "TODO" : "BRIEF"),
     clientId: str(fd, "clientId"),
     assigneeId: str(fd, "assigneeId"),
     dueAt: date(fd, "dueAt"),
@@ -308,6 +331,11 @@ export async function saveTask(fd: FormData) {
     }
     if (data.assigneeId && data.assigneeId !== user.id)
       await notifyAssignee(data.assigneeId, created, "Новая задача");
+
+    const client = data.clientId
+      ? await prisma.client.findUnique({ where: { id: data.clientId }, select: { targetologId: true, accountId: true } })
+      : null;
+    await notifyTaskStakeholders(created, client, "TASK_DUE", `${ROLES[user.role]} поставил задачу: ${created.title}`);
   }
   revalidatePath("/tasks");
 }
@@ -429,9 +457,24 @@ export async function moveTask(fd: FormData) {
 export async function toggleTask(fd: FormData) {
   const user = await requireUser();
   const id = req(fd, "id");
-  const t = await prisma.task.findFirst({ where: { AND: [{ id }, taskScope(user)] } });
+  const t = await prisma.task.findFirst({
+    where: { AND: [{ id }, taskScope(user)] },
+    include: { client: { select: { name: true, targetologId: true, accountId: true } } },
+  });
   if (!t) redirect("/no-access");
-  await closeOrReopenTask(t, !t.done);
+  const willBeDone = !t.done;
+  await closeOrReopenTask(t, willBeDone);
+  if (willBeDone) await notifyTaskStakeholders(t, t.client, "TASK_DUE", `Задача выполнена: ${t.title}`);
+  revalidatePath("/tasks");
+}
+
+/** «Взять на себя»: назначить текущего пользователя исполнителем задачи. */
+export async function assignToSelf(fd: FormData) {
+  const user = await requireUser();
+  const id = req(fd, "id");
+  const t = await taskOr404(user, id);
+  if (t.assigneeId === user.id) return;
+  await prisma.task.update({ where: { id }, data: { assigneeId: user.id } });
   revalidatePath("/tasks");
 }
 

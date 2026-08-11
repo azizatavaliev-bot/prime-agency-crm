@@ -28,6 +28,7 @@ export default function TasksClient({
   canMove,
   canEdit,
   currentUserName,
+  currentUserId,
   groups,
 }: {
   stages: [string, string][];
@@ -37,6 +38,7 @@ export default function TasksClient({
   canMove: boolean;
   canEdit: boolean;
   currentUserName: string;
+  currentUserId?: string;
   groups: { overdue: string[]; today: string[]; noDate: string[]; mine: string[] };
 }) {
   const [view, setView] = useState<TaskView>("board");
@@ -158,7 +160,7 @@ export default function TasksClient({
                   <X size={16} />
                 </button>
               </div>
-              <TaskDetail task={detail} canEdit={canEdit} />
+              <TaskDetail task={detail} canEdit={canEdit} currentUserId={currentUserId} />
             </div>
           </div>,
           document.body

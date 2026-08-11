@@ -233,12 +233,12 @@ model AdTransaction {
 }
 
 // board: TARGET | DEV | VIDEO
-// stage (TARGET): BRIEF, HYPOTHESES, SHOOTING, LAUNCH, FILTER, SCALE, UPDATE
+// stage (TARGET): TODO, IN_PROGRESS, DONE — универсальные статусы выполнения
 model Task {
   id         String    @id @default(cuid())
   title      String
   board      String    @default("TARGET")
-  stage      String    @default("BRIEF")
+  stage      String    @default("TODO")
   clientId   String?
   client     Client?   @relation(fields: [clientId], references: [id], onDelete: SetNull)
   assigneeId String?

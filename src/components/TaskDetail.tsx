@@ -20,9 +20,11 @@ import {
   setTaskPriority,
   archiveTask,
   toggleTask,
+  assignToSelf,
 } from "@/lib/actions";
-import { PRIORITY, PRIORITY_COLOR, RECURRENCE } from "@/lib/constants";
+import { PRIORITY, RECURRENCE } from "@/lib/constants";
 import { Field, Avatar } from "./ui";
+import { UserPlus } from "lucide-react";
 
 export type TaskDetailData = {
   id: string;
@@ -36,14 +38,35 @@ export type TaskDetailData = {
   recurrence: string | null;
   comment: string | null;
   clientName: string | null;
+  assigneeId: string | null;
   assigneeName: string | null;
   archived: boolean;
   checklist: { id: string; text: string; done: boolean }[];
   comments: { id: string; text: string; author: string; when: string; mine: boolean }[];
 };
 
+/** Частые пункты чеклиста таргетолога при запуске рекламы на новом проекте. */
+const CHECKLIST_TEMPLATES = [
+  "Подключить номер",
+  "Подключить Инстаграм",
+  "Сделать рекламные креативы",
+  "Собрать гипотезы",
+  "Настроить рекламный кабинет",
+  "Согласовать бюджет с клиентом",
+  "Запустить тест",
+  "Прислать первый отчёт",
+];
+
 /** Правая часть модалки задачи: чеклист и обсуждение — как в Unity/FADAMOS. */
-export default function TaskDetail({ task, canEdit }: { task: TaskDetailData; canEdit: boolean }) {
+export default function TaskDetail({
+  task,
+  canEdit,
+  currentUserId,
+}: {
+  task: TaskDetailData;
+  canEdit: boolean;
+  currentUserId?: string;
+}) {
   const [pending, start] = useTransition();
   const [newItem, setNewItem] = useState("");
   const [newComment, setNewComment] = useState("");
@@ -77,20 +100,27 @@ export default function TaskDetail({ task, canEdit }: { task: TaskDetailData; ca
             <div className="mb-2 flex items-center gap-2 text-sm font-medium">
               <Flag size={14} /> Приоритет
             </div>
+            {/* Тот же паттерн выбора, что и в форме задачи (chip + accent-gradient) —
+                раньше активный вариант почти не отличался от неактивного. */}
             <div className="flex flex-wrap gap-2">
-              {Object.entries(PRIORITY).map(([key, label]) => (
-                <form key={key} action={setTaskPriority}>
-                  <input type="hidden" name="id" value={task.id} />
-                  <input type="hidden" name="priority" value={key} />
-                  <button
-                    className={`badge transition ${
-                      task.priority === key ? PRIORITY_COLOR[key] : "bg-subtle text-muted border-transparent"
-                    }`}
-                  >
-                    {label}
-                  </button>
-                </form>
-              ))}
+              {Object.entries(PRIORITY).map(([key, label]) => {
+                const active = task.priority === key;
+                return (
+                  <form key={key} action={setTaskPriority}>
+                    <input type="hidden" name="id" value={task.id} />
+                    <input type="hidden" name="priority" value={key} />
+                    <button
+                      className={`chip transition ${
+                        active
+                          ? "accent-gradient border-transparent text-white ring-2 ring-offset-1 ring-[var(--accent)]"
+                          : "border-zinc-200 text-muted hover:bg-subtle"
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  </form>
+                );
+              })}
             </div>
           </div>
         )}
@@ -102,6 +132,14 @@ export default function TaskDetail({ task, canEdit }: { task: TaskDetailData; ca
               <Check size={15} /> {task.done ? "Вернуть в работу" : "Выполнено"}
             </button>
           </form>
+          {canEdit && currentUserId && task.assigneeId !== currentUserId && (
+            <form action={assignToSelf}>
+              <input type="hidden" name="id" value={task.id} />
+              <button className="btn-ghost">
+                <UserPlus size={15} /> Взять на себя
+              </button>
+            </form>
+          )}
           {canEdit && (
             <form action={archiveTask}>
               <input type="hidden" name="id" value={task.id} />
@@ -164,6 +202,29 @@ export default function TaskDetail({ task, canEdit }: { task: TaskDetailData; ca
               <div className="py-1 text-xs text-muted">Пунктов пока нет</div>
             )}
           </div>
+
+          {canEdit && (
+            <div className="mb-2 flex flex-wrap gap-1.5">
+              {CHECKLIST_TEMPLATES.filter(
+                (tpl) => !task.checklist.some((i) => i.text === tpl)
+              ).map((tpl) => (
+                <button
+                  key={tpl}
+                  type="button"
+                  disabled={pending}
+                  onClick={() => {
+                    const fd = new FormData();
+                    fd.set("taskId", task.id);
+                    fd.set("text", tpl);
+                    start(() => addChecklistItem(fd));
+                  }}
+                  className="rounded-lg border border-dashed border-zinc-300 px-2 py-1 text-[11px] text-muted transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
+                >
+                  + {tpl}
+                </button>
+              ))}
+            </div>
+          )}
 
           <form
             action={(fd) => {
