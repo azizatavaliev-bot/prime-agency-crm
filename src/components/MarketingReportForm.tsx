@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { CalendarDays, TrendingUp } from "lucide-react";
+import { CalendarDays, Plus, Trash2, TrendingUp } from "lucide-react";
 import { saveMarketingReport } from "@/lib/actions";
 import FormSection from "./FormSection";
 import Select, { type SelectOption } from "./Select";
@@ -36,13 +36,50 @@ export default function MarketingReportForm({
     notes?: string;
   };
 }) {
-  const [spend, setSpend] = useState(defaults?.spend ?? 0);
-  const [leads, setLeads] = useState(defaults?.leads ?? 0);
-  const [currency, setCurrency] = useState(defaults?.currency ?? "KGS");
+  type Row = {
+    key: string;
+    spend: number;
+    currency: string;
+    leads: number;
+    impressions: number;
+    inquiries: number;
+  };
+
+  let rowKeySeq = 0;
+  const newRow = (init?: Partial<Row>): Row => ({
+    key: `row-${++rowKeySeq}-${Date.now()}`,
+    spend: 0,
+    currency: "KGS",
+    leads: 0,
+    impressions: 0,
+    inquiries: 0,
+    ...init,
+  });
+
+  const [rows, setRows] = useState<Row[]>([
+    newRow({
+      spend: defaults?.spend ?? 0,
+      currency: defaults?.currency ?? "KGS",
+      leads: defaults?.leads ?? 0,
+      impressions: defaults?.impressions ?? 0,
+      inquiries: defaults?.inquiries ?? 0,
+    }),
+  ]);
   const [rate, setRate] = useState(usdRate);
 
-  // Считаем и храним всё в сомах, доллары пересчитываем сразу.
-  const spendSom = currency === "USD" ? spend * rate : spend;
+  const addRow = () => setRows((rs) => [...rs, newRow()]);
+  const removeRow = (key: string) => setRows((rs) => (rs.length > 1 ? rs.filter((r) => r.key !== key) : rs));
+  const updateRow = (key: string, patch: Partial<Row>) =>
+    setRows((rs) => rs.map((r) => (r.key === key ? { ...r, ...patch } : r)));
+
+  // Каждую строку переводим в сомы по общему курсу и суммируем — так несколько
+  // кампаний/кабинетов за один день сводятся в один отчёт.
+  const rowSom = (r: Row) => (r.currency === "USD" ? r.spend * rate : r.spend);
+  const spendSom = rows.reduce((sum, r) => sum + rowSom(r), 0);
+  const leads = rows.reduce((sum, r) => sum + r.leads, 0);
+  const impressions = rows.reduce((sum, r) => sum + r.impressions, 0);
+  const inquiries = rows.reduce((sum, r) => sum + r.inquiries, 0);
+  const hasUsdRow = rows.some((r) => r.currency === "USD");
   const cplValue = leads > 0 ? Math.round(spendSom / leads) : null;
   const tone = cplValue === null ? "default" : cplValue > 300 ? "bad" : cplValue > 200 ? "warn" : "good";
   const toneClass = {
@@ -86,68 +123,112 @@ export default function MarketingReportForm({
         )}
       </FormSection>
 
-      <FormSection title="Данные отчёта" icon={TrendingUp} columns={2}>
-        <div>
-          <label className="label">Расход</label>
-          <div className="flex gap-2">
-            <input
-              className="input"
-              name="spend"
-              type="number"
-              step="0.01"
-              defaultValue={defaults?.spend ?? 0}
-              onChange={(e) => setSpend(Number(e.target.value) || 0)}
-            />
-            <div className="w-28">
-              <Select
-                name="currency"
-                options={[
-                  { value: "KGS", label: "сом" },
-                  { value: "USD", label: "USD" },
-                ]}
-                defaultValue={defaults?.currency ?? "KGS"}
-                onChange={setCurrency}
-              />
+      {/* Итоговые поля, которые реально уходят в saveMarketingReport — считаются из строк ниже. */}
+      <input type="hidden" name="spend" value={spendSom} />
+      <input type="hidden" name="currency" value="KGS" />
+      <input type="hidden" name="leads" value={leads} />
+      <input type="hidden" name="impressions" value={impressions} />
+      <input type="hidden" name="inquiries" value={inquiries} />
+
+      <FormSection title="Данные отчёта" icon={TrendingUp} columns={1}>
+        <div className="space-y-3">
+          {rows.map((r, i) => (
+            <div key={r.key} className="rounded-xl border border-zinc-200 p-3">
+              <div className="mb-2 flex items-center justify-between">
+                <span className="text-xs font-medium text-muted">
+                  {rows.length > 1 ? `Кампания ${i + 1}` : "Кампания"}
+                </span>
+                {rows.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => removeRow(r.key)}
+                    className="btn-ghost !px-2 !py-1 !text-xs text-red-600"
+                  >
+                    <Trash2 size={13} />
+                  </button>
+                )}
+              </div>
+              <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+                <div>
+                  <label className="label">Расход</label>
+                  <div className="flex gap-2">
+                    <input
+                      className="input"
+                      type="number"
+                      step="0.01"
+                      value={r.spend}
+                      onChange={(e) => updateRow(r.key, { spend: Number(e.target.value) || 0 })}
+                    />
+                    <div className="w-24">
+                      <Select
+                        name={`row-currency-${r.key}`}
+                        options={[
+                          { value: "KGS", label: "сом" },
+                          { value: "USD", label: "USD" },
+                        ]}
+                        defaultValue={r.currency}
+                        onChange={(v) => updateRow(r.key, { currency: v })}
+                      />
+                    </div>
+                  </div>
+                </div>
+                <div>
+                  <label className="label">Лиды</label>
+                  <input
+                    className="input"
+                    type="number"
+                    value={r.leads}
+                    onChange={(e) => updateRow(r.key, { leads: Number(e.target.value) || 0 })}
+                  />
+                </div>
+                <div>
+                  <label className="label">Показы</label>
+                  <input
+                    className="input"
+                    type="number"
+                    value={r.impressions}
+                    onChange={(e) => updateRow(r.key, { impressions: Number(e.target.value) || 0 })}
+                  />
+                </div>
+                <div>
+                  <label className="label">Обращения</label>
+                  <input
+                    className="input"
+                    type="number"
+                    value={r.inquiries}
+                    onChange={(e) => updateRow(r.key, { inquiries: Number(e.target.value) || 0 })}
+                  />
+                </div>
+              </div>
             </div>
-          </div>
-          {currency === "USD" && (
-            <div className="mt-2 flex items-center gap-2">
+          ))}
+
+          <button type="button" onClick={addRow} className="btn-ghost !text-xs">
+            <Plus size={13} /> Добавить строку
+          </button>
+
+          {hasUsdRow && (
+            <div className="flex items-center gap-2">
+              <label className="label !mb-0">Курс USD</label>
               <input
                 className="input !py-1.5 w-28"
-                name="usdRate"
                 type="number"
                 step="0.01"
                 value={rate}
                 onChange={(e) => setRate(Number(e.target.value) || 0)}
               />
               <span className="text-xs text-muted">
-                курс — в базу уйдёт {Math.round(spendSom).toLocaleString("ru-RU")} сом
+                итого расход — {Math.round(spendSom).toLocaleString("ru-RU")} сом
               </span>
             </div>
           )}
         </div>
-        <div>
-          <label className="label">Лиды</label>
-          <input
-            className="input"
-            name="leads"
-            type="number"
-            defaultValue={defaults?.leads ?? 0}
-            onChange={(e) => setLeads(Number(e.target.value) || 0)}
-          />
-        </div>
-        <div>
-          <label className="label">Показы</label>
-          <input className="input" name="impressions" type="number" defaultValue={defaults?.impressions ?? 0} />
-        </div>
-        <div>
-          <label className="label">Обращения</label>
-          <input className="input" name="inquiries" type="number" defaultValue={defaults?.inquiries ?? 0} />
-        </div>
       </FormSection>
 
       <div className={`rounded-2xl px-4 py-3 text-sm font-medium ${toneClass}`}>
-        {cplValue === null ? "Укажите лиды, чтобы увидеть цену заявки" : `Цена заявки: ${cplValue} сом`}
+        {cplValue === null
+          ? "Укажите лиды, чтобы увидеть цену заявки"
+          : `Цена заявки: ${cplValue} сом${rows.length > 1 ? ` · всего расход ${Math.round(spendSom).toLocaleString("ru-RU")} сом` : ""}`}
       </div>
 
       <div>

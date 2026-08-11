@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { FileText, Trash2 } from "lucide-react";
+import { FileText, Plus, Trash2 } from "lucide-react";
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { can, clientScope, marketingScope } from "@/lib/access";
@@ -8,7 +8,7 @@ import { dicts } from "@/lib/dict";
 import { deleteMarketingReport } from "@/lib/actions";
 import { som, num, dateRu } from "@/lib/format";
 import { cpl } from "@/lib/marketing";
-import { Table, Collapse, Section } from "@/components/ui";
+import { Table, Collapse } from "@/components/ui";
 import MarketingReportForm from "@/components/MarketingReportForm";
 
 export default async function DailyReportsTab() {
@@ -37,7 +37,7 @@ export default async function DailyReportsTab() {
   return (
     <div>
 
-      <Section title="Новый отчёт" icon={FileText}>
+      <Collapse title="Заполнить отчёт" icon={Plus}>
         <MarketingReportForm
           channels={opts(MARKETING_CHANNEL)}
           sources={opts(MARKETING_SOURCE)}
@@ -45,7 +45,7 @@ export default async function DailyReportsTab() {
           clients={clients.map((c) => ({ value: c.id, label: c.name }))}
           usdRate={usdRate}
         />
-      </Section>
+      </Collapse>
 
       <div className="mt-6">
         <Collapse title={`Сводка за период (${reports.length})`} icon={FileText}>
