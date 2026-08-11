@@ -3,42 +3,26 @@ import { requireClient } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { reportMetrics } from "@/lib/finance";
 import { som, dateRu, num } from "@/lib/format";
-import { PageHeader, Section, Empty, Stat } from "@/components/ui";
-import { CreditCard, FileBarChart, Layers, ExternalLink, Wallet, TrendingUp } from "lucide-react";
+import { PageHeader, Section, Empty } from "@/components/ui";
+import { CreditCard, FileBarChart, Layers, ExternalLink } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
 export default async function PortalHome() {
   const session = await requireClient();
 
-  const [client, spendAgg, reportsCount] = await Promise.all([
-    prisma.client.findUnique({
-      where: { id: session.clientId },
-      include: {
-        directions: { where: { active: true }, orderBy: { createdAt: "asc" } },
-        reports: { orderBy: { periodTo: "desc" }, take: 6, include: { direction: true } },
-      },
-    }),
-    prisma.adReport.aggregate({
-      where: { clientId: session.clientId },
-      _sum: { spent: true, leads: true },
-    }),
-    prisma.adReport.count({ where: { clientId: session.clientId } }),
-  ]);
+  const client = await prisma.client.findUnique({
+    where: { id: session.clientId },
+    include: {
+      directions: { where: { active: true }, orderBy: { createdAt: "asc" } },
+      reports: { orderBy: { periodTo: "desc" }, take: 20, include: { direction: true } },
+    },
+  });
   if (!client) return <Empty text="Проект не найден" />;
-
-  const totalSpent = spendAgg._sum.spent ?? 0;
-  const totalLeads = spendAgg._sum.leads ?? 0;
 
   return (
     <div>
       <PageHeader title={client.name} subtitle="Ваш проект в Prime Agency" />
-
-      <div className="grid gap-3 grid-cols-2 lg:grid-cols-3">
-        <Stat label="Потрачено на рекламу всего" value={som(totalSpent)} icon={Wallet} />
-        <Stat label="Заявок получено всего" value={String(totalLeads)} icon={TrendingUp} />
-        <Stat label="Отчётов" value={String(reportsCount)} icon={FileBarChart} />
-      </div>
 
       {client.directions.length > 0 && (
         <Section title="Направления" icon={Layers}>
@@ -64,17 +48,7 @@ export default async function PortalHome() {
         </Section>
       )}
 
-      <Section
-        title="Отчёты по рекламе"
-        icon={FileBarChart}
-        right={
-          reportsCount > client.reports.length ? (
-            <Link href="/portal/reports" className="btn-ghost !py-1.5 !text-xs">
-              Все отчёты <ExternalLink size={13} />
-            </Link>
-          ) : undefined
-        }
-      >
+      <Section title="Отчёты по рекламе" icon={FileBarChart}>
         <div className="space-y-2">
           {client.reports.map((r) => {
             const m = reportMetrics(r);

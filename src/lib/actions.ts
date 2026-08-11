@@ -42,16 +42,9 @@ async function owners() {
 
 export async function saveClient(fd: FormData) {
   const user = await requireUser();
-  const id = str(fd, "id");
-  // Создание — шире (доступно и таргетологу), правка существующего клиента —
-  // менеджменту по всем + таргетологу только по своим (проверяется ниже через
-  // clientScope при апдейте).
-  if (id) {
-    if (!can.manageClients(user) && user.role !== "TARGETOLOG") redirect("/no-access");
-  } else if (!can.createClients(user)) {
-    redirect("/no-access");
-  }
+  if (!can.manageClients(user)) redirect("/no-access");
 
+  const id = str(fd, "id");
   const services = fd.getAll("services").map(String).join(",");
   const portalLogin = str(fd, "portalLogin");
   const portalPassword = str(fd, "portalPassword");
@@ -77,8 +70,7 @@ export async function saveClient(fd: FormData) {
     sitePrice: n(fd, "sitePrice") || null,
     botPrice: n(fd, "botPrice") || null,
     videoPrice: n(fd, "videoPrice") || null,
-    // Таргетолог не может назначить проект кому-то другому — только себе.
-    targetologId: user.role === "TARGETOLOG" ? user.id : str(fd, "targetologId"),
+    targetologId: str(fd, "targetologId"),
     accountId: user.role === "TEAM_LEAD" ? user.id : str(fd, "accountId"),
     churnedAt: req(fd, "status") === "CHURNED" ? new Date() : null,
     portalLogin: portalLogin ? portalLogin.toLowerCase() : null,
@@ -590,43 +582,6 @@ export async function saveClientFeedback(fd: FormData) {
     },
   });
   revalidatePath(`/portal/reports/${id}`);
-}
-
-/**
- * Клиент создаёт задачу по своему проекту из портала. Узкая версия saveTask:
- * clientId и исполнителя клиент не выбирает — берём из его проекта
- * (таргетолог, назначенный на проект), остальные поля задачи клиенту
- * недоступны.
- */
-export async function createClientTask(fd: FormData) {
-  const session = await requireClient();
-  const title = req(fd, "title");
-  if (!title) redirect("/portal/tasks");
-
-  const client = await prisma.client.findUnique({ where: { id: session.clientId } });
-  if (!client) redirect("/no-access");
-
-  await prisma.task.create({
-    data: {
-      title,
-      board: "TARGET",
-      stage: "BRIEF",
-      clientId: client.id,
-      assigneeId: client.targetologId,
-      dueAt: date(fd, "dueAt"),
-    },
-  });
-
-  if (client.targetologId) {
-    await notify([client.targetologId], {
-      kind: "TASK_DUE",
-      title: `Задача от клиента: ${client.name}`,
-      body: title,
-      link: `/clients/${client.id}`,
-    });
-  }
-
-  revalidatePath("/portal/tasks");
 }
 
 

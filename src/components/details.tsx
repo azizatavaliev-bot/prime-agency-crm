@@ -605,7 +605,7 @@ export function ClientModal({
                 </>
               ),
             },
-            ...(can.editClient(user, client)
+            ...(can.manageClients(user)
               ? [
                   {
                     key: "settings",
@@ -613,7 +613,7 @@ export function ClientModal({
                     icon: "settings",
                     content: (
                       <>
-                              {can.editClient(user, client) && (
+                              {can.manageClients(user) && (
                                 <Section title="Управление" icon={Pencil}>
                                   <div className="flex flex-wrap gap-2">
                                     <FormModal

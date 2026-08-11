@@ -49,18 +49,6 @@ export const can = {
   /** Расходы, приходы, счета и переводы. */
   manageMoney: (u: SessionUser) => u.role === "SUPER_ADMIN" || u.role === "ADMIN" || u.role === "ACCOUNTANT",
   manageClients: (u: SessionUser) => u.role === "SUPER_ADMIN" || u.role === "ADMIN" || u.role === "TEAM_LEAD",
-  /**
-   * Создание нового клиента/проекта — шире, чем `manageClients`: таргетолог
-   * тоже может завести себе проект (и станет его таргетологом автоматически,
-   * см. `saveClient`). Редактирование/удаление чужих клиентов это не даёт.
-   */
-  createClients: (u: SessionUser) => can.manageClients(u) || u.role === "TARGETOLOG",
-  /**
-   * Правка карточки конкретного клиента: менеджмент — по всем, таргетолог —
-   * только по своим (назначенным) проектам.
-   */
-  editClient: (u: SessionUser, client: { targetologId: string | null; accountId: string | null }) =>
-    can.manageClients(u) || (u.role === "TARGETOLOG" && client.targetologId === u.id),
   manageTeam: (u: SessionUser) => u.role === "SUPER_ADMIN" || u.role === "ADMIN",
   writeReports: (u: SessionUser) => u.role === "SUPER_ADMIN" || u.role === "ADMIN" || u.role === "TARGETOLOG",
   seeAllBoards: (u: SessionUser) => u.role === "SUPER_ADMIN" || u.role === "ADMIN" || u.role === "ACCOUNTANT",
