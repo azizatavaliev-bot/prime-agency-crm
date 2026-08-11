@@ -46,7 +46,7 @@ export default function SideTabs({ tabs, large = false }: { tabs: SideTab[]; lar
 
   return (
     <div className={`flex flex-col gap-4 ${large ? "modal-tabs-lg" : ""}`}>
-      <nav className="flex shrink-0 gap-1 overflow-x-auto pb-1">
+      <nav className="flex shrink-0 gap-2.5 overflow-x-auto pb-1">
         {tabs.map((t) => {
           const Icon = ICONS[t.icon] ?? LayoutGrid;
           const isActive = t.key === active;
