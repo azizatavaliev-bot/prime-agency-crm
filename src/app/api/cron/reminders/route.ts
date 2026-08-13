@@ -4,7 +4,7 @@ import { runReminders, runTaskDigest } from "@/lib/reminders";
 /** Крон: GET /api/cron/reminders?key=CRON_KEY */
 export async function GET(req: Request) {
   const key = new URL(req.url).searchParams.get("key");
-  if (process.env.CRON_KEY && key !== process.env.CRON_KEY)
+  if (!process.env.CRON_KEY || key !== process.env.CRON_KEY)
     return new NextResponse("forbidden", { status: 403 });
   // ?digest=1 — утренняя сводка по задачам (ставится на 9:00),
   // без него — обычный прогон напоминаний.

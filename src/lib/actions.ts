@@ -6,9 +6,10 @@ import { prisma } from "./prisma";
 import { requireUser, requireClient, hashPassword, impersonate as impersonateSession, stopImpersonating as stopImpersonatingSession } from "./auth";
 import { can, clientScope, taskScope } from "./access";
 import { getShares, split, reportMetrics, getUsdRate } from "./finance";
-import { monthKey } from "./format";
+import { monthKey, som, dateRu } from "./format";
 import { ROLES, DEFAULTS, REPORT_OBJECTIVE } from "./constants";
 import { notifyAssignee, closeOrReopenTask } from "./tasks";
+import { notifyClient, notifyUser } from "./telegram";
 
 function str(fd: FormData, k: string) {
   const v = fd.get(k);
@@ -23,6 +24,14 @@ function n(fd: FormData, k: string) {
 function date(fd: FormData, k: string) {
   const v = str(fd, k);
   return v ? new Date(v) : null;
+}
+
+/** Файл-скрин из формы → байты для БД, либо null, если ничего не приложили. */
+async function screenshotFrom(fd: FormData, k: string): Promise<{ screenshot: Uint8Array<ArrayBuffer>; screenshotMime: string } | null> {
+  const file = fd.get(k);
+  if (!(file instanceof File) || file.size === 0) return null;
+  const bytes = Uint8Array.from(new Uint8Array(await file.arrayBuffer()));
+  return { screenshot: bytes, screenshotMime: file.type || "image/jpeg" };
 }
 
 async function notify(userIds: (string | null | undefined)[], data: { kind: string; title: string; body?: string; link?: string }) {
@@ -258,20 +267,27 @@ export async function saveReport(fd: FormData) {
     engagement: Math.round(n(fd, "engagement")),
     traffic: Math.round(n(fd, "traffic")),
     profileVisits: Math.round(n(fd, "profileVisits")),
+    views: Math.round(n(fd, "views")),
     targetCpl: n(fd, "targetCpl"),
     targetCpa: n(fd, "targetCpa") || null,
     bundles: str(fd, "bundles"),
     comment: str(fd, "comment"),
   };
+  const shot = await screenshotFrom(fd, "screenshot");
+  const removeScreenshot = str(fd, "removeScreenshot") === "1";
+
   const id = str(fd, "id");
+  let reportId = id;
   if (id) {
     const existing = await prisma.adReport.findFirst({
       where: { AND: [{ id }, { client: clientScope(user) }] },
     });
     if (!existing) redirect("/no-access");
-    await prisma.adReport.update({ where: { id }, data });
+    const shotPatch = shot ?? (removeScreenshot ? { screenshot: null, screenshotMime: null } : {});
+    await prisma.adReport.update({ where: { id }, data: { ...data, ...shotPatch } });
   } else {
-    await prisma.adReport.create({ data });
+    const created = await prisma.adReport.create({ data: shot ? { ...data, ...shot } : data });
+    reportId = created.id;
   }
 
   const m = reportMetrics(data);
@@ -281,6 +297,39 @@ export async function saveReport(fd: FormData) {
       title: `Превышен порог CPL — ${client.name}`,
       body: `CPL ${Math.round(m.cpl ?? 0)} сом при цели ${Math.round(data.targetCpl)} сом`,
       link: `/clients/${clientId}`,
+    });
+  }
+
+  // Свежий отчёт — сразу в Telegram: клиенту (если привязан бот в портале)
+  // и команде проекта, со скрином кабинета, если его приложили.
+  const metricLabel: Record<string, string> = {
+    LEADS: "заявок",
+    ENGAGEMENT: "вовлечённость",
+    TRAFFIC: "переходов",
+    PROFILE_VISITS: "посещений профиля",
+  };
+  const metricValue = { LEADS: data.leads, ENGAGEMENT: data.engagement, TRAFFIC: data.traffic, PROFILE_VISITS: data.profileVisits }[
+    data.objective
+  ];
+  const summary = `Период ${dateRu(data.periodFrom)} — ${dateRu(data.periodTo)}\nПотрачено: ${som(data.spent)}\n${
+    metricLabel[data.objective] ?? "результат"
+  }: ${metricValue}`;
+  const photo = shot ? { buffer: Buffer.from(shot.screenshot), mime: shot.screenshotMime } : null;
+
+  await notifyClient(clientId, {
+    kind: "REPORT_READY",
+    title: `Новый отчёт по рекламе — ${client.name}`,
+    body: summary,
+    link: `/portal/reports/${reportId}`,
+    photo,
+  });
+  for (const uid of [...new Set([...(await owners()), client.targetologId, client.accountId].filter(Boolean) as string[])]) {
+    await notifyUser(uid, {
+      kind: "REPORT_READY",
+      title: `Отчёт заполнен — ${client.name}`,
+      body: summary,
+      link: `/clients/${clientId}`,
+      photo,
     });
   }
 

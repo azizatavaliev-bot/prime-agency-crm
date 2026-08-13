@@ -95,10 +95,12 @@ type ReportRow = {
   engagement: number;
   traffic: number;
   profileVisits: number;
+  views: number;
   targetCpl: number;
   targetCpa: number | null;
   bundles: string | null;
   comment: string | null;
+  screenshot?: unknown;
 };
 
 type TaskRow = {
@@ -791,6 +793,7 @@ export function ReportModal({
   clientName,
   clientId,
   canEdit,
+  defaultTargetCpl,
   trigger,
   row,
   className,
@@ -799,6 +802,7 @@ export function ReportModal({
   clientName: string;
   clientId: string;
   canEdit: boolean;
+  defaultTargetCpl?: number | null;
   trigger?: React.ReactNode;
   row?: React.ReactNode;
   className?: string;
@@ -860,12 +864,28 @@ export function ReportModal({
           К клиенту
         </Link>
         {canEdit && (
-          <form action={deleteReport}>
-            <input type="hidden" name="id" value={report.id} />
-            <button className="btn-ghost text-red-600">
-              <Trash2 size={15} /> Удалить
-            </button>
-          </form>
+          <>
+            <FormModal
+              label="Изменить"
+              title={`Отчёт за период — ${clientName}`}
+              variant="ghost"
+              icon={<Pencil size={15} />}
+              hint="Если ошиблись в цифрах, цели или скриншоте — поправьте и сохраните заново."
+            >
+              <ReportForm
+                clients={[]}
+                fixedClientId={clientId}
+                defaultTargetCpl={defaultTargetCpl}
+                report={{ ...report, hasScreenshot: Boolean(report.screenshot) }}
+              />
+            </FormModal>
+            <form action={deleteReport}>
+              <input type="hidden" name="id" value={report.id} />
+              <button className="btn-ghost text-red-600">
+                <Trash2 size={15} /> Удалить
+              </button>
+            </form>
+          </>
         )}
       </div>
     </Modal>

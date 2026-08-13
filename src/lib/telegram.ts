@@ -45,6 +45,35 @@ export async function sendTg(chatId: string, text: string, link?: string, button
   });
 }
 
+/**
+ * Фото с подписью — для скринов рекламного кабинета к отчёту. Файл шлём
+ * многочастевым запросом (Telegram не принимает произвольные байты в JSON).
+ */
+export async function sendPhoto(
+  chatId: string,
+  photo: Buffer,
+  mime: string | null,
+  caption: string,
+  link?: string,
+  buttons?: TgButton[][]
+) {
+  if (!TOKEN) return { ok: false, reason: "TELEGRAM_BOT_TOKEN не задан" };
+  const form = new FormData();
+  form.append("chat_id", chatId);
+  form.append("caption", caption);
+  form.append("parse_mode", "HTML");
+  const kb = keyboard(buttons, link);
+  if (kb.reply_markup) form.append("reply_markup", JSON.stringify(kb.reply_markup));
+  form.append("photo", new Blob([new Uint8Array(photo)], { type: mime || "image/jpeg" }), "screenshot.jpg");
+  try {
+    const r = await fetch(API("sendPhoto"), { method: "POST", body: form });
+    const j = await r.json();
+    return { ok: Boolean(j.ok), reason: j.description as string | undefined, result: j.result };
+  } catch (e) {
+    return { ok: false, reason: String(e) };
+  }
+}
+
 /** Перерисовать сообщение, на кнопку которого нажали — вместо новой простыни в чате. */
 export async function editTg(
   chatId: string,
@@ -68,25 +97,59 @@ export async function answerCallback(callbackId: string, text?: string) {
   return call("answerCallbackQuery", { callback_query_id: callbackId, text, show_alert: false });
 }
 
-/** Уведомление в CRM + дубль в Telegram, если чат привязан. */
+const KIND_ICONS: Record<string, string> = {
+  PAYMENT_DUE: "💰",
+  CPL_ALERT: "🔴",
+  NEW_LEAD: "🆕",
+  REPORT_DUE: "📊",
+  TASK_DUE: "⏰",
+  REPORT_READY: "📊",
+};
+
+/** Уведомление в CRM + дубль в Telegram, если чат привязан. При наличии фото шлём его с подписью. */
 export async function notifyUser(
   userId: string,
-  data: { kind: string; title: string; body?: string; link?: string; dedupeKey?: string }
+  data: {
+    kind: string;
+    title: string;
+    body?: string;
+    link?: string;
+    dedupeKey?: string;
+    photo?: { buffer: Buffer; mime: string | null } | null;
+  }
 ) {
-  await prisma.notification.create({ data: { userId, ...data } });
+  const { photo, ...notifData } = data;
+  await prisma.notification.create({ data: { userId, ...notifData } });
   const user = await prisma.user.findUnique({ where: { id: userId } });
   if (!user?.tgChatId) return;
-  const icons: Record<string, string> = {
-    PAYMENT_DUE: "💰",
-    CPL_ALERT: "🔴",
-    NEW_LEAD: "🆕",
-    REPORT_DUE: "📊",
-    TASK_DUE: "⏰",
-  };
-  const text = `${icons[data.kind] ?? "🔔"} <b>${escapeHtml(data.title)}</b>${
+  const text = `${KIND_ICONS[data.kind] ?? "🔔"} <b>${escapeHtml(data.title)}</b>${
     data.body ? `\n${escapeHtml(data.body)}` : ""
   }`;
-  await sendTg(user.tgChatId, text, data.link);
+  if (photo) await sendPhoto(user.tgChatId, photo.buffer, photo.mime, text, data.link);
+  else await sendTg(user.tgChatId, text, data.link);
+}
+
+/** То же самое, но адресат — клиент в портале (Client.tgChatId), а не сотрудник. */
+export async function notifyClient(
+  clientId: string,
+  data: {
+    kind: string;
+    title: string;
+    body?: string;
+    link?: string;
+    dedupeKey?: string;
+    photo?: { buffer: Buffer; mime: string | null } | null;
+  }
+) {
+  const { photo, ...notifData } = data;
+  await prisma.notification.create({ data: { clientId, ...notifData } });
+  const client = await prisma.client.findUnique({ where: { id: clientId } });
+  if (!client?.tgChatId) return;
+  const text = `${KIND_ICONS[data.kind] ?? "🔔"} <b>${escapeHtml(data.title)}</b>${
+    data.body ? `\n${escapeHtml(data.body)}` : ""
+  }`;
+  if (photo) await sendPhoto(client.tgChatId, photo.buffer, photo.mime, text, data.link);
+  else await sendTg(client.tgChatId, text, data.link);
 }
 
 export function escapeHtml(s: string) {

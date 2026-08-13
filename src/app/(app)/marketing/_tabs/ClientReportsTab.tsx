@@ -96,6 +96,7 @@ export default async function ClientReportsTab({ sp }: { sp: { clientId?: string
             clientName={r.client.name}
             clientId={r.clientId}
             canEdit={can.writeReports(user)}
+            defaultTargetCpl={r.client.targetCpl}
             className={m.inTarget === false ? "bg-red-50" : m.inTarget ? "bg-emerald-50" : ""}
             row={
               <>

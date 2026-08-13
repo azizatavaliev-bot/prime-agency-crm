@@ -355,6 +355,7 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
                               clientName={client.name}
                               clientId={client.id}
                               canEdit={can.writeReports(user)}
+                              defaultTargetCpl={client.targetCpl}
                               className={m.inTarget === false ? "bg-red-50" : m.inTarget ? "bg-emerald-50" : ""}
                               row={
                                 <>

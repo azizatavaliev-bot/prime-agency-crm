@@ -1,7 +1,7 @@
 "use client";
 
-import { useRef, useState } from "react";
-import { CalendarRange, Banknote, Target, Layers, Plus, Trash2 } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { CalendarRange, Banknote, Layers, Plus, Trash2, Camera, X, Clipboard } from "lucide-react";
 import { saveReport } from "@/lib/actions";
 import { toInputDate, num } from "@/lib/format";
 import { REPORT_OBJECTIVE, DEFAULTS } from "@/lib/constants";
@@ -27,7 +27,7 @@ const METRIC_FIELD: Record<string, string> = {
 
 const METRIC_LABEL: Record<string, string> = {
   LEADS: "Заявок",
-  ENGAGEMENT: "Вовлечённость",
+  ENGAGEMENT: "Заявки",
   TRAFFIC: "Переходы",
   PROFILE_VISITS: "Посещения профиля",
 };
@@ -53,10 +53,12 @@ export default function ReportForm({
     engagement: number;
     traffic: number;
     profileVisits: number;
+    views: number;
     targetCpl: number;
     targetCpa: number | null;
     bundles: string | null;
     comment: string | null;
+    hasScreenshot?: boolean;
   };
 }) {
   type Row = {
@@ -64,6 +66,7 @@ export default function ReportForm({
     spent: number;
     currency: string;
     metric: number;
+    views: number;
   };
 
   // Старые отчёты могли быть сохранены с целью "Заявки"/"Посещения профиля" —
@@ -83,6 +86,7 @@ export default function ReportForm({
     spent: 0,
     currency: "USD",
     metric: 0,
+    views: 0,
     ...init,
   });
 
@@ -96,11 +100,55 @@ export default function ReportForm({
             spent: report.spent,
             currency: "KGS",
             metric: report[METRIC_FIELD[report.objective] as keyof typeof report] as number,
+            views: report.views ?? 0,
           }
         : undefined
     ),
   ]);
   const [rate, setRate] = useState(DEFAULTS.usdRate);
+
+  // Скриншот кабинета: файл держим напрямую в input (через DataTransfer, чтобы
+  // форма отправила его как обычную загрузку), а превью — отдельно в state.
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [screenshotPreview, setScreenshotPreview] = useState<string | null>(null);
+  const [screenshotRemoved, setScreenshotRemoved] = useState(false);
+  const hadScreenshot = Boolean(report?.hasScreenshot);
+
+  const attachScreenshot = (file: File) => {
+    if (fileInputRef.current) {
+      const dt = new DataTransfer();
+      dt.items.add(file);
+      fileInputRef.current.files = dt.files;
+    }
+    setScreenshotPreview((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return URL.createObjectURL(file);
+    });
+    setScreenshotRemoved(false);
+  };
+
+  const clearScreenshot = () => {
+    if (fileInputRef.current) fileInputRef.current.value = "";
+    setScreenshotPreview((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return null;
+    });
+    setScreenshotRemoved(true);
+  };
+
+  // Ctrl+V в любом месте формы — вставляет картинку из буфера обмена.
+  useEffect(() => {
+    function onPaste(e: ClipboardEvent) {
+      const item = Array.from(e.clipboardData?.items ?? []).find((i) => i.type.startsWith("image/"));
+      if (!item) return;
+      const file = item.getAsFile();
+      if (!file) return;
+      e.preventDefault();
+      attachScreenshot(file);
+    }
+    window.addEventListener("paste", onPaste);
+    return () => window.removeEventListener("paste", onPaste);
+  }, []);
 
   const addRow = () => setRows((rs) => [...rs, newRow()]);
   const removeRow = (key: string) => setRows((rs) => (rs.length > 1 ? rs.filter((r) => r.key !== key) : rs));
@@ -112,6 +160,7 @@ export default function ReportForm({
   const rowSom = (r: Row) => (r.currency === "USD" ? r.spent * rate : r.spent);
   const spentSom = rows.reduce((sum, r) => sum + rowSom(r), 0);
   const metricSum = rows.reduce((sum, r) => sum + r.metric, 0);
+  const viewsSum = rows.reduce((sum, r) => sum + r.views, 0);
   const hasUsdRow = rows.some((r) => r.currency === "USD");
 
   // цель по CPL обычно задана в карточке клиента — подставляем её
@@ -212,7 +261,12 @@ export default function ReportForm({
       {/* Итоговые поля, которые реально уходят в saveReport — считаются из строк ниже. */}
       <input type="hidden" name="spent" value={spentSom} />
       <input type="hidden" name={metricFieldName} value={metricSum} />
+      <input type="hidden" name="views" value={viewsSum} />
       <input type="hidden" name="actions" value={0} />
+
+      {/* Цель по CPL решает клиент/владелец в карточке проекта — здесь её не переопределяем,
+          просто передаём дальше, чтобы алерт по превышению порога продолжал работать. */}
+      <input type="hidden" name="targetCpl" value={clientCpl ?? 999999} />
 
       <FormSection title="Деньги и результат" hint="Из этих чисел считается цена заявки" icon={Banknote}>
         <div className="sm:col-span-2">
@@ -224,10 +278,56 @@ export default function ReportForm({
             options={Object.entries(REPORT_OBJECTIVE).map(([value, label]) => ({ value, label }))}
           />
         </div>
-        <div className="sm:col-span-2">
-          <label className="label">Рекламный бюджет, сом</label>
-          <input className="input" name="budget" type="number" min="0" step="any" defaultValue={report?.budget || ""} />
-        </div>
+      </FormSection>
+
+      <FormSection
+        title="Скриншот кабинета"
+        hint="Ctrl+V — вставить из буфера обмена, или выберите файл"
+        icon={Camera}
+        columns={1}
+      >
+        <input
+          ref={fileInputRef}
+          className="hidden"
+          name="screenshot"
+          type="file"
+          accept="image/*"
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (file) attachScreenshot(file);
+          }}
+        />
+        <input type="hidden" name="removeScreenshot" value={screenshotRemoved ? "1" : ""} />
+
+        {screenshotPreview ? (
+          <div className="relative inline-block">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={screenshotPreview} alt="Скриншот кабинета" className="max-h-48 rounded-xl border border-zinc-200" />
+            <button
+              type="button"
+              onClick={clearScreenshot}
+              className="absolute -right-2 -top-2 flex h-7 w-7 items-center justify-center rounded-full bg-red-600 text-white shadow"
+              title="Убрать скриншот"
+            >
+              <X size={14} />
+            </button>
+          </div>
+        ) : hadScreenshot && !screenshotRemoved ? (
+          <div className="flex items-center gap-3 rounded-xl border border-zinc-200 p-3 text-sm text-muted">
+            <Camera size={16} /> Скриншот уже прикреплён к отчёту
+            <button type="button" onClick={clearScreenshot} className="btn-ghost !px-2 !py-1 !text-xs text-red-600">
+              <X size={13} /> Удалить
+            </button>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-zinc-300 p-4 text-sm text-muted hover:bg-subtle"
+          >
+            <Clipboard size={15} /> Нажмите Ctrl+V или выберите файл
+          </button>
+        )}
       </FormSection>
 
       <FormSection title="Кампании" hint="Несколько кабинетов/кампаний за период — сложатся в один отчёт" icon={Banknote} columns={1}>
@@ -277,7 +377,7 @@ export default function ReportForm({
                   </div>
                 </div>
                 <div>
-                  <label className="label">{METRIC_LABEL[objective] ?? "Вовлечённость"}</label>
+                  <label className="label">{METRIC_LABEL[objective] ?? "Заявки"}</label>
                   <input
                     className="input"
                     type="text"
@@ -290,6 +390,20 @@ export default function ReportForm({
                     }}
                   />
                 </div>
+                <div>
+                  <label className="label">Показы</label>
+                  <input
+                    className="input"
+                    type="text"
+                    inputMode="numeric"
+                    placeholder="0"
+                    value={r.views === 0 ? "" : r.views}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      if (v === "" || /^\d*$/.test(v)) updateRow(r.key, { views: v === "" ? 0 : Number(v) || 0 });
+                    }}
+                  />
+                </div>
               </div>
             </div>
           ))}
@@ -298,41 +412,23 @@ export default function ReportForm({
             <Plus size={13} /> Добавить строку
           </button>
 
-          {hasUsdRow && (
-            <div className="flex items-center gap-2">
-              <label className="label !mb-0">Курс USD</label>
-              <input
-                className="input !py-1.5 w-28"
-                type="number"
-                step="0.01"
-                value={rate}
-                onChange={(e) => setRate(Number(e.target.value) || 0)}
-              />
-              <span className="text-xs text-muted">
-                итого потрачено — {Math.round(spentSom).toLocaleString("ru-RU")} сом
-              </span>
-            </div>
-          )}
-        </div>
-      </FormSection>
-
-      <FormSection title="Пороги решения" hint="Дороже порога — связку отключаем, дешевле — масштабируем" icon={Target}>
-        <div>
-          <label className="label">Целевой CPL, сом *</label>
-          <input
-            className="input"
-            name="targetCpl"
-            type="number"
-            min="0"
-            step="any"
-            required
-            defaultValue={report ? report.targetCpl : clientCpl ?? ""}
-            placeholder="порог решения"
-          />
-        </div>
-        <div>
-          <label className="label">Целевой CPA, сом</label>
-          <input className="input" name="targetCpa" type="number" min="0" step="any" defaultValue={report?.targetCpa || ""} />
+          <div className="flex flex-wrap items-center gap-2">
+            {hasUsdRow && (
+              <>
+                <label className="label !mb-0">Курс USD</label>
+                <input
+                  className="input !py-1.5 w-28"
+                  type="number"
+                  step="0.01"
+                  value={rate}
+                  onChange={(e) => setRate(Number(e.target.value) || 0)}
+                />
+              </>
+            )}
+            <span className="text-xs text-muted">
+              итого потрачено — {Math.round(spentSom).toLocaleString("ru-RU")} сом
+            </span>
+          </div>
         </div>
       </FormSection>
 
