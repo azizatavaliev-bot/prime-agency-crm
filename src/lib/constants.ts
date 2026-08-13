@@ -241,10 +241,8 @@ export const MARKETING_DIRECTION = {} as const;
 
 /** Цель рекламной кампании (Meta/Instagram) — определяет, какие метрики важны в отчёте. */
 export const REPORT_OBJECTIVE = {
-  LEADS: "Заявки",
   ENGAGEMENT: "Вовлечённость",
   TRAFFIC: "Трафик",
-  PROFILE_VISITS: "Посещения профиля",
 } as const;
 
 export const LEDGER_KIND = {

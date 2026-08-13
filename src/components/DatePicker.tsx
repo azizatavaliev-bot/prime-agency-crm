@@ -27,13 +27,19 @@ export default function DatePicker({
   defaultValue,
   required,
   placeholder = "Выберите дату",
+  onChange,
 }: {
   name: string;
   defaultValue?: string;
   required?: boolean;
   placeholder?: string;
+  onChange?: (value: string) => void;
 }) {
-  const [value, setValue] = useState(defaultValue ?? "");
+  const [value, setValueRaw] = useState(defaultValue ?? "");
+  const setValue = (v: string) => {
+    setValueRaw(v);
+    onChange?.(v);
+  };
   const [open, setOpen] = useState(false);
   const [cursor, setCursor] = useState(() => (defaultValue ? new Date(defaultValue) : new Date()));
   const boxRef = useRef<HTMLDivElement>(null);

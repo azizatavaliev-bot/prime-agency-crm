@@ -8,6 +8,7 @@ import { REPORT_OBJECTIVE, DEFAULTS } from "@/lib/constants";
 import Select from "./Select";
 import DatePicker from "./DatePicker";
 import FormSection from "./FormSection";
+import { Collapse } from "./ui";
 
 /** Дата на N дней назад в формате инпута. */
 function daysAgo(days: number) {
@@ -63,25 +64,31 @@ export default function ReportForm({
     spent: number;
     currency: string;
     metric: number;
-    actions: number;
   };
+
+  // Старые отчёты могли быть сохранены с целью "Заявки"/"Посещения профиля" —
+  // эти варианты убраны из выбора, но старые данные остаются читаемыми:
+  // заявки показываем как вовлечённость, посещения профиля — как трафик.
+  const normalizeObjective = (o?: string) =>
+    o === "LEADS" ? "ENGAGEMENT" : o === "PROFILE_VISITS" ? "TRAFFIC" : o ?? "ENGAGEMENT";
 
   const [clientId, setClientId] = useState(fixedClientId ?? clients[0]?.id ?? "");
   const [from, setFrom] = useState(report ? toInputDate(new Date(report.periodFrom)) : daysAgo(7));
-  const [objective, setObjective] = useState<string>(report?.objective ?? "LEADS");
+  const [to, setTo] = useState(report ? toInputDate(new Date(report.periodTo)) : toInputDate(new Date()));
+  const [objective, setObjective] = useState<string>(normalizeObjective(report?.objective));
 
   const rowKeySeq = useRef(0);
   const newRow = (init?: Partial<Row>): Row => ({
     key: `row-${++rowKeySeq.current}`,
     spent: 0,
-    currency: "KGS",
+    currency: "USD",
     metric: 0,
-    actions: 0,
     ...init,
   });
 
-  // При редактировании существующего отчёта — одна строка с текущими значениями,
-  // дальше пользователь может по желанию добавить ещё кампании в тот же отчёт.
+  // При редактировании существующего отчёта — одна строка с текущими значениями
+  // (в сомах, как и хранится), дальше пользователь может по желанию добавить
+  // ещё кампании в тот же отчёт.
   const [rows, setRows] = useState<Row[]>([
     newRow(
       report
@@ -89,7 +96,6 @@ export default function ReportForm({
             spent: report.spent,
             currency: "KGS",
             metric: report[METRIC_FIELD[report.objective] as keyof typeof report] as number,
-            actions: report.actions,
           }
         : undefined
     ),
@@ -106,7 +112,6 @@ export default function ReportForm({
   const rowSom = (r: Row) => (r.currency === "USD" ? r.spent * rate : r.spent);
   const spentSom = rows.reduce((sum, r) => sum + rowSom(r), 0);
   const metricSum = rows.reduce((sum, r) => sum + r.metric, 0);
-  const actionsSum = rows.reduce((sum, r) => sum + r.actions, 0);
   const hasUsdRow = rows.some((r) => r.currency === "USD");
 
   // цель по CPL обычно задана в карточке клиента — подставляем её
@@ -119,6 +124,12 @@ export default function ReportForm({
     ["Неделя", daysAgo(7)],
     ["2 недели", daysAgo(14)],
     ["Месяц", daysAgo(30)],
+  ];
+  const days: [string, number][] = [
+    ["Сегодня", 0],
+    ["Вчера", 1],
+    ["Позавчера", 2],
+    ["3 дня назад", 3],
   ];
 
   const metricFieldName = METRIC_FIELD[objective] ?? "leads";
@@ -142,40 +153,66 @@ export default function ReportForm({
           </div>
         )}
         <div className="sm:col-span-2">
+          <div className="mb-1.5 flex flex-wrap gap-2">
+            {days.map(([label, daysBack]) => {
+              const value = daysAgo(daysBack);
+              const active = from === value && to === value;
+              return (
+                <button
+                  key={label}
+                  type="button"
+                  onClick={() => {
+                    setFrom(value);
+                    setTo(value);
+                  }}
+                  className={`chip transition ${
+                    active
+                      ? "accent-gradient border-transparent text-white"
+                      : "border-zinc-200 text-muted hover:bg-subtle"
+                  }`}
+                >
+                  {label}
+                </button>
+              );
+            })}
+          </div>
           <div className="mb-2 flex flex-wrap gap-2">
-            {periods.map(([label, value]) => (
-              <button
-                key={label}
-                type="button"
-                onClick={() => setFrom(value)}
-                className={`chip transition ${
-                  from === value
-                    ? "accent-gradient border-transparent text-white"
-                    : "border-zinc-200 text-muted hover:bg-subtle"
-                }`}
-              >
-                {label}
-              </button>
-            ))}
+            {periods.map(([label, value]) => {
+              const active = from === value && to === toInputDate(new Date());
+              return (
+                <button
+                  key={label}
+                  type="button"
+                  onClick={() => {
+                    setFrom(value);
+                    setTo(toInputDate(new Date()));
+                  }}
+                  className={`chip transition ${
+                    active
+                      ? "accent-gradient border-transparent text-white"
+                      : "border-zinc-200 text-muted hover:bg-subtle"
+                  }`}
+                >
+                  {label}
+                </button>
+              );
+            })}
           </div>
         </div>
         <div>
           <label className="label">Период с</label>
-          <DatePicker key={from} name="periodFrom" defaultValue={from} />
+          <DatePicker key={`from-${from}`} name="periodFrom" defaultValue={from} onChange={setFrom} />
         </div>
         <div>
           <label className="label">по</label>
-          <DatePicker
-            name="periodTo"
-            defaultValue={report ? toInputDate(new Date(report.periodTo)) : toInputDate(new Date())}
-          />
+          <DatePicker key={`to-${to}`} name="periodTo" defaultValue={to} onChange={setTo} />
         </div>
       </FormSection>
 
       {/* Итоговые поля, которые реально уходят в saveReport — считаются из строк ниже. */}
       <input type="hidden" name="spent" value={spentSom} />
       <input type="hidden" name={metricFieldName} value={metricSum} />
-      <input type="hidden" name="actions" value={actionsSum} />
+      <input type="hidden" name="actions" value={0} />
 
       <FormSection title="Деньги и результат" hint="Из этих чисел считается цена заявки" icon={Banknote}>
         <div className="sm:col-span-2">
@@ -211,24 +248,27 @@ export default function ReportForm({
                   </button>
                 )}
               </div>
-              <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+              <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
                 <div>
                   <label className="label">Потрачено</label>
                   <div className="flex gap-2">
                     <input
                       className="input"
-                      type="number"
-                      min="0"
-                      step="any"
-                      value={r.spent}
-                      onChange={(e) => updateRow(r.key, { spent: Number(e.target.value) || 0 })}
+                      type="text"
+                      inputMode="decimal"
+                      placeholder="0"
+                      value={r.spent === 0 ? "" : r.spent}
+                      onChange={(e) => {
+                        const v = e.target.value.replace(",", ".");
+                        if (v === "" || /^\d*\.?\d*$/.test(v)) updateRow(r.key, { spent: v === "" ? 0 : Number(v) || 0 });
+                      }}
                     />
                     <div className="w-24">
                       <Select
                         name={`row-currency-${r.key}`}
                         options={[
-                          { value: "KGS", label: "сом" },
                           { value: "USD", label: "USD" },
+                          { value: "KGS", label: "сом" },
                         ]}
                         defaultValue={r.currency}
                         onChange={(v) => updateRow(r.key, { currency: v })}
@@ -237,23 +277,17 @@ export default function ReportForm({
                   </div>
                 </div>
                 <div>
-                  <label className="label">{METRIC_LABEL[objective] ?? "Заявок"}</label>
+                  <label className="label">{METRIC_LABEL[objective] ?? "Вовлечённость"}</label>
                   <input
                     className="input"
-                    type="number"
-                    min="0"
-                    value={r.metric}
-                    onChange={(e) => updateRow(r.key, { metric: Number(e.target.value) || 0 })}
-                  />
-                </div>
-                <div>
-                  <label className="label">Целевых действий</label>
-                  <input
-                    className="input"
-                    type="number"
-                    min="0"
-                    value={r.actions}
-                    onChange={(e) => updateRow(r.key, { actions: Number(e.target.value) || 0 })}
+                    type="text"
+                    inputMode="numeric"
+                    placeholder="0"
+                    value={r.metric === 0 ? "" : r.metric}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      if (v === "" || /^\d*$/.test(v)) updateRow(r.key, { metric: v === "" ? 0 : Number(v) || 0 });
+                    }}
                   />
                 </div>
               </div>
@@ -319,16 +353,18 @@ export default function ReportForm({
         </div>
       )}
 
-      <FormSection title="Связки и комментарий" icon={Layers} columns={1}>
-        <div>
-          <label className="label">Статус связок</label>
-          <input className="input" name="bundles" placeholder="3 связки в тесте, 1 масштабируем" defaultValue={report?.bundles ?? ""} />
+      <Collapse title="Связки и комментарий (необязательно)" icon={Layers}>
+        <div className="space-y-3">
+          <div>
+            <label className="label">Статус связок</label>
+            <input className="input" name="bundles" placeholder="3 связки в тесте, 1 масштабируем" defaultValue={report?.bundles ?? ""} />
+          </div>
+          <div>
+            <label className="label">Комментарий</label>
+            <textarea className="input" name="comment" rows={2} placeholder="что меняем в следующем периоде" defaultValue={report?.comment ?? ""} />
+          </div>
         </div>
-        <div>
-          <label className="label">Комментарий</label>
-          <textarea className="input" name="comment" rows={2} placeholder="что меняем в следующем периоде" defaultValue={report?.comment ?? ""} />
-        </div>
-      </FormSection>
+      </Collapse>
 
       <button className="btn-primary w-full !py-2.5">{report ? "Сохранить" : "Сохранить отчёт"}</button>
     </form>

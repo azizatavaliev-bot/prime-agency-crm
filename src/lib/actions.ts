@@ -244,13 +244,13 @@ export async function saveReport(fd: FormData) {
   });
   if (!client) redirect("/no-access");
 
-  const objective = req(fd, "objective") || "LEADS";
+  const objective = req(fd, "objective") || "ENGAGEMENT";
   const data = {
     clientId,
     authorId: user.id,
     periodFrom: date(fd, "periodFrom") ?? new Date(),
     periodTo: date(fd, "periodTo") ?? new Date(),
-    objective: Object.keys(REPORT_OBJECTIVE).includes(objective) ? objective : "LEADS",
+    objective: Object.keys(REPORT_OBJECTIVE).includes(objective) ? objective : "ENGAGEMENT",
     budget: n(fd, "budget"),
     spent: n(fd, "spent"),
     leads: Math.round(n(fd, "leads")),
