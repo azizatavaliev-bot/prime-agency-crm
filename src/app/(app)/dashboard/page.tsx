@@ -26,7 +26,7 @@ import { som, monthKey, monthLabel, dateRu, daysUntil, num } from "@/lib/format"
 import { stagesFor } from "@/lib/constants";
 import { PageHeader, Stat, Table, Section, MiniStat } from "@/components/ui";
 import RevenueChart from "@/components/RevenueChart";
-import { PaymentModal, StatusBadge, ClientModal, TaskModal } from "@/components/details";
+import { PaymentModal, StatusBadge, TaskModal } from "@/components/details";
 import ProjectsOverview, { type ProjectRow } from "@/components/ProjectsOverview";
 
 export const dynamic = "force-dynamic";
@@ -155,28 +155,22 @@ export default async function DashboardPage() {
               const last = c.reports[0];
               const m = last ? reportMetrics(last) : null;
               return (
-                <ClientModal
-                  key={c.id}
-                  client={c}
-                  users={users}
-                  user={user}
-                  row={
-                    <>
-                      <td className="td font-medium">{c.name}</td>
-                      <td className="td">
-                        <StatusBadge status={c.status} />
-                      </td>
-                      <td
-                        className={`td ${m?.cplOk === false ? "text-red-600" : m?.cplOk ? "text-emerald-600" : ""}`}
-                      >
-                        {m?.cpl ? `${num(m.cpl)} сом` : "—"}
-                      </td>
-                      <td className="td text-muted">{c.targetCpl ? som(c.targetCpl) : "—"}</td>
-                      <td className="td">{c.tasks.filter((t) => !t.done).length}</td>
-                      <td className="td">{c.reports.length}</td>
-                    </>
-                  }
-                />
+                <tr key={c.id}>
+                  <td className="td font-medium">
+                    <Link href={`/clients/${c.id}`} className="block">
+                      {c.name}
+                    </Link>
+                  </td>
+                  <td className="td">
+                    <StatusBadge status={c.status} />
+                  </td>
+                  <td className={`td ${m?.cplOk === false ? "text-red-600" : m?.cplOk ? "text-emerald-600" : ""}`}>
+                    {m?.cpl ? `${num(m.cpl)} сом` : "—"}
+                  </td>
+                  <td className="td text-muted">{c.targetCpl ? som(c.targetCpl) : "—"}</td>
+                  <td className="td">{c.tasks.filter((t) => !t.done).length}</td>
+                  <td className="td">{c.reports.length}</td>
+                </tr>
               );
             })}
             {clients.length === 0 && (

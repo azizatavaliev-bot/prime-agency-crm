@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { Plus, Search, Users, Wallet, TrendingUp, AlertTriangle } from "lucide-react";
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -10,7 +11,6 @@ import { PageHeader, Stat, Avatar } from "@/components/ui";
 import ClientForm from "@/components/ClientForm";
 import FormModal from "@/components/FormModal";
 import FilterSelect from "@/components/FilterSelect";
-import { ClientModal } from "@/components/details";
 
 export const dynamic = "force-dynamic";
 
@@ -160,14 +160,7 @@ export default async function ClientsPage({
           const lastReport = c.reports[0];
           const stripe = STATUS_STRIPE[c.status] ?? "#6d5efc";
           return (
-            <ClientModal
-              key={c.id}
-              client={c}
-              users={users}
-              user={user}
-              dict={d}
-              className="block w-full text-left"
-              trigger={
+            <Link key={c.id} href={`/clients/${c.id}`} className="block w-full text-left">
                 <div
                   className="card card-hover stripe w-full p-5"
                   style={{ ["--stripe-color" as string]: stripe }}
@@ -243,8 +236,7 @@ export default async function ClientsPage({
                     </div>
                   )}
                 </div>
-              }
-            />
+            </Link>
           );
         })}
         {clients.length === 0 && (
