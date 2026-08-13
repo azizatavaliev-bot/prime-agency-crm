@@ -13,6 +13,7 @@ import FormModal from "@/components/FormModal";
 import TaskForm from "@/components/TaskForm";
 import TasksClient from "@/components/TasksClient";
 import ApplyTemplate from "@/components/ApplyTemplate";
+import FilterSelect from "@/components/FilterSelect";
 import type { TaskCardData } from "@/components/TaskCard";
 import type { TaskDetailData } from "@/components/TaskDetail";
 
@@ -21,7 +22,7 @@ export const dynamic = "force-dynamic";
 export default async function TasksPage({
   searchParams,
 }: {
-  searchParams: Promise<{ board?: string; archived?: string }>;
+  searchParams: Promise<{ board?: string; archived?: string; assigneeId?: string; clientId?: string }>;
 }) {
   const user = await requireUser();
   const sp = await searchParams;
@@ -32,6 +33,8 @@ export default async function TasksPage({
       ? (["DEV", "VIDEO"] as const)
       : (Object.keys(BOARDS) as (keyof typeof BOARDS)[]);
   const showArchived = sp.archived === "1";
+  const filterAssigneeId = sp.assigneeId || "";
+  const filterClientId = sp.clientId || "";
 
   const rows = await prisma.task.findMany({
     where: {
@@ -39,6 +42,8 @@ export default async function TasksPage({
         taskScope(user),
         { board },
         showArchived ? { NOT: { archivedAt: null } } : { archivedAt: null },
+        filterAssigneeId ? { assigneeId: filterAssigneeId } : {},
+        filterClientId ? { clientId: filterClientId } : {},
       ],
     },
     include: {
@@ -76,7 +81,7 @@ export default async function TasksPage({
   const [clients, users] = await Promise.all([
     prisma.client.findMany({
       where: clientScope(user),
-      select: { id: true, name: true },
+      select: { id: true, name: true, targetologId: true, accountId: true },
       orderBy: { name: "asc" },
     }),
     prisma.user.findMany({ where: { active: true }, select: { id: true, name: true, role: true } }),
@@ -176,6 +181,11 @@ export default async function TasksPage({
             >
               {showArchived ? "Активные" : "Архив"}
             </Link>
+            {user.role === "SUPER_ADMIN" && (
+              <Link href="/settings/templates" className="btn-ghost" title="Создать/изменить шаблоны наборов задач">
+                Шаблоны
+              </Link>
+            )}
             {user.role !== "DEVELOPER" && user.role !== "EDITOR" && (
               <ApplyTemplate
                 templates={templates.map((t) => ({
@@ -220,9 +230,39 @@ export default async function TasksPage({
         <Stat label="Выполнено" value={String(sorted.filter((t) => t.done).length)} tone="good" icon={CheckCircle2} />
       </div>
 
+      {user.role !== "DEVELOPER" && user.role !== "EDITOR" && (clients.length > 0 || users.length > 0) && (
+        <form action="/tasks" className="mb-4 flex flex-wrap items-end gap-2">
+          <input type="hidden" name="board" value={board} />
+          {showArchived && <input type="hidden" name="archived" value="1" />}
+          <div>
+            <div className="mb-1 text-xs text-muted">Сотрудник</div>
+            <FilterSelect
+              name="assigneeId"
+              defaultValue={filterAssigneeId}
+              width="max-w-[180px]"
+              options={[{ value: "", label: "Все сотрудники" }, ...users.map((u) => ({ value: u.id, label: u.name }))]}
+            />
+          </div>
+          <div>
+            <div className="mb-1 text-xs text-muted">Проект</div>
+            <FilterSelect
+              name="clientId"
+              defaultValue={filterClientId}
+              width="max-w-[200px]"
+              options={[{ value: "", label: "Все проекты" }, ...clients.map((c) => ({ value: c.id, label: c.name }))]}
+            />
+          </div>
+          {(filterAssigneeId || filterClientId) && (
+            <Link href={`/tasks?board=${board}${showArchived ? "&archived=1" : ""}`} className="btn-ghost !py-2 text-xs">
+              Сбросить
+            </Link>
+          )}
+        </form>
+      )}
+
       {sorted.length === 0 ? (
         <div className="card p-8 text-center text-sm text-muted">
-          {showArchived ? "В архиве пусто" : "Задач пока нет"}
+          {showArchived ? "В архиве пусто" : filterAssigneeId || filterClientId ? "По этому фильтру задач нет" : "Задач пока нет"}
         </div>
       ) : (
         <TasksClient
@@ -235,6 +275,8 @@ export default async function TasksPage({
           currentUserName={user.name}
           currentUserId={user.id}
           groups={groups}
+          board={board}
+          canEditStages={user.role === "SUPER_ADMIN"}
         />
       )}
     </div>

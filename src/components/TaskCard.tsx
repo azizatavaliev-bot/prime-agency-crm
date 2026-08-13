@@ -74,10 +74,14 @@ export default function TaskCard({
         <form action={toggleTask}>
           <input type="hidden" name="id" value={task.id} />
           <button
-            className="rounded-lg p-1 text-zinc-400 transition hover:bg-emerald-50 hover:text-emerald-600"
-            title={task.done ? "Вернуть в работу" : "Выполнено"}
+            className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border transition ${
+              task.done
+                ? "border-emerald-500 bg-emerald-500 text-white"
+                : "border-zinc-300 text-transparent hover:border-emerald-500 hover:text-emerald-500"
+            }`}
+            title={task.done ? "Выполнено — вернуть в работу" : "Отметить выполненной"}
           >
-            <Check size={14} />
+            <Check size={13} strokeWidth={3} />
           </button>
         </form>
       </div>

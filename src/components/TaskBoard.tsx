@@ -12,8 +12,84 @@ import {
   type DragStartEvent,
 } from "@dnd-kit/core";
 import { useDraggable } from "@dnd-kit/core";
+import { Plus, X } from "lucide-react";
 import TaskCard, { type TaskCardData } from "./TaskCard";
-import { moveTask } from "@/lib/actions";
+import { moveTask, saveDictItem } from "@/lib/actions";
+
+/** Быстрое добавление этапа прямо с доски — то же, что и в Настройки → Справочники,
+    но без перехода на другую страницу. */
+function AddStageColumn({ board }: { board: string }) {
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState("");
+  const [pending, start] = useTransition();
+
+  if (!open) {
+    return (
+      <button
+        onClick={() => setOpen(true)}
+        className="flex h-9 w-40 shrink-0 items-center justify-center gap-1.5 self-start rounded-2xl border border-dashed border-zinc-300 text-xs text-muted transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
+      >
+        <Plus size={13} /> Этап
+      </button>
+    );
+  }
+
+  const submit = () => {
+    if (!name.trim()) return;
+    const fd = new FormData();
+    fd.set("type", `STAGE_${board}`);
+    fd.set("active", "1");
+    fd.set("name", name.trim());
+    // Форма закрывается только после того, как этап реально сохранился —
+    // иначе сворачиваем поле раньше, чем успевает уйти запрос.
+    start(async () => {
+      await saveDictItem(fd);
+      setName("");
+      setOpen(false);
+    });
+  };
+
+  return (
+    <div className="w-56 shrink-0">
+      <div className="flex items-center gap-1">
+        <input
+          className="input !py-1.5 !text-sm"
+          autoFocus
+          disabled={pending}
+          placeholder="Название этапа"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              submit();
+            }
+          }}
+        />
+        <button
+          type="button"
+          onClick={submit}
+          disabled={pending || !name.trim()}
+          className="btn-ghost !px-2 !py-1.5"
+          title="Добавить"
+        >
+          <Plus size={14} />
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            setOpen(false);
+            setName("");
+          }}
+          className="btn-ghost !px-2 !py-1.5"
+          title="Отмена"
+        >
+          <X size={14} />
+        </button>
+      </div>
+    </div>
+  );
+}
 
 function DraggableCard({
   task,
@@ -94,12 +170,16 @@ export default function TaskBoard({
   tagLabels,
   onOpen,
   canMove,
+  board,
+  canEditStages,
 }: {
   stages: [string, string][];
   tasks: TaskCardData[];
   tagLabels: Record<string, string>;
   onOpen: (id: string) => void;
   canMove: boolean;
+  board?: string;
+  canEditStages?: boolean;
 }) {
   const [tasks, setTasks] = useState(initial);
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -159,6 +239,7 @@ export default function TaskBoard({
             disabled={!canMove}
           />
         ))}
+        {canEditStages && board && <AddStageColumn board={board} />}
       </div>
       <DragOverlay>
         {active && (

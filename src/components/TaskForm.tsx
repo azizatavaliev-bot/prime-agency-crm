@@ -29,11 +29,12 @@ export default function TaskForm({
   users,
   task,
   fixedClientId,
+  defaultAssigneeId,
   defaultBoard = "TARGET",
   stagesByBoard,
   tags = [],
 }: {
-  clients: { id: string; name: string }[];
+  clients: { id: string; name: string; targetologId?: string | null; accountId?: string | null }[];
   users: UserOpt[];
   task?: {
     id: string;
@@ -49,6 +50,7 @@ export default function TaskForm({
     recurrence?: string | null;
   };
   fixedClientId?: string;
+  defaultAssigneeId?: string | null;
   defaultBoard?: string;
   stagesByBoard?: Record<string, Opt[]>;
   tags?: Opt[];
@@ -57,6 +59,17 @@ export default function TaskForm({
   const [due, setDue] = useState(toInputDate(task?.dueAt ?? new Date()));
   const selectedTags = task?.tags ? task.tags.split(",").filter(Boolean) : [];
 
+  // Ответственный подставляется сам, когда выбираем клиента — это его таргетолог/тимлид.
+  // Если человек уже выбрал ответственного вручную, больше не трогаем.
+  const [assigneeId, setAssigneeId] = useState(task?.assigneeId ?? defaultAssigneeId ?? "");
+  const [assigneeTouched, setAssigneeTouched] = useState(Boolean(task?.assigneeId));
+  const handleClientChange = (value: string) => {
+    if (assigneeTouched) return;
+    const c = clients.find((c) => c.id === value);
+    const auto = c?.targetologId ?? c?.accountId ?? "";
+    if (auto) setAssigneeId(auto);
+  };
+
   const stages: [string, string][] = stagesByBoard?.[board]
     ? stagesByBoard[board].map((s) => [s.key, s.name])
     : Object.entries(stagesFor(board));
@@ -64,6 +77,7 @@ export default function TaskForm({
   const quickDates: [string, string][] = [
     ["Сегодня", shiftDays(0)],
     ["Завтра", shiftDays(1)],
+    ["Послезавтра", shiftDays(2)],
     ["Через неделю", shiftDays(7)],
   ];
 
@@ -141,6 +155,7 @@ export default function TaskForm({
               name="clientId"
               defaultValue={task?.clientId ?? ""}
               placeholder="— без клиента —"
+              onChange={handleClientChange}
               options={[
                 { value: "", label: "— без клиента —" },
                 ...clients.map((c) => ({ value: c.id, label: c.name })),
@@ -149,11 +164,18 @@ export default function TaskForm({
           </div>
         )}
         <div>
-          <label className="label">Ответственный</label>
+          <label className="label">
+            Ответственный
+            {!assigneeTouched && assigneeId && <span className="ml-1 text-[10px] text-muted">(по проекту)</span>}
+          </label>
           <Select
             name="assigneeId"
-            defaultValue={task?.assigneeId ?? ""}
+            value={assigneeId}
             placeholder="— не назначен —"
+            onChange={(v) => {
+              setAssigneeId(v);
+              setAssigneeTouched(true);
+            }}
             options={[
               { value: "", label: "— не назначен —" },
               ...users.map((u) => ({ value: u.id, label: u.name })),

@@ -15,6 +15,7 @@ export default function Select({
   name,
   options,
   defaultValue,
+  value: controlledValue,
   placeholder = "Выберите…",
   required,
   onChange,
@@ -22,13 +23,19 @@ export default function Select({
   name: string;
   options: SelectOption[];
   defaultValue?: string;
+  /** Если задано — компонент управляется извне (например, автоподстановка из другого поля). */
+  value?: string;
   placeholder?: string;
   required?: boolean;
   onChange?: (value: string) => void;
 }) {
-  const [value, setValue] = useState(defaultValue ?? "");
+  const [value, setValue] = useState(controlledValue ?? defaultValue ?? "");
   const [open, setOpen] = useState(false);
   const boxRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (controlledValue !== undefined) setValue(controlledValue);
+  }, [controlledValue]);
 
   useEffect(() => {
     const onClick = (e: MouseEvent) => {

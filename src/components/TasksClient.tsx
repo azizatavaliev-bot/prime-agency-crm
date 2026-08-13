@@ -30,6 +30,8 @@ export default function TasksClient({
   currentUserName,
   currentUserId,
   groups,
+  board,
+  canEditStages,
 }: {
   stages: [string, string][];
   tasks: TaskCardData[];
@@ -40,6 +42,8 @@ export default function TasksClient({
   currentUserName: string;
   currentUserId?: string;
   groups: { overdue: string[]; today: string[]; noDate: string[]; mine: string[] };
+  board?: string;
+  canEditStages?: boolean;
 }) {
   const [view, setView] = useState<TaskView>("board");
   const [openId, setOpenId] = useState<string | null>(null);
@@ -105,6 +109,8 @@ export default function TasksClient({
           tagLabels={tagLabels}
           onOpen={setOpenId}
           canMove={canMove}
+          board={board}
+          canEditStages={canEditStages}
         />
       )}
 

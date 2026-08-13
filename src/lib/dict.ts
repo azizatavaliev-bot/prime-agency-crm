@@ -94,6 +94,31 @@ export async function dict(type: DictType, includeInactive = false): Promise<Dic
   }));
 }
 
+/**
+ * Материализует встроенные значения в базу, если по этому типу там вообще
+ * ничего нет. Нужно перед добавлением первого своего значения: `dict()` берёт
+ * запасной список только пока в базе пусто, а с первой активной строкой
+ * переключается на неё целиком — без этого добавление одного своего этапа
+ * тихо стёрло бы с доски все стандартные.
+ */
+export async function ensureDictSeeded(type: DictType) {
+  const existing = await prisma.dictItem.count({ where: { type } });
+  if (existing > 0) return;
+  const entries = Object.entries(FALLBACK[type]);
+  if (!entries.length) return;
+  await prisma.dictItem.createMany({
+    data: entries.map(([key, name], i) => ({
+      type,
+      key,
+      name,
+      builtin: true,
+      active: true,
+      order: (i + 1) * 10,
+      color: type === "CLIENT_STATUS" ? CLIENT_STATUS_COLOR[key] : null,
+    })),
+  });
+}
+
 /** Несколько справочников одним запросом. */
 export async function dicts<T extends DictType>(types: T[]): Promise<Record<T, DictOption[]>> {
   const rows = await prisma.dictItem.findMany({

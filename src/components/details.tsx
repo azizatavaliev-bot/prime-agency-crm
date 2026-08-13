@@ -603,7 +603,12 @@ export function ClientModal({
                                 icon={<Plus size={15} />}
                                 hint="Этапы доски «Таргет» повторяют конвейер заявок: бриф → гипотезы → съёмка → тест → отсев → масштаб."
                               >
-                                <TaskForm clients={[]} users={users} fixedClientId={client.id} />
+                                <TaskForm
+                                  clients={[]}
+                                  users={users}
+                                  fixedClientId={client.id}
+                                  defaultAssigneeId={client.targetologId ?? client.accountId}
+                                />
                               </FormModal>
                             ) : undefined
                           }

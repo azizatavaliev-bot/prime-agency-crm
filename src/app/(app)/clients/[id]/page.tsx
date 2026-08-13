@@ -235,7 +235,12 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
                       {user.role !== "DEVELOPER" && user.role !== "EDITOR" && (
                         <div className="mb-3">
                           <Collapse title="Новая задача" icon={Plus}>
-                            <TaskForm clients={[]} users={users} fixedClientId={client.id} />
+                            <TaskForm
+                              clients={[]}
+                              users={users}
+                              fixedClientId={client.id}
+                              defaultAssigneeId={client.targetologId ?? client.accountId}
+                            />
                           </Collapse>
                         </div>
                       )}

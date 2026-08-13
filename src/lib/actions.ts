@@ -10,6 +10,7 @@ import { monthKey, som, dateRu } from "./format";
 import { ROLES, DEFAULTS, REPORT_OBJECTIVE } from "./constants";
 import { notifyAssignee, closeOrReopenTask } from "./tasks";
 import { notifyClient, notifyUser } from "./telegram";
+import { ensureDictSeeded } from "./dict";
 
 function str(fd: FormData, k: string) {
   const v = fd.get(k);
@@ -58,15 +59,15 @@ async function notifyTaskStakeholders(
   kind: string,
   title: string
 ) {
-  await notify([...(await owners()), client?.accountId], {
-    kind,
-    title,
-    link: `/tasks?board=${t.board}`,
-  });
+  const link = `/tasks?board=${t.board}`;
+  const userIds = [...new Set([...(await owners()), client?.accountId].filter(Boolean) as string[])];
+  // Дублируем в Telegram, а не только в колокольчик внутри CRM — иначе тимлид/владелец
+  // узнают о задаче только зайдя в приложение.
+  for (const uid of userIds) {
+    await notifyUser(uid, { kind, title, link });
+  }
   if (t.clientId) {
-    await prisma.notification.create({
-      data: { clientId: t.clientId, kind, title, link: `/tasks?board=${t.board}` },
-    });
+    await notifyClient(t.clientId, { kind, title, link });
   }
 }
 
@@ -1086,6 +1087,7 @@ export async function saveDictItem(fd: FormData) {
   if (id) {
     await prisma.dictItem.update({ where: { id }, data });
   } else {
+    await ensureDictSeeded(type as Parameters<typeof ensureDictSeeded>[0]);
     const key =
       str(fd, "key") ||
       `${name.toUpperCase().replace(/[^A-ZА-Я0-9]+/gi, "_").slice(0, 18)}_${Math.random()
