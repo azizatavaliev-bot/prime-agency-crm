@@ -11,12 +11,13 @@ import {
   ExternalLink,
   CheckCircle2,
   User as UserIcon,
+  MessageSquare,
 } from "lucide-react";
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { clientScope, can } from "@/lib/access";
 import { reportMetrics } from "@/lib/finance";
-import { deleteClient, toggleTask } from "@/lib/actions";
+import { deleteClient, toggleTask, addClientNote, deleteClientNote } from "@/lib/actions";
 import { som, dateRu, num } from "@/lib/format";
 import { paymentChip, daysToContractEnd } from "@/lib/payday";
 import { dict } from "@/lib/dict";
@@ -57,6 +58,7 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
       expenses: { orderBy: { spentAt: "desc" } },
       snapshots: { orderBy: { takenAt: "asc" } },
       links: { orderBy: { createdAt: "desc" } },
+      projectNotes: { include: { author: true }, orderBy: { createdAt: "desc" } },
     },
   });
   if (!client) notFound();
@@ -181,6 +183,7 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
           ...(showMoney ? (["payments"] as const) : []),
           "reports",
           "links",
+          "notes",
           ...(can.editClient(user, client) ? (["settings"] as const) : []),
         ]}
         counts={{
@@ -188,6 +191,7 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
           payments: client.payments.length,
           reports: client.reports.length,
           links: links.length,
+          notes: client.projectNotes.length,
         }}
         panels={{
           overview: (
@@ -399,6 +403,52 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
               links={links}
               canEdit={can.manageClients(user)}
             />
+          ),
+          notes: (
+            <Section title="Заметки по проекту" icon={MessageSquare}>
+              <div className="space-y-3">
+                {client.projectNotes.map((note) => (
+                  <div key={note.id} className="group rounded-2xl border border-zinc-200 p-3">
+                    <div className="flex items-baseline gap-2">
+                      <span className="text-xs font-medium">{note.author?.name ?? "—"}</span>
+                      <span className="text-[10px] text-muted">
+                        {note.createdAt.toLocaleString("ru-RU", {
+                          day: "2-digit",
+                          month: "2-digit",
+                          year: "numeric",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </span>
+                      {(user.role === "SUPER_ADMIN" || note.authorId === user.id) && (
+                        <form action={deleteClientNote} className="ml-auto opacity-0 group-hover:opacity-100">
+                          <input type="hidden" name="id" value={note.id} />
+                          <button className="rounded p-0.5 text-zinc-300 hover:text-red-600">
+                            <Trash2 size={11} />
+                          </button>
+                        </form>
+                      )}
+                    </div>
+                    <div className="mt-1 whitespace-pre-wrap text-sm">{note.text}</div>
+                  </div>
+                ))}
+                {client.projectNotes.length === 0 && (
+                  <div className="text-sm text-zinc-500">Заметок пока нет</div>
+                )}
+              </div>
+
+              <form action={addClientNote} className="mt-3 flex gap-2">
+                <input type="hidden" name="clientId" value={client.id} />
+                <input
+                  type="text"
+                  name="text"
+                  placeholder="Написать заметку…"
+                  className="input flex-1"
+                  required
+                />
+                <button className="btn-primary !px-4">Добавить</button>
+              </form>
+            </Section>
           ),
           settings: (
             <>

@@ -8,10 +8,11 @@ import {
   TrendingUp,
   Link2,
   Settings2,
+  MessageSquare,
   type LucideIcon,
 } from "lucide-react";
 
-export type ClientTabKey = "overview" | "tasks" | "payments" | "reports" | "links" | "settings";
+export type ClientTabKey = "overview" | "tasks" | "payments" | "reports" | "links" | "notes" | "settings";
 
 const ALL: { key: ClientTabKey; label: string; icon: LucideIcon }[] = [
   { key: "overview", label: "Обзор", icon: LayoutGrid },
@@ -19,6 +20,7 @@ const ALL: { key: ClientTabKey; label: string; icon: LucideIcon }[] = [
   { key: "payments", label: "Оплаты", icon: Wallet },
   { key: "reports", label: "Отчёты", icon: TrendingUp },
   { key: "links", label: "Ссылки", icon: Link2 },
+  { key: "notes", label: "Заметки", icon: MessageSquare },
   { key: "settings", label: "Настройки", icon: Settings2 },
 ];
 

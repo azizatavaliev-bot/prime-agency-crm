@@ -16,6 +16,7 @@ import {
   TrendingDown,
   LayoutGrid,
   Settings2,
+  MessageSquare,
 } from "lucide-react";
 import type { SessionUser } from "@/lib/auth";
 import { can } from "@/lib/access";
@@ -29,6 +30,8 @@ import {
   deleteTask,
   markExpensePaid,
   deleteExpense,
+  addEmployeeNote,
+  deleteEmployeeNote,
 } from "@/lib/actions";
 import { som, dateRu, num, daysUntil } from "@/lib/format";
 import { paymentChip, daysToContractEnd } from "@/lib/payday";
@@ -972,6 +975,8 @@ export function TeamModal({
   row,
   className,
   children,
+  notes,
+  canManageNotes,
 }: {
   member: { id: string; name: string; email: string; role: string; rate: number | null; rateType: string; projectLimit: number; active: boolean };
   projects: { id: string; name: string; status: string; avgCheck: number }[];
@@ -982,6 +987,8 @@ export function TeamModal({
   row?: React.ReactNode;
   className?: string;
   children?: React.ReactNode;
+  notes?: { id: string; text: string; createdAt: Date; authorId: string | null; author: { name: string } | null }[];
+  canManageNotes?: boolean;
 }) {
   const load = projects.filter((p) => ["TEST", "ACTIVE", "RISK"].includes(p.status)).length;
   const pct = Math.round((load / limit) * 100);
@@ -1052,6 +1059,47 @@ export function TeamModal({
           )}
         </MiniTable>
       </Section>
+
+      {notes && (
+        <Section title="Заметки о сотруднике" icon={MessageSquare}>
+          <div className="space-y-3">
+            {notes.map((note) => (
+              <div key={note.id} className="group rounded-2xl border border-zinc-200 p-3">
+                <div className="flex items-baseline gap-2">
+                  <span className="text-xs font-medium">{note.author?.name ?? "—"}</span>
+                  <span className="text-[10px] text-muted">
+                    {note.createdAt.toLocaleString("ru-RU", {
+                      day: "2-digit",
+                      month: "2-digit",
+                      year: "numeric",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                  </span>
+                  {canManageNotes && (
+                    <form action={deleteEmployeeNote} className="ml-auto opacity-0 group-hover:opacity-100">
+                      <input type="hidden" name="id" value={note.id} />
+                      <button className="rounded p-0.5 text-zinc-300 hover:text-red-600">
+                        <Trash2 size={11} />
+                      </button>
+                    </form>
+                  )}
+                </div>
+                <div className="mt-1 whitespace-pre-wrap text-sm">{note.text}</div>
+              </div>
+            ))}
+            {notes.length === 0 && <div className="text-sm text-zinc-500">Заметок пока нет</div>}
+          </div>
+
+          {canManageNotes && (
+            <form action={addEmployeeNote} className="mt-3 flex gap-2">
+              <input type="hidden" name="userId" value={member.id} />
+              <input type="text" name="text" placeholder="Написать заметку…" className="input flex-1" required />
+              <button className="btn-primary !px-4">Добавить</button>
+            </form>
+          )}
+        </Section>
+      )}
 
       {children && (
         <Section title="Изменить сотрудника" icon={Pencil}>

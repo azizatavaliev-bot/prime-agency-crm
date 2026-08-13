@@ -423,6 +423,31 @@ export async function deleteTaskComment(fd: FormData) {
   revalidatePath("/tasks");
 }
 
+/* ---------------- Заметки по проекту клиента ---------------- */
+
+export async function addClientNote(fd: FormData) {
+  const user = await requireUser();
+  const clientId = req(fd, "clientId");
+  const client = await prisma.client.findFirst({ where: { AND: [{ id: clientId }, clientScope(user)] } });
+  if (!client) redirect("/no-access");
+  const text = req(fd, "text");
+  if (!text) return;
+  await prisma.clientNote.create({ data: { clientId, authorId: user.id, text } });
+  revalidatePath(`/clients/${clientId}`);
+}
+
+export async function deleteClientNote(fd: FormData) {
+  const user = await requireUser();
+  const id = req(fd, "id");
+  const note = await prisma.clientNote.findUnique({ where: { id } });
+  if (!note) redirect("/no-access");
+  const client = await prisma.client.findFirst({ where: { AND: [{ id: note.clientId }, clientScope(user)] } });
+  if (!client) redirect("/no-access");
+  if (user.role !== "SUPER_ADMIN" && note.authorId !== user.id) redirect("/no-access");
+  await prisma.clientNote.delete({ where: { id } });
+  revalidatePath(`/clients/${note.clientId}`);
+}
+
 export async function setTaskPriority(fd: FormData) {
   const user = await requireUser();
   const id = req(fd, "id");
@@ -536,6 +561,26 @@ export async function saveUser(fd: FormData) {
       data: { ...base, passwordHash: await hashPassword(password || "prime2026") },
     });
   }
+  revalidatePath("/team");
+}
+
+/* ---------------- Заметки о сотруднике ---------------- */
+
+export async function addEmployeeNote(fd: FormData) {
+  const user = await requireUser();
+  if (!can.manageTeam(user)) redirect("/no-access");
+  const userId = req(fd, "userId");
+  const text = req(fd, "text");
+  if (!text) return;
+  await prisma.employeeNote.create({ data: { userId, authorId: user.id, text } });
+  revalidatePath("/team");
+}
+
+export async function deleteEmployeeNote(fd: FormData) {
+  const user = await requireUser();
+  if (!can.manageTeam(user)) redirect("/no-access");
+  const id = req(fd, "id");
+  await prisma.employeeNote.delete({ where: { id } });
   revalidatePath("/team");
 }
 

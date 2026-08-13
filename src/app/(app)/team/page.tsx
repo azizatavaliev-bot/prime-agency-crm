@@ -29,6 +29,7 @@ export default async function TeamPage() {
       clientsAsTargetolog: true,
       clientsAsAccount: true,
       tasks: { include: { client: true } },
+      employeeNotes: { include: { author: true }, orderBy: { createdAt: "desc" } },
     },
     orderBy: { createdAt: "asc" },
   });
@@ -84,6 +85,8 @@ export default async function TeamPage() {
               tasks={u.tasks}
               payout={payoutMap[u.id] ?? 0}
               limit={limit}
+              notes={u.employeeNotes}
+              canManageNotes={can.manageTeam(me)}
               className={u.active ? "" : "opacity-50"}
               row={
                 <>
