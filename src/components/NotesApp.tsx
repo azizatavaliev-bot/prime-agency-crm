@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import {
   Search,
   Plus,
@@ -11,13 +12,14 @@ import {
   Underline,
   List,
   CheckSquare,
-  FolderInput,
   ArrowLeft,
   Folder,
   StickyNote,
   FolderPlus,
+  Briefcase,
+  ListTodo,
 } from "lucide-react";
-import { createNote, saveNote, deleteNote, togglePinNote, moveNote } from "@/lib/noteActions";
+import { createNote, saveNote, deleteNote, togglePinNote, moveNote, setNoteClient, convertNoteToTask } from "@/lib/noteActions";
 
 export type NoteRow = {
   id: string;
@@ -25,17 +27,25 @@ export type NoteRow = {
   title: string;
   body: string;
   pinned: boolean;
+  clientId: string | null;
   updatedAt: string;
 };
 
+type ClientOpt = { id: string; name: string };
+
 const ALL_FOLDERS = "__all__";
 
-/** Голый текст из HTML заметки — для сниппета и поиска. */
+/**
+ * Голый текст из HTML заметки — для сниппета и поиска. Через regex, а не DOM:
+ * DOM-парсинг недоступен на сервере и давал разный результат при SSR и на
+ * клиенте (пустая строка → текст) — React ругался на расхождение при гидрации.
+ */
 function plainText(html: string) {
-  if (typeof window === "undefined") return "";
-  const div = document.createElement("div");
-  div.innerHTML = html;
-  return (div.textContent || "").replace(/\s+/g, " ").trim();
+  return html
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function relativeDate(iso: string) {
@@ -49,10 +59,12 @@ function relativeDate(iso: string) {
   return d.toLocaleDateString("ru-RU", { day: "2-digit", month: "short" });
 }
 
-export default function NotesApp({ notes: initialNotes }: { notes: NoteRow[] }) {
+export default function NotesApp({ notes: initialNotes, clients }: { notes: NoteRow[]; clients: ClientOpt[] }) {
+  const router = useRouter();
   const [notes, setNotes] = useState<NoteRow[]>(initialNotes);
   const [extraFolders, setExtraFolders] = useState<string[]>([]);
   const [folder, setFolder] = useState<string>(ALL_FOLDERS);
+  const [clientFilter, setClientFilter] = useState<string>("");
   const [query, setQuery] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [mobileView, setMobileView] = useState<"list" | "editor">("list");
@@ -75,6 +87,7 @@ export default function NotesApp({ notes: initialNotes }: { notes: NoteRow[] }) 
     const q = query.trim().toLowerCase();
     return notes
       .filter((n) => folder === ALL_FOLDERS || n.folder === folder)
+      .filter((n) => !clientFilter || n.clientId === clientFilter)
       .filter((n) => {
         if (!q) return true;
         return n.title.toLowerCase().includes(q) || plainText(n.body).toLowerCase().includes(q);
@@ -83,7 +96,7 @@ export default function NotesApp({ notes: initialNotes }: { notes: NoteRow[] }) 
         if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
         return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
       });
-  }, [notes, folder, query]);
+  }, [notes, folder, clientFilter, query]);
 
   // При смене выбранной заметки — подгружаем её содержимое в редактор один раз
   // (не на каждый ререндер, иначе слетит курсор во время печати).
@@ -125,12 +138,19 @@ export default function NotesApp({ notes: initialNotes }: { notes: NoteRow[] }) 
     const targetFolder = folder === ALL_FOLDERS ? "Заметки" : folder;
     startTransition(async () => {
       const id = await createNote(targetFolder);
+      if (clientFilter) {
+        const fd = new FormData();
+        fd.set("id", id);
+        fd.set("clientId", clientFilter);
+        await setNoteClient(fd);
+      }
       const fresh: NoteRow = {
         id,
         folder: targetFolder,
         title: "",
         body: "",
         pinned: false,
+        clientId: clientFilter || null,
         updatedAt: new Date().toISOString(),
       };
       setNotes((ns) => [fresh, ...ns]);
@@ -179,6 +199,30 @@ export default function NotesApp({ notes: initialNotes }: { notes: NoteRow[] }) 
     fd.set("folder", targetFolder);
     startTransition(() => {
       moveNote(fd);
+    });
+  };
+
+  const handleSetClient = (clientId: string) => {
+    if (!selected) return;
+    patchNote(selected.id, { clientId: clientId || null });
+    const fd = new FormData();
+    fd.set("id", selected.id);
+    fd.set("clientId", clientId);
+    startTransition(() => {
+      setNoteClient(fd);
+    });
+  };
+
+  const [converting, setConverting] = useState(false);
+  const handleConvertToTask = () => {
+    if (!selected) return;
+    setConverting(true);
+    const fd = new FormData();
+    fd.set("id", selected.id);
+    startTransition(async () => {
+      const taskId = await convertNoteToTask(fd);
+      setConverting(false);
+      if (taskId) router.push("/tasks");
     });
   };
 
@@ -240,6 +284,23 @@ export default function NotesApp({ notes: initialNotes }: { notes: NoteRow[] }) 
               <FolderPlus size={16} />
             </button>
           </div>
+          {clients.length > 0 && (
+            <div className="flex items-center gap-1.5">
+              <Briefcase size={14} className="shrink-0 text-muted" />
+              <select
+                className="input !py-1.5 flex-1 !text-sm"
+                value={clientFilter}
+                onChange={(e) => setClientFilter(e.target.value)}
+              >
+                <option value="">Все проекты</option>
+                {clients.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
           <div className="relative">
             <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted" />
             <input
@@ -263,6 +324,7 @@ export default function NotesApp({ notes: initialNotes }: { notes: NoteRow[] }) 
           )}
           {filtered.map((n) => {
             const snippet = plainText(n.body);
+            const clientName = n.clientId ? clients.find((c) => c.id === n.clientId)?.name : null;
             return (
               <button
                 key={n.id}
@@ -275,6 +337,11 @@ export default function NotesApp({ notes: initialNotes }: { notes: NoteRow[] }) 
                   {n.pinned && <Pin size={11} className="shrink-0 fill-current text-amber-500" />}
                   <span className="truncate text-sm font-medium">{n.title || "Новая заметка"}</span>
                 </div>
+                {clientName && (
+                  <div className="mt-0.5 flex items-center gap-1 text-[11px] text-[var(--accent)]">
+                    <Briefcase size={10} className="shrink-0" /> <span className="truncate">{clientName}</span>
+                  </div>
+                )}
                 <div className="mt-0.5 flex items-center gap-1.5 text-xs text-muted">
                   <span className="shrink-0">{relativeDate(n.updatedAt)}</span>
                   {snippet && <span className="truncate">— {snippet}</span>}
@@ -316,6 +383,14 @@ export default function NotesApp({ notes: initialNotes }: { notes: NoteRow[] }) 
               <button onClick={insertChecklist} className="btn-ghost !px-2 !py-1.5" title="Чек-лист">
                 <CheckSquare size={15} />
               </button>
+              <button
+                onClick={handleConvertToTask}
+                disabled={converting}
+                className="btn-ghost !px-2 !py-1.5"
+                title="Превратить в задачу на доске"
+              >
+                <ListTodo size={15} /> <span className="hidden sm:inline">В задачу</span>
+              </button>
 
               <div className="ml-auto flex items-center gap-1">
                 <select
@@ -343,8 +418,28 @@ export default function NotesApp({ notes: initialNotes }: { notes: NoteRow[] }) 
               </div>
             </div>
 
-            <div className="flex items-center gap-1.5 px-4 pt-3 text-xs text-muted">
-              <Folder size={12} /> {selected.folder} · {relativeDate(selected.updatedAt)}
+            <div className="flex flex-wrap items-center gap-3 px-4 pt-3 text-xs text-muted">
+              <span className="flex items-center gap-1.5">
+                <Folder size={12} /> {selected.folder} · {relativeDate(selected.updatedAt)}
+              </span>
+              {clients.length > 0 && (
+                <span className="flex items-center gap-1.5">
+                  <Briefcase size={12} />
+                  <select
+                    className="input !py-0.5 !text-xs"
+                    value={selected.clientId ?? ""}
+                    onChange={(e) => handleSetClient(e.target.value)}
+                    title="Привязать к проекту"
+                  >
+                    <option value="">— без проекта —</option>
+                    {clients.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </select>
+                </span>
+              )}
             </div>
 
             <input

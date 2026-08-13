@@ -104,6 +104,7 @@ model Client {
   notifications    Notification[]
   adTransactions   AdTransaction[]
   projectNotes     ClientNote[]
+  personalNotes    Note[]
   createdAt        DateTime          @default(now())
 }
 
@@ -539,11 +540,14 @@ model Note {
   title     String   @default("")
   body      String   @default("")
   pinned    Boolean  @default(false)
+  clientId  String?
+  client    Client?  @relation(fields: [clientId], references: [id], onDelete: SetNull)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([userId, folder])
   @@index([userId, pinned, updatedAt])
+  @@index([clientId])
 }
 
 model Setting {
