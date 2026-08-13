@@ -532,3 +532,10 @@ body {
     radial-gradient(30rem 20rem at 20% 10%, rgba(255, 255, 255, .18), transparent),
     linear-gradient(140deg, var(--accent), var(--accent-2));
 }
+
+/* Заметки: плейсхолдер в пустом contentEditable */
+.note-editor:empty:before {
+  content: attr(data-placeholder);
+  color: var(--muted, #a1a1aa);
+  pointer-events: none;
+}

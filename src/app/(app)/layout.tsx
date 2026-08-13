@@ -26,6 +26,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   if (user.role !== "DEVELOPER" && user.role !== "EDITOR")
     items.push({ href: "/marketing", label: "Маркетинг", icon: "marketing" });
   items.push({ href: "/tasks", label: "Задачи", icon: "tasks" });
+  items.push({ href: "/notes", label: "Заметки", icon: "notes" });
   items.push({ href: "/regulations", label: "Регламенты", icon: "regulations" });
 
   if (user.role === "SUPER_ADMIN" || user.role === "ADMIN") {
