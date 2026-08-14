@@ -23,6 +23,8 @@ model User {
   role              String
   rate              Float? // % от чека (таргетолог/программист) или фикс-ставка
   rateType          String    @default("PERCENT") // PERCENT | FIXED
+  /// Фикс-оклад за месяц, не зависящий от проектов. 0 — только проектные доли.
+  baseSalary        Float     @default(0)
   projectLimit      Int       @default(5)
   active            Boolean   @default(true)
   phone             String?
@@ -32,22 +34,25 @@ model User {
   /// Момент смены пароля: выданные раньше сессии становятся недействительными.
   passwordChangedAt DateTime?
 
-  clientsAsTargetolog Client[]          @relation("targetolog")
-  clientsAsAccount    Client[]          @relation("account")
-  tasks               Task[]            @relation("assignee")
-  reports             AdReport[]
-  notifications       Notification[]
-  memberships         ClientMember[]
-  expenses            Expense[]
-  marketingReports    MarketingReport[]
-  taskComments        TaskComment[]
-  regulations         Regulation[]      @relation("regulationOwner")
-  directionsCreated   Direction[]
-  adTransactions      AdTransaction[]
-  clientNotes         ClientNote[]
-  employeeNotes       EmployeeNote[]      @relation("employeeNoteSubject")
-  employeeNotesWritten EmployeeNote[]     @relation("employeeNoteAuthor")
+  clientsAsTargetolog  Client[]          @relation("targetolog")
+  clientsAsAccount     Client[]          @relation("account")
+  tasks                Task[]            @relation("assignee")
+  reports              AdReport[]
+  notifications        Notification[]
+  memberships          ClientMember[]
+  expenses             Expense[]
+  marketingReports     MarketingReport[]
+  taskComments         TaskComment[]
+  regulations          Regulation[]      @relation("regulationOwner")
+  directionsCreated    Direction[]
+  adTransactions       AdTransaction[]
+  clientNotes          ClientNote[]
+  employeeNotes        EmployeeNote[]    @relation("employeeNoteSubject")
+  employeeNotesWritten EmployeeNote[]    @relation("employeeNoteAuthor")
   notes                Note[]
+  rateHistory          MemberRate[]
+  bonuses              Bonus[]
+  payouts              Payout[]
 }
 
 // Статусы: TEST | ACTIVE | RISK | PAUSED | CHURNED
@@ -83,12 +88,17 @@ model Client {
   videoPrice    Float? // стоимость монтажа
 
   // Портал клиента: логин задаёт агентство, отдельно от таблицы User
-  portalLogin        String? @unique
+  portalLogin        String?   @unique
   portalPasswordHash String?
   cardLast4          String? // последние 4 цифры карты клиента (приём оплат/расходов)
   cardHolder         String?
   tgChatId           String? // привязанный чат Telegram клиента (портал)
-  tgLinkCode         String? @unique
+  tgLinkCode         String?   @unique
+  /// Условия сотрудничества: чтобы не держать их в голове и в переписке.
+  paymentTerms       String? // «предоплата 100%», «50/50», «постоплата до 5 числа»
+  renewalMode        String? // AUTO | NEGOTIATE | ONE_TIME — что делаем после окончания договора
+  priceReviewAt      DateTime? // когда пересматриваем цену
+  termsNote          String? // прочие договорённости по деньгам
 
   payments         Payment[]
   reports          AdReport[]
@@ -105,7 +115,10 @@ model Client {
   adTransactions   AdTransaction[]
   projectNotes     ClientNote[]
   personalNotes    Note[]
-  createdAt        DateTime          @default(now())
+  rateHistory      MemberRate[]
+  bonuses          Bonus[]
+
+  createdAt DateTime @default(now())
 }
 
 /// Общая лента заметок по проекту клиента — видно всей команде.
@@ -168,6 +181,82 @@ model ClientMember {
   @@unique([clientId, userId, role])
 }
 
+/// История ставок участника на проекте: с какого месяца действует какая ставка.
+///
+/// Без истории повышение ставки задним числом переписывало бы уже закрытые
+/// ведомости — человек «получал бы» другую сумму за прошлый месяц.
+model MemberRate {
+  id        String   @id @default(cuid())
+  clientId  String
+  client    Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role      String // TARGETOLOG | ACCOUNT | CONTRACTOR
+  rateType  String   @default("PERCENT") // PERCENT | FIXED
+  rate      Float    @default(0)
+  fromMonth String // "2026-08" — с какого месяца действует
+  note      String?
+  createdAt DateTime @default(now())
+
+  @@unique([clientId, userId, role, fromMonth])
+  @@index([clientId, userId, fromMonth])
+}
+
+/// Премия сотруднику за месяц. Начисляется владельцем вручную;
+/// премии по правилам считаются на лету и фиксируются в момент выплаты.
+model Bonus {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  month     String // "2026-08"
+  amount    Float
+  reason    String
+  clientId  String?
+  client    Client?  @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  createdAt DateTime @default(now())
+
+  @@index([userId, month])
+}
+
+/// Правило премии: за какой результат, сколько и при каком пороге.
+/// metric: CPL_TARGET | REVENUE_PLAN | TASKS_ONTIME | CLIENT_RETAINED
+model BonusRule {
+  id         String   @id @default(cuid())
+  name       String
+  metric     String
+  role       String? // кому применяется; null — всем
+  amountType String   @default("FIXED") // FIXED (сом) | PERCENT (% от доли с проектов)
+  amount     Float    @default(0)
+  threshold  Float    @default(0) // порог срабатывания: % выполнения, % задач в срок
+  perClient  Boolean  @default(true) // начислять за каждый подходящий проект
+  active     Boolean  @default(true)
+  hint       String?
+  order      Int      @default(100)
+  createdAt  DateTime @default(now())
+}
+
+/// Факт выплаты зарплаты за месяц: снимок ведомости, чтобы прошлые месяцы
+/// не пересчитывались при смене ставок и правил.
+model Payout {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  month        String
+  base         Float    @default(0) // оклад
+  projectShare Float    @default(0) // доли с проектов
+  bonus        Float    @default(0) // премии
+  amount       Float // итог к выплате
+  paidAt       DateTime
+  accountId    String?
+  account      Account? @relation(fields: [accountId], references: [id], onDelete: SetNull)
+  expenseId    String? // созданный расход категории «Выплаты команде»
+  comment      String?
+  createdAt    DateTime @default(now())
+
+  @@unique([userId, month])
+  @@index([month])
+}
+
 /// Цели: по агентству (clientId = null) или по клиенту
 model Goal {
   id        String   @id @default(cuid())
@@ -209,30 +298,30 @@ model Payment {
 }
 
 model AdReport {
-  id          String     @id @default(cuid())
-  clientId    String
-  client      Client     @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  directionId String?
-  direction   Direction? @relation(fields: [directionId], references: [id], onDelete: SetNull)
-  authorId    String?
-  author      User?      @relation(fields: [authorId], references: [id])
-  periodFrom  DateTime
-  periodTo    DateTime
+  id            String     @id @default(cuid())
+  clientId      String
+  client        Client     @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  directionId   String?
+  direction     Direction? @relation(fields: [directionId], references: [id], onDelete: SetNull)
+  authorId      String?
+  author        User?      @relation(fields: [authorId], references: [id])
+  periodFrom    DateTime
+  periodTo      DateTime
   // Цель кампании (Meta/Instagram): LEADS | ENGAGEMENT | TRAFFIC | PROFILE_VISITS —
   // определяет, какие метрики ниже показывать в форме. "Потрачено" видно всегда.
-  objective   String     @default("LEADS")
-  budget      Float      @default(0) // выделенный рекламный бюджет
-  spent       Float      @default(0)
-  leads       Int        @default(0)
-  actions     Int        @default(0) // целевые действия
-  views       Int        @default(0) // просмотры — альтернативная метрика, когда заявки не считаем
-  engagement  Int        @default(0) // вовлечённость (лайки/комментарии/сохранения/реакции)
-  traffic     Int        @default(0) // переходы/клики по ссылке
-  profileVisits Int      @default(0) // посещения профиля
-  targetCpl   Float // порог решения, обязательное
-  targetCpa   Float?
-  bundles     String? // статус связок
-  comment     String?
+  objective     String     @default("LEADS")
+  budget        Float      @default(0) // выделенный рекламный бюджет
+  spent         Float      @default(0)
+  leads         Int        @default(0)
+  actions       Int        @default(0) // целевые действия
+  views         Int        @default(0) // просмотры — альтернативная метрика, когда заявки не считаем
+  engagement    Int        @default(0) // вовлечённость (лайки/комментарии/сохранения/реакции)
+  traffic       Int        @default(0) // переходы/клики по ссылке
+  profileVisits Int        @default(0) // посещения профиля
+  targetCpl     Float // порог решения, обязательное
+  targetCpa     Float?
+  bundles       String? // статус связок
+  comment       String?
 
   // Скриншот рекламного кабинета
   screenshot     Bytes?
@@ -383,6 +472,7 @@ model Account {
   incomes       Income[]
   transfersFrom Transfer[] @relation("from")
   transfersTo   Transfer[] @relation("to")
+  payouts       Payout[]
 }
 
 /// Прочие приходы, не связанные с оплатой клиента (возврат, партнёрка, продажа, внесение своих)

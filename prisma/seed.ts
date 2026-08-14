@@ -11,6 +11,7 @@ async function main() {
   await prisma.transfer.deleteMany();
   await prisma.account.deleteMany();
   await prisma.income.deleteMany();
+  await prisma.marketingReport.deleteMany();
   await prisma.dictItem.deleteMany();
   await prisma.expense.deleteMany();
   await prisma.goal.deleteMany();
@@ -511,6 +512,32 @@ async function main() {
       comment: "первый тест перед стартом абонплаты",
     },
   });
+
+  // Реклама агентства за последние 30 дней: без неё раздел «Маркетинг» пустой
+  const sources = ["FACEBOOK", "GOOGLE", "TIKTOK", "TELEGRAM"];
+  for (let d = 29; d >= 0; d--) {
+    const day = new Date();
+    day.setDate(day.getDate() - d);
+    const date = new Date(Date.UTC(day.getFullYear(), day.getMonth(), day.getDate()));
+    // По выходным откручиваем меньше — так данные похожи на живые
+    const weekend = [0, 6].includes(day.getDay());
+    for (const source of sources.slice(0, weekend ? 2 : 4)) {
+      const spend = Math.round((weekend ? 2000 : 4000) + Math.sin(d + source.length) * 900);
+      const leads = Math.max(1, Math.round(spend / (380 + (source.length % 5) * 40)));
+      await prisma.marketingReport.create({
+        data: {
+          date,
+          channel: "TARGET",
+          source,
+          spend,
+          leads,
+          impressions: leads * 220,
+          inquiries: Math.round(leads * 0.6),
+          authorId: owner.id,
+        },
+      });
+    }
+  }
 
   console.log("Демо-данные готовы. Вход: owner@prime.kg / " + PW);
   void owner;

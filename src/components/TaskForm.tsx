@@ -139,7 +139,7 @@ export default function TaskForm({
                 defaultChecked={board === task?.board ? task.stage === key : i === 0}
                 className="peer sr-only"
               />
-              <span className="chip border-zinc-200 text-muted transition peer-checked:accent-gradient peer-checked:border-transparent peer-checked:text-white">
+              <span className="chip chip-toggle border-zinc-200 text-muted transition">
                 {label}
               </span>
             </label>
@@ -224,7 +224,7 @@ export default function TaskForm({
                 defaultChecked={(task?.priority ?? "MEDIUM") === key}
                 className="peer sr-only"
               />
-              <span className="chip border-zinc-200 text-muted transition peer-checked:accent-gradient peer-checked:border-transparent peer-checked:text-white">
+              <span className="chip chip-toggle border-zinc-200 text-muted transition">
                 {label}
               </span>
             </label>
@@ -245,7 +245,7 @@ export default function TaskForm({
                   defaultChecked={selectedTags.includes(t.key)}
                   className="peer sr-only"
                 />
-                <span className="chip border-zinc-200 text-muted transition peer-checked:accent-gradient peer-checked:border-transparent peer-checked:text-white">
+                <span className="chip chip-toggle border-zinc-200 text-muted transition">
                   {t.name}
                 </span>
               </label>

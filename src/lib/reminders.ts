@@ -6,6 +6,7 @@ import { generateDuePayments } from "./actions";
 import { daysToContractEnd } from "./payday";
 import { som, dateRu } from "./format";
 import { deadlineBadge, isOverdue } from "./tasks";
+import { RENEWAL_MODE } from "./constants";
 
 /**
  * Прогон напоминаний «по заходу»: внешнего крона может не быть, поэтому
@@ -165,11 +166,37 @@ export async function runReminders() {
       await notifyUser(uid, {
         kind: "PAYMENT_DUE",
         title: `${left < 0 ? "Договор истёк" : "Договор заканчивается"}: ${c.name}`,
-        body: `${dateRu(c.contractEnd)}${left >= 0 ? ` · осталось ${left} дн.` : ""} — пора продлевать`,
+        // Что делать дальше — из условий проекта, чтобы не лезть в карточку.
+        body: `${dateRu(c.contractEnd)}${left >= 0 ? ` · осталось ${left} дн.` : ""} — ${
+          c.renewalMode
+            ? RENEWAL_MODE[c.renewalMode as keyof typeof RENEWAL_MODE].toLowerCase()
+            : "решите, продлеваем ли"
+        }`,
         link: `/clients/${c.id}`,
         dedupeKey,
       });
     log.push(`договор ${c.name}`);
+  }
+
+  /* 4.6 Пора пересматривать цену по проекту */
+  const priceReviewClients = await prisma.client.findMany({
+    where: {
+      status: { in: ["TEST", "ACTIVE", "RISK"] },
+      priceReviewAt: { not: null, lte: new Date(Date.now() + 7 * 86400000) },
+    },
+  });
+  for (const c of priceReviewClients) {
+    const dedupeKey = `price-${c.id}-${c.priceReviewAt!.toISOString().slice(0, 10)}`;
+    if (await alreadySent(dedupeKey)) continue;
+    for (const uid of ownerIds)
+      await notifyUser(uid, {
+        kind: "PAYMENT_DUE",
+        title: `Пересмотр цены: ${c.name}`,
+        body: `Договаривались вернуться к цене ${dateRu(c.priceReviewAt)} · сейчас ${som(c.avgCheck)} в месяц`,
+        link: `/clients/${c.id}`,
+        dedupeKey,
+      });
+    log.push(`пересмотр цены ${c.name}`);
   }
 
   /* 5. CPL: последний отчёт вне цели */

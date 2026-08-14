@@ -7,82 +7,12 @@ import {
   CreditCard,
   CalendarDays,
   CalendarClock,
-  type LucideIcon,
+  AlertTriangle,
+  Target,
 } from "lucide-react";
-import { som, dateRu, daysUntil } from "@/lib/format";
+import { som, dateRu, daysUntil, num } from "@/lib/format";
 import { paymentChip } from "@/lib/payday";
-
-/** Крупная плитка показателя — как шапка карточки клиента в FADAMOS. */
-function BigStat({
-  label,
-  value,
-  hint,
-  icon: Icon,
-  tone = "default",
-  corner,
-}: {
-  label: string;
-  value: string;
-  hint?: string;
-  icon: LucideIcon;
-  tone?: "default" | "good" | "warn" | "bad";
-  corner?: string;
-}) {
-  const tones = {
-    default: "accent-soft accent-text",
-    good: "bg-emerald-100 text-emerald-600",
-    warn: "bg-amber-100 text-amber-600",
-    bad: "bg-red-100 text-red-600",
-  };
-  const valueTone = {
-    default: "",
-    good: "text-emerald-600",
-    warn: "text-amber-600",
-    bad: "text-red-600",
-  };
-  return (
-    <div className="card card-hover relative p-4">
-      {corner && <span className="absolute right-3 top-3 text-[11px] text-muted">{corner}</span>}
-      <div className={`stat-icon ${tones[tone]}`}>
-        <Icon size={17} strokeWidth={1.9} />
-      </div>
-      <div className={`mt-3 text-2xl font-semibold tracking-tight ${valueTone[tone]}`}>{value}</div>
-      <div className="mt-0.5 text-xs text-muted">{label}</div>
-      {hint && <div className="mt-1 text-[11px] text-muted">{hint}</div>}
-    </div>
-  );
-}
-
-/** Небольшая карточка-факт: дата договора, день оплаты и т.д. */
-function FactCard({
-  label,
-  value,
-  hint,
-  tone = "default",
-  icon: Icon,
-}: {
-  label: string;
-  value: string;
-  hint?: string;
-  tone?: "default" | "good" | "warn" | "bad";
-  icon: LucideIcon;
-}) {
-  const hintTone = {
-    default: "text-muted",
-    good: "text-emerald-600",
-    warn: "text-amber-600",
-    bad: "text-red-600",
-  };
-  return (
-    <div className="rounded-2xl border border-zinc-200 p-3">
-      <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted">
-        <Icon size={12} /> {label}
-      </div>
-      <div className="mt-1.5 text-sm font-semibold">{value}</div>
-      {hint && <div className={`mt-0.5 text-[11px] ${hintTone[tone]}`}>{hint}</div>}
-    </div>
-  );
-}
+import { HeroStat, CompactStat } from "./ui";
 
 export type ClientOverviewData = {
   avgCheck: number;
@@ -91,15 +21,26 @@ export type ClientOverviewData = {
   profitPercent: number | null;
   openTasks: number;
   totalTasks: number;
+  overdueTasks: number;
   contractStart: Date | null;
+  contractEnd: Date | null;
   firstPaymentAt: Date | null;
   paymentDay: number | null;
   nextPaymentAt: Date | null;
+  debt: number;
+  pendingCount: number;
+  cpl: number | null;
+  targetCpl: number | null;
+  lastReportAt: Date | null;
+  adAccount: string | null;
 };
 
 /**
- * Шапка карточки клиента: сколько принёс, сколько заработали, когда платит.
- * Показывается и в модалке, и на отдельной странице клиента.
+ * Шапка карточки клиента.
+ *
+ * Сверху — что требует действия: раньше эти сигналы были размазаны по бейджам
+ * и плиткам, и собирать их приходилось глазами. Дальше три главных числа тем же
+ * языком, что на дашборде, и лента фактов помельче.
  */
 export default function ClientOverview({
   data,
@@ -112,87 +53,157 @@ export default function ClientOverview({
 }) {
   const payIn = paymentChip(data.paymentDay);
   const nextIn = daysUntil(data.nextPaymentAt);
+  const daysSinceReport =
+    data.lastReportAt === null ? null : Math.floor((Date.now() - data.lastReportAt.getTime()) / 86400000);
+  const contractLeft = daysUntil(data.contractEnd);
 
   const nextHint =
     nextIn === null
-      ? undefined
+      ? "дата не задана"
       : nextIn < 0
         ? `просрочено ${-nextIn} дн.`
         : nextIn === 0
-          ? "сегодня!"
+          ? "сегодня"
           : nextIn === 1
-            ? "завтра!"
+            ? "завтра"
             : `через ${nextIn} дн.`;
-  const nextTone = nextIn === null ? "default" : nextIn < 0 ? "bad" : nextIn <= 1 ? "warn" : "default";
+
+  // Что требует действия прямо сейчас
+  const risks: string[] = [];
+  if (showMoney && data.debt > 0)
+    risks.push(`долг ${som(data.debt)} · ${data.pendingCount} платежей не закрыто`);
+  if (nextIn !== null && nextIn < 0) risks.push(`платёж просрочен на ${-nextIn} дн.`);
+  if (data.overdueTasks > 0) risks.push(`просрочено задач: ${data.overdueTasks}`);
+  if (data.cpl !== null && data.targetCpl && data.cpl > data.targetCpl)
+    risks.push(`заявка дороже цели: ${num(data.cpl)} против ${num(data.targetCpl)} сом`);
+  if (daysSinceReport === null) risks.push("отчётов по рекламе ещё не было");
+  else if (daysSinceReport > 10) risks.push(`отчёта нет ${daysSinceReport} дн.`);
+  if (contractLeft !== null && contractLeft < 0) risks.push("договор истёк");
+  else if (contractLeft !== null && contractLeft <= 30) risks.push(`договор кончается через ${contractLeft} дн.`);
 
   return (
     <div className="space-y-3">
-      <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
+      {risks.length > 0 ? (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3.5">
+          <div className="flex items-center gap-2 text-sm font-medium text-amber-900">
+            <AlertTriangle size={15} /> Требует внимания
+          </div>
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {risks.map((r) => (
+              <span
+                key={r}
+                className="rounded-lg border border-amber-200 bg-white px-2 py-1 text-[11px] text-amber-800"
+              >
+                {r}
+              </span>
+            ))}
+          </div>
+        </div>
+      ) : (
+        <div className="flex items-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 p-3.5 text-sm text-emerald-800">
+          <CheckCircle2 size={15} /> По проекту всё в порядке: долгов нет, отчёты свежие, сроки не горят
+        </div>
+      )}
+
+      <div className="grid gap-3 lg:grid-cols-3">
         {showMoney && (
-          <BigStat label="Всего принёс" value={som(data.paidTotal)} icon={Wallet} tone="default" />
+          <HeroStat
+            label="Всего принёс"
+            value={som(data.paidTotal)}
+            icon={Wallet}
+            tone="good"
+            hint={data.avgCheck ? `абонплата ${som(data.avgCheck)} в месяц` : "абонплата не задана"}
+          />
         )}
         {showProfit && (
-          <BigStat
-            label="Чистая прибыль"
+          <HeroStat
+            label="Чистая прибыль с клиента"
             value={som(data.ownerNet)}
             icon={TrendingUp}
             tone={data.ownerNet > 0 ? "good" : "default"}
+            progress={
+              data.paidTotal > 0
+                ? {
+                    ratio: data.ownerNet / data.paidTotal,
+                    caption: `${Math.round((data.ownerNet / data.paidTotal) * 100)}% от того, что клиент заплатил`,
+                  }
+                : undefined
+            }
+            hint={data.profitPercent ? `+ ${data.profitPercent}% от прибыли клиента` : undefined}
           />
         )}
-        {data.profitPercent !== null && (
-          <BigStat
-            label="Наш % от прибыли"
-            value={`${data.profitPercent}%`}
-            icon={Percent}
-            corner="доп. к абонплате"
+        {showMoney && (
+          <HeroStat
+            label={data.debt > 0 ? "Долг клиента" : "Следующий платёж"}
+            value={data.debt > 0 ? som(data.debt) : data.nextPaymentAt ? dateRu(data.nextPaymentAt) : "—"}
+            icon={data.debt > 0 ? CreditCard : CalendarClock}
+            tone={data.debt > 0 || (nextIn !== null && nextIn < 0) ? "bad" : nextIn !== null && nextIn <= 1 ? "warn" : "default"}
+            hint={
+              data.debt > 0
+                ? `${data.pendingCount} платежей не закрыто · следующий ${data.nextPaymentAt ? dateRu(data.nextPaymentAt) : "не задан"}`
+                : nextHint
+            }
           />
         )}
-        <BigStat
-          label="Активных задач"
-          value={String(data.openTasks)}
-          corner={`${data.openTasks}/${data.totalTasks}`}
-          icon={CheckCircle2}
-          tone={data.openTasks ? "default" : "good"}
-        />
       </div>
 
-      <div className="grid gap-3 grid-cols-2 lg:grid-cols-5">
-        <FactCard
-          label="Подписан"
-          icon={FileSignature}
-          value={data.contractStart ? dateRu(data.contractStart) : "— нет"}
-          hint={
-            data.contractStart
-              ? `${Math.abs(daysUntil(data.contractStart) ?? 0)} дней назад`
-              : "договор не заведён"
-          }
-        />
-        <FactCard
-          label="Первая оплата"
-          icon={CreditCard}
-          value={data.firstPaymentAt ? dateRu(data.firstPaymentAt) : "— нет"}
-          hint={data.firstPaymentAt ? undefined : "ожидается"}
-          tone={data.firstPaymentAt ? "default" : "warn"}
-        />
-        <FactCard
-          label="Ежемесячный платёж"
+      <div className="grid gap-2 grid-cols-2 sm:grid-cols-4 xl:grid-cols-7">
+        <CompactStat
+          label="Абонплата"
+          value={data.avgCheck ? som(data.avgCheck) : "не задан"}
+          hint={data.profitPercent ? `+${data.profitPercent}% от прибыли` : undefined}
           icon={Wallet}
-          value={som(data.avgCheck)}
-          hint={data.profitPercent ? `+ ${data.profitPercent}% от прибыли` : undefined}
+          tone={data.avgCheck ? "default" : "warn"}
         />
-        <FactCard
+        <CompactStat
           label="День оплаты"
-          icon={CalendarDays}
           value={data.paymentDay ? `${data.paymentDay} числа` : "не задан"}
           hint={payIn?.label}
-          tone={payIn?.tone ?? "default"}
+          icon={CalendarDays}
+          tone={data.paymentDay ? (payIn?.tone ?? "default") : "warn"}
         />
-        <FactCard
-          label="След. платёж"
-          icon={CalendarClock}
-          value={data.nextPaymentAt ? dateRu(data.nextPaymentAt) : "—"}
-          hint={nextHint}
-          tone={nextTone}
+        <CompactStat
+          label="Договор"
+          value={data.contractStart ? dateRu(data.contractStart) : "нет"}
+          hint={
+            data.contractEnd
+              ? `до ${dateRu(data.contractEnd)}`
+              : data.contractStart
+                ? "бессрочный"
+                : "не заведён"
+          }
+          icon={FileSignature}
+          tone={contractLeft !== null && contractLeft <= 30 ? "warn" : "default"}
+        />
+        <CompactStat
+          label="Первая оплата"
+          value={data.firstPaymentAt ? dateRu(data.firstPaymentAt) : "нет"}
+          hint={data.firstPaymentAt ? undefined : "ещё не платил"}
+          icon={CreditCard}
+          tone={data.firstPaymentAt ? "default" : "warn"}
+        />
+        <CompactStat
+          label="Цена заявки"
+          value={data.cpl !== null ? `${num(data.cpl)} сом` : "—"}
+          hint={data.targetCpl ? `цель ${num(data.targetCpl)}` : "цель не задана"}
+          icon={Target}
+          tone={
+            data.cpl === null || !data.targetCpl ? "default" : data.cpl <= data.targetCpl ? "good" : "bad"
+          }
+        />
+        <CompactStat
+          label="Кабинет"
+          value={data.adAccount || "не указан"}
+          hint={data.adAccount ? undefined : "на кого оформлен"}
+          icon={CreditCard}
+          tone={data.adAccount ? "default" : "warn"}
+        />
+        <CompactStat
+          label="Задачи"
+          value={String(data.openTasks)}
+          hint={data.overdueTasks ? `${data.overdueTasks} просрочено` : `всего ${data.totalTasks}`}
+          icon={CheckCircle2}
+          tone={data.overdueTasks ? "bad" : "default"}
         />
       </div>
     </div>

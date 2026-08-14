@@ -31,6 +31,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   if (user.role === "SUPER_ADMIN" || user.role === "ADMIN") {
     items.push({ href: "/team", label: "Команда", icon: "team", group: "Управление" });
+    items.push({ href: "/payroll", label: "Зарплаты", icon: "payroll", group: "Управление" });
     items.push({ href: "/analytics", label: "Аналитика", icon: "analytics", group: "Управление" });
     items.push({ href: "/settings", label: "Настройки", icon: "settings", group: "Управление" });
   }
@@ -60,7 +61,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           </div>
         )}
         <TopBar
-          user={{ name: user.name, roleLabel: ROLES[user.role] }}
+          user={{ name: user.name, roleLabel: ROLES[user.role], role: user.role }}
           unread={unread}
           recent={recent.map((n) => ({
             id: n.id,

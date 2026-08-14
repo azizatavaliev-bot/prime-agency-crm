@@ -1,7 +1,23 @@
 "use client";
 
 import { useState } from "react";
-import { TrendingUp, TrendingDown, Landmark } from "lucide-react";
+import {
+  TrendingUp,
+  TrendingDown,
+  Landmark,
+  Megaphone,
+  Users,
+  Repeat,
+  Building2,
+  Receipt,
+  GraduationCap,
+  Wallet,
+  Undo2,
+  Handshake,
+  PiggyBank,
+  CircleDollarSign,
+  type LucideIcon,
+} from "lucide-react";
 import { saveOperation } from "@/lib/actions";
 import { som } from "@/lib/format";
 import Select from "./Select";
@@ -9,6 +25,21 @@ import DatePicker from "./DatePicker";
 import { toInputDate } from "@/lib/format";
 
 type Opt = { key: string; name: string };
+
+/** Иконка категории: список глазами читается быстрее, чем строкой текста. */
+const CATEGORY_ICON: Record<string, LucideIcon> = {
+  ADS: Megaphone,
+  SALARY: Users,
+  SUBSCRIPTION: Repeat,
+  OFFICE: Building2,
+  TAX: Receipt,
+  EDU: GraduationCap,
+  CLIENT: Wallet,
+  REFUND: Undo2,
+  PARTNER: Handshake,
+  OWN: PiggyBank,
+  OTHER: CircleDollarSign,
+};
 
 /**
  * Приход и расход одной формой: сверху переключатель, дальше поля общие.
@@ -30,6 +61,7 @@ export default function OperationForm({
   const [kind, setKind] = useState<"INCOME" | "EXPENSE">("INCOME");
   const [amount, setAmount] = useState(0);
   const [accountId, setAccountId] = useState(accounts[0]?.id ?? "");
+  const [category, setCategory] = useState(incomeCategories[0]?.key ?? "");
 
   const isExpense = kind === "EXPENSE";
   const cats = isExpense ? expenseCategories : incomeCategories;
@@ -55,7 +87,13 @@ export default function OperationForm({
             <button
               key={t.key}
               type="button"
-              onClick={() => setKind(t.key)}
+              onClick={() => {
+                setKind(t.key);
+                // Категории у прихода и расхода разные — иначе в форму
+                // уходил бы ключ из чужого списка.
+                const next = t.key === "EXPENSE" ? expenseCategories : incomeCategories;
+                setCategory(next[0]?.key ?? "");
+              }}
               className={`flex items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-sm font-medium transition ${
                 active
                   ? t.key === "INCOME"
@@ -70,21 +108,37 @@ export default function OperationForm({
         })}
       </div>
 
-      {/* Сумма крупно, как в FADAMOS */}
-      <div className="text-center">
-        <input
-          className="amount-big w-full border-0 bg-transparent text-center text-4xl font-semibold tracking-tight outline-none placeholder:text-zinc-300"
-          name="amount"
-          type="number"
-          step="0.01"
-          required
-          autoFocus
-          placeholder="0"
-          onChange={(e) => setAmount(Number(e.target.value) || 0)}
-        />
-        <div className="mt-1 inline-flex rounded-lg bg-subtle px-2.5 py-1 text-xs text-muted">
-          сом · KGS
+      {/* Сумма — первое, что заполняют, поэтому крупно и в своей рамке:
+          без неё поле выглядело случайной чертой посреди окна */}
+      <div
+        className={`rounded-2xl border p-4 text-center transition ${
+          isExpense ? "border-red-200 bg-red-50/60" : "border-emerald-200 bg-emerald-50/60"
+        }`}
+      >
+        <div className="mb-1 text-[11px] font-medium uppercase tracking-wider text-muted">
+          Сумма операции
         </div>
+        <div className="flex items-baseline justify-center gap-2 text-center">
+          <input
+            className={`amount-big font-display w-auto max-w-[220px] border-0 bg-transparent text-right text-4xl font-semibold tracking-tight outline-none placeholder:text-zinc-300 ${
+              isExpense ? "text-red-700" : "text-emerald-700"
+            }`}
+            name="amount"
+            type="number"
+            step="0.01"
+            min="0"
+            required
+            autoFocus
+            placeholder="0"
+            onChange={(e) => setAmount(Number(e.target.value) || 0)}
+          />
+          <span className="shrink-0 text-lg font-medium text-muted">сом</span>
+        </div>
+        {amount > 0 && (
+          <div className="mt-1 text-xs text-muted">
+            {isExpense ? "спишем" : "зачислим"} {som(amount)}
+          </div>
+        )}
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2">
@@ -92,14 +146,33 @@ export default function OperationForm({
           <label className="label">Дата</label>
           <DatePicker name="when" defaultValue={toInputDate(new Date())} required />
         </div>
-        <div>
-          <label className="label">Категория</label>
-          <Select
-            name="category"
-            required
-            options={cats.map((c) => ({ value: c.key, label: c.name }))}
-            defaultValue={cats[0]?.key}
-          />
+      </div>
+
+      {/* Категории кнопками с иконками: их немного, и выбор глазами быстрее списка */}
+      <div>
+        <label className="label">Категория</label>
+        <input type="hidden" name="category" value={category} />
+        <div className="flex flex-wrap gap-2">
+          {cats.map((c) => {
+            const Icon = CATEGORY_ICON[c.key] ?? CircleDollarSign;
+            const active = category === c.key;
+            return (
+              <button
+                key={c.key}
+                type="button"
+                onClick={() => setCategory(c.key)}
+                className={`chip transition ${
+                  active
+                    ? isExpense
+                      ? "border-transparent bg-red-500 text-white"
+                      : "border-transparent bg-emerald-500 text-white"
+                    : "border-zinc-200 text-muted hover:bg-subtle"
+                }`}
+              >
+                <Icon size={13} /> {c.name}
+              </button>
+            );
+          })}
         </div>
       </div>
 

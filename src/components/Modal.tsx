@@ -1,12 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { createPortal } from "react-dom";
-import { X } from "lucide-react";
+import { useState } from "react";
+import ModalShell from "./ModalShell";
 
 /**
- * Универсальная модалка. Содержимое рендерится на сервере и передаётся в children,
- * поэтому окно открывается мгновенно, без загрузки.
+ * Модалка-просмотр: содержимое рендерится на сервере и передаётся в children,
+ * поэтому окно открывается мгновенно. Каркас общий — см. ModalShell.
  */
 export default function Modal({
   trigger,
@@ -33,59 +32,20 @@ export default function Modal({
   className?: string;
 }) {
   const [open, setOpen] = useState(false);
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => setMounted(true), []);
-
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
-    document.addEventListener("keydown", onKey);
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.removeEventListener("keydown", onKey);
-      document.body.style.overflow = "";
-    };
-  }, [open]);
 
   const overlay = (
-    <>
-      {mounted &&
-        open &&
-        createPortal(
-          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
-            <div
-              className="absolute inset-0 bg-zinc-900/40 backdrop-blur-[2px] animate-[fadeIn_.15s_ease-out]"
-              onClick={() => setOpen(false)}
-            />
-            <div
-              className={`surface relative w-full ${width} max-h-[92vh] overflow-y-auto rounded-t-3xl sm:rounded-3xl shadow-2xl animate-[slideUp_.2s_ease-out]`}
-            >
-              <div className="modal-head sticky top-0 z-10 flex items-start justify-between gap-4 px-5 py-4 sm:px-6">
-                <div className="flex min-w-0 items-center gap-3">
-                  {avatar}
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <h2 className="truncate text-lg font-semibold tracking-tight">{title}</h2>
-                      {badge}
-                    </div>
-                    {subtitle && <p className="mt-0.5 text-sm text-muted">{subtitle}</p>}
-                  </div>
-                </div>
-                <button
-                  onClick={() => setOpen(false)}
-                  className="shrink-0 rounded-xl p-2 text-muted transition hover:bg-subtle"
-                  aria-label="Закрыть"
-                >
-                  <X size={18} />
-                </button>
-              </div>
-              <div className="px-5 py-5 sm:px-6">{children}</div>
-            </div>
-          </div>,
-          document.body
-        )}
-    </>
+    <ModalShell
+      open={open}
+      onClose={() => setOpen(false)}
+      title={title}
+      subtitle={subtitle}
+      avatar={avatar}
+      badge={badge}
+      width={width}
+      z={50}
+    >
+      {children}
+    </ModalShell>
   );
 
   if (row)

@@ -21,6 +21,7 @@ import {
 import type { SessionUser } from "@/lib/auth";
 import { can } from "@/lib/access";
 import { reportMetrics } from "@/lib/finance";
+import { isOverdue } from "@/lib/tasks";
 import {
   markPaid,
   deletePayment,
@@ -251,37 +252,6 @@ export function ClientModal({
         )
       }
     >
-      {(client.paymentDay || client.contractStart || client.contractEnd) && (
-        <div className="mb-4 flex flex-wrap gap-2">
-          {(() => {
-            const chip = paymentChip(client.paymentDay);
-            return chip ? (
-              <span className={`badge ${chip.color}`}>💳 {chip.text}</span>
-            ) : null;
-          })()}
-          {client.contractStart && <Badge>✍️ договор от {dateRu(client.contractStart)}</Badge>}
-          {(() => {
-            const left = daysToContractEnd(client.contractEnd);
-            if (left === null) return null;
-            return (
-              <Badge
-                className={
-                  left < 0
-                    ? "bg-red-100 text-red-700 border-red-200"
-                    : left <= 30
-                      ? "bg-amber-100 text-amber-700 border-amber-200"
-                      : undefined
-                }
-              >
-                📅 договор до {dateRu(client.contractEnd)}
-                {left < 0 ? " · истёк" : left <= 30 ? ` · осталось ${left} дн.` : ""}
-              </Badge>
-            );
-          })()}
-          {client.profitPercent ? <Badge>📈 {client.profitPercent}% от прибыли</Badge> : null}
-        </div>
-      )}
-
       <ClientOverview
         data={{
           avgCheck: client.avgCheck,
@@ -290,10 +260,18 @@ export function ClientModal({
           profitPercent: client.profitPercent ?? null,
           openTasks,
           totalTasks: client.tasks.length,
+          overdueTasks: client.tasks.filter((t) => isOverdue(t.dueAt, t.done)).length,
           contractStart: client.contractStart ?? null,
+          contractEnd: client.contractEnd ?? null,
           firstPaymentAt,
           paymentDay: client.paymentDay ?? null,
           nextPaymentAt: client.nextPaymentAt ?? null,
+          debt: debtTotal,
+          pendingCount: client.payments.filter((p) => p.status !== "PAID").length,
+          cpl: lastM?.cpl ?? null,
+          targetCpl: client.targetCpl ?? null,
+          lastReportAt: last?.periodTo ?? null,
+          adAccount: client.adAccount,
         }}
         showMoney={showMoney}
         showProfit={can.seeAgencyFinance(user)}
@@ -320,21 +298,6 @@ export function ClientModal({
               icon: "overview",
               content: (
                 <div className="space-y-4">
-                  <div className="grid gap-3 grid-cols-2 lg:grid-cols-3">
-                    {showMoney && (
-                      <MiniStat
-                        label="Долг / ожидается"
-                        value={som(debtTotal)}
-                        tone={debtTotal ? "bad" : "good"}
-                      />
-                    )}
-                    <MiniStat
-                      label="Последний CPL"
-                      value={lastM?.cpl ? `${num(lastM.cpl)} сом` : "—"}
-                      tone={lastM?.inTarget === null || !lastM ? "default" : lastM.inTarget ? "good" : "bad"}
-                    />
-                    <MiniStat label="Рекламный кабинет" value={client.adAccount || "не указан"} />
-                  </div>
                         <Section title="Данные проекта" icon={UserIcon}>
                           <div className="grid gap-4 rounded-2xl border border-zinc-200 p-4 sm:grid-cols-2 lg:grid-cols-3">
                             <Field label="Контакт" value={client.contact || "—"} />

@@ -42,9 +42,11 @@ const PORTAL_COOKIE = "prime_portal_session";
  * Счётчик неудачных попыток входа: 5 промахов подряд — минута паузы.
  * Хранится в памяти процесса, этого хватает для одного контейнера.
  */
-const attempts = new Map<string, { count: number; until: number }>();
+const attempts = new Map<string, { count: number; first: number; until: number }>();
 const MAX_ATTEMPTS = 5;
 const LOCK_MS = 60_000;
+/** Окно наблюдения: редкие опечатки за неделю не должны копиться в блокировку. */
+const WINDOW_MS = 15 * 60_000;
 
 function tooManyAttempts(key: string) {
   const a = attempts.get(key);
@@ -54,8 +56,10 @@ function tooManyAttempts(key: string) {
 function noteFailure(key: string) {
   const now = Date.now();
   const a = attempts.get(key);
-  if (!a || a.until <= now) {
-    attempts.set(key, { count: 1, until: 0 });
+  // Считаем промахи внутри окна. Раньше здесь сбрасывался счётчик на каждой
+  // попытке — счёт никогда не доходил до пяти, и защиты от перебора не было.
+  if (!a || now - a.first > WINDOW_MS) {
+    attempts.set(key, { count: 1, first: now, until: 0 });
     return;
   }
   a.count += 1;
@@ -75,6 +79,10 @@ export type SessionUser = {
 
 export async function hashPassword(pw: string) {
   return bcrypt.hash(pw, 10);
+}
+
+export async function verifyPassword(pw: string, hash: string) {
+  return bcrypt.compare(pw, hash);
 }
 
 /**
@@ -181,8 +189,11 @@ export async function getSession(): Promise<SessionUser | null> {
     if (!user || !user.active) return null;
 
     // Пароль сменили — все выданные до этого сессии больше не действуют.
+    // iat округлён до секунды вниз, поэтому и отметку смены округляем так же:
+    // иначе вход в ту же секунду, что и смена пароля, гасил бы свежую сессию.
     if (user.passwordChangedAt && payload.iat) {
-      if (payload.iat * 1000 < user.passwordChangedAt.getTime()) return null;
+      const changedSec = Math.floor(user.passwordChangedAt.getTime() / 1000);
+      if (payload.iat < changedSec) return null;
     }
 
     let impersonating: SessionUser["impersonating"];

@@ -1,8 +1,10 @@
+import Link from "next/link";
 import { UserPlus, Users, HandCoins, Eye } from "lucide-react";
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getShares } from "@/lib/finance";
 import { saveUser, payoutTeam, impersonateUser } from "@/lib/actions";
+
 import { ROLES } from "@/lib/constants";
 import { can } from "@/lib/access";
 import { redirect } from "next/navigation";
@@ -68,7 +70,7 @@ export default async function TeamPage() {
       />
 
       <Table
-        head={["Сотрудник", "Роль", "Ставка", "Загрузка", "Задачи", "Начислено", "Выплачено", "Доступ", ""]}
+        head={["Сотрудник", "Роль", "Ставка", "Оклад", "Загрузка", "Задачи", "Начислено", "Выплачено", "Доступ", ""]}
       >
         {users.map((u) => {
           const projects = u.role === "TEAM_LEAD" ? u.clientsAsAccount : u.clientsAsTargetolog;
@@ -97,6 +99,9 @@ export default async function TeamPage() {
                   <td className="td">{ROLES[u.role as keyof typeof ROLES]}</td>
                   <td className="td">
                     {u.rate ? (u.rateType === "PERCENT" ? `${u.rate}%` : som(u.rate)) : "—"}
+                  </td>
+                  <td className={`td ${u.baseSalary > 0 ? "" : "text-muted"}`}>
+                    {u.baseSalary > 0 ? som(u.baseSalary) : "—"}
                   </td>
                   <td className="td">
                     {showLoad ? (
@@ -150,20 +155,14 @@ export default async function TeamPage() {
                     </div>
                   </td>
                   <td className="td">
-                    {(payoutMap[u.id] ?? 0) - (paidOutMap[u.id] ?? 0) > 0 && (
-                      <form action={payoutTeam}>
-                        <input type="hidden" name="userId" value={u.id} />
-                        <input type="hidden" name="month" value={mk} />
-                        <input
-                          type="hidden"
-                          name="amount"
-                          value={Math.round((payoutMap[u.id] ?? 0) - (paidOutMap[u.id] ?? 0))}
-                        />
-                        <button className="btn-ghost !px-3 !py-1 !text-xs" title="Записать выплату в расходы">
-                          <HandCoins size={13} /> Выплатить
-                        </button>
-                      </form>
-                    )}
+                    {/* Выплата — только через ведомость: там оклад, доли и премии в одной сумме. */}
+                    <Link
+                      href={`/payroll?month=${mk}`}
+                      className="btn-ghost !px-3 !py-1 !text-xs"
+                      title="Открыть ведомость зарплат за месяц"
+                    >
+                      <HandCoins size={13} /> Ведомость
+                    </Link>
                   </td>
                 </>
               }
@@ -174,7 +173,7 @@ export default async function TeamPage() {
         })}
         {users.length === 0 && (
           <tr>
-            <td className="td text-zinc-500" colSpan={8}>
+            <td className="td text-zinc-500" colSpan={10}>
               <Users size={14} className="inline" /> Сотрудников нет
             </td>
           </tr>

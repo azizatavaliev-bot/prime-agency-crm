@@ -18,6 +18,7 @@ export default function PaymentForm({
   kinds = [],
   methods = [],
   fixedClientId,
+  payment,
 }: {
   clients: { id: string; name: string; avgCheck: number }[];
   contractors: { id: string; name: string }[];
@@ -25,13 +26,28 @@ export default function PaymentForm({
   kinds?: { key: string; name: string }[];
   methods?: { key: string; name: string }[];
   fixedClientId?: string;
+  /** Заполнено — правим существующий платёж, а не заводим новый. */
+  payment?: {
+    id: string;
+    kind: string;
+    amount: number;
+    status: string;
+    method: string;
+    dueAt: string;
+    paidAt: string | null;
+    accountId: string | null;
+    execUserId: string | null;
+    comment: string | null;
+  };
 }) {
   const kindList = kinds.length ? kinds : toOpts(PAYMENT_KIND);
   const methodList = methods.length ? methods : toOpts(PAYMENT_METHOD);
 
   const [clientId, setClientId] = useState(fixedClientId ?? clients[0]?.id ?? "");
-  const [kind, setKind] = useState("SUBSCRIPTION");
-  const [amount, setAmount] = useState("");
+  const [kind, setKind] = useState(payment?.kind ?? "SUBSCRIPTION");
+  const [amount, setAmount] = useState(payment ? String(Math.round(payment.amount)) : "");
+  // Дату фактической оплаты показываем только когда платёж отмечен оплаченным.
+  const [status, setStatus] = useState(payment?.status ?? "PENDING");
 
   // абонплата почти всегда равна чеку клиента — подставляем, чтобы не набирать руками
   const suggested = clients.find((c) => c.id === clientId)?.avgCheck ?? 0;
@@ -40,6 +56,7 @@ export default function PaymentForm({
 
   return (
     <form action={savePayment} className="space-y-4">
+      {payment && <input type="hidden" name="id" value={payment.id} />}
       <FormSection title="Что оплачивают" icon={Wallet}>
         {fixedClientId ? (
           <input type="hidden" name="clientId" value={fixedClientId} />
@@ -91,7 +108,8 @@ export default function PaymentForm({
           <label className="label">Статус</label>
           <Select
             name="status"
-            defaultValue="PENDING"
+            defaultValue={status}
+            onChange={setStatus}
             options={Object.entries(PAYMENT_STATUS).map(([value, label]) => ({ value, label }))}
           />
         </div>
@@ -100,8 +118,17 @@ export default function PaymentForm({
       <FormSection title="Когда и куда" hint="Дата плана включает напоминание за 3 дня" icon={CalendarClock}>
         <div>
           <label className="label">Дата оплаты (план)</label>
-          <DatePicker name="dueAt" defaultValue={toInputDate(new Date())} />
+          <DatePicker name="dueAt" defaultValue={payment?.dueAt ?? toInputDate(new Date())} />
         </div>
+        {status === "PAID" && (
+          <div>
+            <label className="label">Когда фактически оплатили</label>
+            <DatePicker
+              name="paidAt"
+              defaultValue={payment?.paidAt ?? toInputDate(new Date())}
+            />
+          </div>
+        )}
         <div>
           <label className="label">Следующая оплата</label>
           <DatePicker name="nextPaymentAt" placeholder="если разовая — оставьте пустым" />
@@ -110,7 +137,7 @@ export default function PaymentForm({
           <label className="label">На какой счёт</label>
           <Select
             name="accountId"
-            defaultValue=""
+            defaultValue={payment?.accountId ?? ""}
             placeholder="— не указан —"
             options={[
               { value: "", label: "— не указан —" },
@@ -122,7 +149,7 @@ export default function PaymentForm({
           <label className="label">Способ оплаты</label>
           <Select
             name="method"
-            defaultValue="TRANSFER"
+            defaultValue={payment?.method ?? "TRANSFER"}
             options={methodList.map((m) => ({ value: m.key, label: m.name }))}
           />
         </div>
@@ -132,7 +159,7 @@ export default function PaymentForm({
         <FormSection title="Исполнитель" hint="Кому уходит доля с этой разовой услуги" icon={Landmark} columns={1}>
           <Select
             name="execUserId"
-            defaultValue=""
+            defaultValue={payment?.execUserId ?? ""}
             placeholder="— по умолчанию —"
             options={[
               { value: "", label: "— по умолчанию —" },
@@ -144,10 +171,17 @@ export default function PaymentForm({
 
       <div>
         <label className="label">Комментарий</label>
-        <input className="input" name="comment" placeholder="за что платёж, если нужно уточнить" />
+        <input
+          className="input"
+          name="comment"
+          defaultValue={payment?.comment ?? ""}
+          placeholder="за что платёж, если нужно уточнить"
+        />
       </div>
 
-      <button className="btn-primary w-full !py-2.5">Добавить платёж</button>
+      <button className="btn-primary w-full !py-2.5">
+        {payment ? "Сохранить платёж" : "Добавить платёж"}
+      </button>
     </form>
   );
 }
