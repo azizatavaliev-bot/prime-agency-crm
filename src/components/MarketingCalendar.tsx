@@ -7,12 +7,12 @@ import {
   ChevronLeft,
   ChevronRight,
   ChevronDown,
-  X,
   Plus,
   Pencil,
   Filter,
 } from "lucide-react";
 import { som, num } from "@/lib/format";
+import ModalShell from "./ModalShell";
 
 export type CalendarReport = {
   id: string;
@@ -100,13 +100,6 @@ export default function MarketingCalendar({
   const [source, setSource] = useState("");
   const [direction, setDirection] = useState("");
   const [statsOpen, setStatsOpen] = useState(false);
-
-  useEffect(() => {
-    if (!selectedDay) return;
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setSelectedDay(null);
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [selectedDay]);
 
   const filtered = useMemo(
     () =>
@@ -498,27 +491,14 @@ export default function MarketingCalendar({
       </div>
 
       {/* Разбор дня */}
-      {selectedDay && (
-        <div
-          className="fixed inset-0 z-[70] flex items-end justify-center bg-zinc-900/50 p-4 backdrop-blur-[2px] sm:items-center"
-          onClick={() => setSelectedDay(null)}
-        >
-          <div
-            className="card max-h-[85dvh] w-full max-w-md overflow-y-auto p-5"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="mb-3 flex items-start justify-between gap-3">
-              <div className="text-base font-semibold tracking-tight">{dayLabel(selectedDay)}</div>
-              <button
-                type="button"
-                onClick={() => setSelectedDay(null)}
-                className="rounded-lg p-1 text-muted hover:bg-subtle"
-                aria-label="Закрыть"
-              >
-                <X size={16} />
-              </button>
-            </div>
-
+      <ModalShell
+        open={Boolean(selectedDay)}
+        onClose={() => setSelectedDay(null)}
+        title={selectedDay ? dayLabel(selectedDay) : ""}
+        icon={<CalendarDays size={16} />}
+        width="max-w-md"
+        z={70}
+      >
             {selected ? (
               <>
                 <div className="mb-3 grid grid-cols-3 gap-2">
@@ -596,7 +576,7 @@ export default function MarketingCalendar({
               </>
             ) : (
               <div className="mb-3 rounded-2xl bg-subtle p-5 text-center text-sm text-muted">
-                {selectedDay > today
+                {(selectedDay ?? "") > today
                   ? "День ещё не наступил"
                   : "Отчёта за этот день нет — заполните, пока помните цифры"}
               </div>
@@ -608,9 +588,7 @@ export default function MarketingCalendar({
             >
               <Plus size={15} /> {selected ? "Добавить ещё отчёт" : "Заполнить отчёт"}
             </Link>
-          </div>
-        </div>
-      )}
+      </ModalShell>
     </div>
   );
 }

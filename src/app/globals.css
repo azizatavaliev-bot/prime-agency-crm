@@ -46,18 +46,29 @@ body::before {
   position: fixed;
   inset: 0;
   pointer-events: none;
-  z-index: 0;
+  /* Уводим подсветку за контент отрицательным слоем. Раньше она требовала
+     position: relative у детей body — и это ломало fixed-позицию модалок:
+     окно уезжало вниз страницы вместо того, чтобы накрыть экран. */
+  z-index: -1;
   background:
     radial-gradient(60rem 30rem at 12% -8%, color-mix(in srgb, var(--accent) 12%, transparent), transparent 70%),
     radial-gradient(48rem 26rem at 92% -12%, color-mix(in srgb, var(--accent-2) 10%, transparent), transparent 70%);
 }
-body > * {
-  position: relative;
-  z-index: 1;
-}
 
 body {
-  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-family: var(--font-inter), ui-sans-serif, system-ui, -apple-system, sans-serif;
+  /* Табличные цифры: в столбцах сумм разряды выстраиваются друг под другом */
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.005em;
+}
+
+/* Заголовки и крупные числа — геометричным Manrope, он собраннее в больших кеглях */
+h1,
+h2,
+h3,
+.font-display {
+  font-family: var(--font-manrope), var(--font-inter), sans-serif;
+  letter-spacing: -0.02em;
 }
 
 /* ---------- семантические классы ---------- */

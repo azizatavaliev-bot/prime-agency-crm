@@ -1,5 +1,17 @@
 import { redirect } from "next/navigation";
-import { Plus, Search, Users, Wallet, TrendingUp, AlertTriangle } from "lucide-react";
+import {
+  Plus,
+  Search,
+  Users,
+  Wallet,
+  TrendingUp,
+  AlertTriangle,
+  CalendarClock,
+  CheckCircle2,
+  KanbanSquare,
+  FileBarChart,
+  Target,
+} from "lucide-react";
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { clientScope, can } from "@/lib/access";
@@ -159,6 +171,10 @@ export default async function ClientsPage({
           const openTasks = c.tasks.filter((t) => !t.done).length;
           const lastReport = c.reports[0];
           const stripe = STATUS_STRIPE[c.status] ?? "#6d5efc";
+          const debt = c.payments
+            .filter((p) => p.status !== "PAID")
+            .reduce((sum, p) => sum + p.amount, 0);
+          const lastCpl = lastReport && lastReport.leads ? lastReport.spent / lastReport.leads : null;
           return (
             <ClientModal
               key={c.id}
@@ -185,48 +201,69 @@ export default async function ClientsPage({
                     <span className={`badge ${statusColor ?? ""}`}>{labelOf(d.CLIENT_STATUS, c.status)}</span>
                   </div>
 
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    {chip && !paidThisMonth ? (
-                      <span className={`chip ${chip.color}`}>💳 {chip.text}</span>
-                    ) : chip ? (
-                      <span className="chip bg-emerald-50 text-emerald-700 border-emerald-200">
-                        ✅ оплачено · {c.paymentDay} числа
-                      </span>
-                    ) : (
-                      <span className="chip border-zinc-200 text-muted">💳 день оплаты не задан</span>
+                  {/* Деньги — крупно: ради них список и открывают */}
+                  <div className="mt-4 flex flex-wrap items-end gap-x-6 gap-y-3">
+                    <div>
+                      <div className="text-[11px] text-muted">Абонплата</div>
+                      <div className="font-display text-xl font-semibold tracking-tight">
+                        {som(c.avgCheck)}
+                      </div>
+                    </div>
+                    {debt > 0 && (
+                      <div>
+                        <div className="text-[11px] text-muted">Долг</div>
+                        <div className="font-display text-xl font-semibold tracking-tight text-red-600">
+                          {som(debt)}
+                        </div>
+                      </div>
                     )}
-                    <span className="chip border-zinc-200 text-muted">💰 {som(c.avgCheck)}</span>
-                    {openTasks > 0 && (
-                      <span className="chip border-zinc-200 text-muted">🗂 {openTasks} задач</span>
-                    )}
-                    {c.contractStart && (
-                      <span className="chip border-zinc-200 text-muted">✍️ {dateRu(c.contractStart)}</span>
-                    )}
+                    <div>
+                      <div className="text-[11px] text-muted">Цена заявки</div>
+                      <div
+                        className={`font-display text-xl font-semibold tracking-tight ${
+                          lastCpl !== null && c.targetCpl
+                            ? lastCpl <= c.targetCpl
+                              ? "text-emerald-600"
+                              : "text-red-600"
+                            : ""
+                        }`}
+                      >
+                        {lastCpl !== null ? `${Math.round(lastCpl)} сом` : "—"}
+                      </div>
+                    </div>
                   </div>
 
-                  <div className="mt-4 grid grid-cols-3 gap-2 border-t border-zinc-100 pt-3 text-center">
-                    <div>
-                      <div className="text-[11px] text-muted">Услуги</div>
-                      <div className="mt-0.5 truncate text-xs font-medium">
-                        {c.services
-                          .split(",")
-                          .filter(Boolean)
-                          .map((sv) => labelOf(d.SERVICE, sv))
-                          .join(", ") || "—"}
-                      </div>
-                    </div>
-                    <div>
-                      <div className="text-[11px] text-muted">Последний CPL</div>
-                      <div className="mt-0.5 text-xs font-medium">
-                        {lastReport && lastReport.leads
-                          ? `${Math.round(lastReport.spent / lastReport.leads)} сом`
-                          : "—"}
-                      </div>
-                    </div>
-                    <div>
-                      <div className="text-[11px] text-muted">Отчётов</div>
-                      <div className="mt-0.5 text-xs font-medium">{c.reports.length}</div>
-                    </div>
+                  {/* Состояние проекта — иконками вместо эмодзи, как везде в системе */}
+                  <div className="mt-3 flex flex-wrap gap-1.5">
+                    {chip && !paidThisMonth ? (
+                      <span className={`chip ${chip.color}`}>
+                        <CalendarClock size={12} /> {chip.text}
+                      </span>
+                    ) : chip ? (
+                      <span className="chip border-emerald-200 bg-emerald-50 text-emerald-700">
+                        <CheckCircle2 size={12} /> оплачено · {c.paymentDay} числа
+                      </span>
+                    ) : (
+                      <span className="chip border-amber-200 bg-amber-50 text-amber-700">
+                        <CalendarClock size={12} /> день оплаты не задан
+                      </span>
+                    )}
+                    {openTasks > 0 && (
+                      <span className="chip border-zinc-200 text-muted">
+                        <KanbanSquare size={12} /> {openTasks} задач
+                      </span>
+                    )}
+                    <span className="chip border-zinc-200 text-muted">
+                      <FileBarChart size={12} /> {c.reports.length} отчётов
+                    </span>
+                    <span className="chip border-zinc-200 text-muted">
+                      <Target size={12} />
+                      {c.services
+                        .split(",")
+                        .filter(Boolean)
+                        .map((sv) => labelOf(d.SERVICE, sv))
+                        .join(", ") || "услуги не заданы"}
+                    </span>
                   </div>
 
                   {c.members && c.members.length > 0 && (

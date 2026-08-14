@@ -1,5 +1,6 @@
 "use client";
 
+import ModalShell from "./ModalShell";
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { X, LayoutGrid, Sun, User as UserIcon, List as ListIcon } from "lucide-react";
@@ -137,32 +138,16 @@ export default function TasksClient({
         </div>
       )}
 
-      {mounted &&
-        openId &&
-        detail &&
-        createPortal(
-          <div
-            className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-zinc-900/50 p-4 backdrop-blur-sm"
-            onClick={() => setOpenId(null)}
-          >
-            <div
-              className="card my-8 w-full max-w-4xl p-5"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="mb-4 flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <h2 className="text-lg font-semibold tracking-tight">{detail.title}</h2>
-                  <p className="mt-0.5 text-sm text-muted">{detail.clientName ?? "без клиента"}</p>
-                </div>
-                <button className="btn-ghost !px-2 !py-1.5" onClick={() => setOpenId(null)}>
-                  <X size={16} />
-                </button>
-              </div>
-              <TaskDetail task={detail} canEdit={canEdit} />
-            </div>
-          </div>,
-          document.body
-        )}
+      <ModalShell
+        open={Boolean(openId && detail)}
+        onClose={() => setOpenId(null)}
+        title={detail?.title ?? ""}
+        subtitle={detail?.clientName ?? "без клиента"}
+        width="max-w-4xl"
+        z={60}
+      >
+        {detail && <TaskDetail task={detail} canEdit={canEdit} />}
+      </ModalShell>
     </>
   );
 }

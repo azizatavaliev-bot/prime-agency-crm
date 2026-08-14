@@ -17,6 +17,7 @@ import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { clientScope, can } from "@/lib/access";
 import { reportMetrics } from "@/lib/finance";
+import { isOverdue } from "@/lib/tasks";
 import { deleteClient, toggleTask, deletePayment } from "@/lib/actions";
 import { som, dateRu, num, toInputDate } from "@/lib/format";
 import { paymentChip, daysToContractEnd } from "@/lib/payday";
@@ -92,51 +93,37 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
         title={client.name}
         subtitle={`${client.niche || "ниша не указана"} · старт ${dateRu(client.startedAt)}`}
         right={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <StatusBadge status={client.status} />
+            {/* Действия — в шапке: дату оплаты и платёж заводят чаще всего,
+                ради них не должно приходиться листать страницу */}
+            {can.manageClients(user) && (
+              <FormModal
+                label="Условия и даты"
+                title="Условия по проекту"
+                variant="ghost"
+                icon={<CalendarClock size={15} />}
+                hint="Сколько берём, какого числа платят, срок договора и что после его окончания."
+              >
+                <TermsForm client={client} />
+              </FormModal>
+            )}
+            {showMoney && (
+              <FormModal
+                label="Платёж"
+                title={`Новый платёж · ${client.name}`}
+                variant="ghost"
+                icon={<Plus size={15} />}
+              >
+                <PaymentForm clients={[]} contractors={contractors} fixedClientId={client.id} />
+              </FormModal>
+            )}
             <Link href="/clients" className="btn-ghost">
               <ArrowLeft size={15} /> К списку
             </Link>
           </div>
         }
       />
-
-      {(client.paymentDay || client.contractStart || client.contractEnd) && (
-        <div className="mb-4 flex flex-wrap gap-2">
-          {(() => {
-            const chip = paymentChip(client.paymentDay);
-            return chip ? <span className={`badge ${chip.color}`}>💳 {chip.text}</span> : null;
-          })()}
-          {client.contractStart && (
-            <span className="badge bg-zinc-100 text-zinc-700 border-zinc-200">
-              ✍️ договор от {dateRu(client.contractStart)}
-            </span>
-          )}
-          {(() => {
-            const left = daysToContractEnd(client.contractEnd);
-            if (left === null) return null;
-            return (
-              <span
-                className={`badge ${
-                  left < 0
-                    ? "bg-red-100 text-red-700 border-red-200"
-                    : left <= 30
-                      ? "bg-amber-100 text-amber-700 border-amber-200"
-                      : "bg-zinc-100 text-zinc-700 border-zinc-200"
-                }`}
-              >
-                📅 договор до {dateRu(client.contractEnd)}
-                {left < 0 ? " · истёк" : left <= 30 ? ` · осталось ${left} дн.` : ""}
-              </span>
-            );
-          })()}
-          {client.profitPercent ? (
-            <span className="badge bg-zinc-100 text-zinc-700 border-zinc-200">
-              📈 {client.profitPercent}% от прибыли
-            </span>
-          ) : null}
-        </div>
-      )}
 
       <ClientOverview
         data={{
@@ -146,40 +133,22 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
           profitPercent: client.profitPercent,
           openTasks: client.tasks.filter((t) => !t.done).length,
           totalTasks: client.tasks.length,
+          overdueTasks: client.tasks.filter((t) => isOverdue(t.dueAt, t.done)).length,
           contractStart: client.contractStart,
+          contractEnd: client.contractEnd,
           firstPaymentAt,
           paymentDay: client.paymentDay,
           nextPaymentAt: client.nextPaymentAt,
+          debt: debtTotal,
+          pendingCount: client.payments.filter((p) => p.status !== "PAID").length,
+          cpl: lastMetrics?.cpl ?? null,
+          targetCpl: client.targetCpl,
+          lastReportAt: lastReport?.periodTo ?? null,
+          adAccount: client.adAccount,
         }}
         showMoney={showMoney}
         showProfit={can.seeAgencyFinance(user)}
       />
-
-      {/* Условия правятся прямо из шапки: дата оплаты нужна чаще всего,
-          и ради неё не должно приходиться искать вкладку. */}
-      {can.manageClients(user) && (
-        <div className="mt-3 flex flex-wrap gap-2">
-          <FormModal
-            label="Условия и даты оплаты"
-            title="Условия по проекту"
-            variant="ghost"
-            icon={<CalendarClock size={15} />}
-            hint="Сколько берём, какого числа платят, срок договора и что после его окончания."
-          >
-            <TermsForm client={client} />
-          </FormModal>
-          {showMoney && (
-            <FormModal
-              label="Добавить платёж"
-              title={`Новый платёж · ${client.name}`}
-              variant="ghost"
-              icon={<Plus size={15} />}
-            >
-              <PaymentForm clients={[]} contractors={contractors} fixedClientId={client.id} />
-            </FormModal>
-          )}
-        </div>
-      )}
 
       <div className="mt-4">
         <ClientStages
@@ -188,20 +157,6 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
           stages={clientStatuses}
           canEdit={can.manageClients(user)}
         />
-      </div>
-
-      <div className="mt-4 grid gap-3 grid-cols-2 lg:grid-cols-3">
-        {showMoney && (
-          <Stat label="Долг / ожидается" value={som(debtTotal)} tone={debtTotal ? "bad" : "good"} icon={Wallet} />
-        )}
-        <Stat
-          label="Последний CPL"
-          value={lastMetrics?.cpl ? `${num(lastMetrics.cpl)} сом` : "—"}
-          hint={lastReport ? `цель ${num(lastReport.targetCpl)} сом` : undefined}
-          tone={!lastMetrics || lastMetrics.inTarget === null ? "default" : lastMetrics.inTarget ? "good" : "bad"}
-          icon={TrendingUp}
-        />
-        <Stat label="Рекламный кабинет" value={client.adAccount || "не указан"} icon={UserIcon} />
       </div>
 
       <ClientTabs

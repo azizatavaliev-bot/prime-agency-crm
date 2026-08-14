@@ -7,7 +7,6 @@ import {
   UsersRound,
   PiggyBank,
   TrendingUp,
-  Percent,
   Target,
   TrendingDown,
   Flag,
@@ -24,7 +23,7 @@ import { getShares, reportMetrics } from "@/lib/finance";
 import { runRemindersIfDue } from "@/lib/reminders";
 import { som, monthKey, monthLabel, dateRu, daysUntil, num } from "@/lib/format";
 import { stagesFor } from "@/lib/constants";
-import { PageHeader, Stat, Table, Section, MiniStat } from "@/components/ui";
+import { PageHeader, Stat, Table, Section, MiniStat, HeroStat, CompactStat } from "@/components/ui";
 import RevenueChart from "@/components/RevenueChart";
 import { PaymentModal, StatusBadge, ClientModal, TaskModal } from "@/components/details";
 import ProjectsOverview, { type ProjectRow } from "@/components/ProjectsOverview";
@@ -299,6 +298,19 @@ export default async function DashboardPage() {
 
   const ownerNet = ownerGross - expensePaid;
 
+  // Прошлый месяц — из уже загруженных оплат, без лишнего запроса.
+  // Голая цифра «240 000» не говорит ничего, пока не видно, больше это или меньше.
+  const prevKey = (() => {
+    const d = new Date();
+    d.setMonth(d.getMonth() - 1);
+    return monthKey(d);
+  })();
+  const prevPaid = payments.filter((p) => p.periodMonth === prevKey && p.status === "PAID");
+  const prevRevenue = prevPaid.reduce((s, p) => s + p.amount, 0);
+  const prevOwner = prevPaid.reduce((s, p) => s + p.ownerNet, 0);
+  const growth = (now: number, was: number) =>
+    was > 0 ? Math.round(((now - was) / was) * 100) : 0;
+
   const goalFact: Record<string, number> = {
     REVENUE: revenue,
     PROFIT: ownerNet,
@@ -340,77 +352,82 @@ export default async function DashboardPage() {
     <div>
       <PageHeader title="Дашборд владельца" subtitle={`Система учёта агентства · ${monthLabel(mk)}`} />
 
-      <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
-        <Stat
+      {/* Три числа, ради которых открывают систему: сколько пришло,
+          сколько осталось себе и кто ещё не заплатил */}
+      <div className="grid gap-3 lg:grid-cols-3">
+        <HeroStat
+          label="Выручка месяца"
+          value={som(revenue)}
+          icon={Wallet}
+          tone="good"
+          progress={{
+            ratio: planned ? revenue / planned : 0,
+            caption: `${planned ? Math.round((revenue / planned) * 100) : 0}% от плана ${som(planned)}`,
+          }}
+          hint={otherIncome ? `в т.ч. прочие приходы ${som(otherIncome)}` : undefined}
+          delta={{ percent: growth(revenue, prevRevenue), caption: `к ${monthLabel(prevKey)}: ${som(prevRevenue)}` }}
+        />
+        <HeroStat
+          label="Чистая прибыль владельца"
+          value={som(ownerNet)}
+          icon={TrendingUp}
+          tone={ownerNet > 0 ? "good" : "bad"}
+          hint={`ваша доля ${som(ownerGross)} − расходы ${som(expensePaid)}`}
+          progress={{
+            ratio: revenue ? ownerNet / revenue : 0,
+            caption: `рентабельность ${revenue ? Math.round((ownerNet / revenue) * 100) : 0}%`,
+          }}
+          delta={{ percent: growth(ownerNet, prevOwner - 0), caption: `к ${monthLabel(prevKey)}: ${som(prevOwner)}` }}
+        />
+        <HeroStat
+          label={debt > 0 ? "Должны оплатить" : "Все счета закрыты"}
+          value={som(debt)}
+          icon={AlertCircle}
+          tone={debt > 0 ? "bad" : "good"}
+          progress={{
+            ratio: planned ? debt / planned : 0,
+            caption: debt > 0 ? `${Math.round((debt / (planned || 1)) * 100)}% плана месяца ещё не собрано` : "всё собрано",
+          }}
+          hint={debt > 0 ? `${pending.length} платежей не закрыто` : "долгов по месяцу нет"}
+        />
+      </div>
+
+      {/* Остальное — лентой: нужно для контроля, но не должно спорить за внимание */}
+      <div className="mt-3 grid gap-2 grid-cols-2 sm:grid-cols-3 lg:grid-cols-6">
+        <CompactStat
           label="Активные клиенты"
           value={String(active.length)}
           hint={`всего в базе: ${clients.length}`}
           icon={Users}
         />
-        <Stat
-          label="Выручка месяца"
-          value={som(revenue)}
-          hint={
-            otherIncome
-              ? `в т.ч. прочие приходы ${som(otherIncome)} · план ${som(planned)}`
-              : `план с ожиданиями: ${som(planned)}`
-          }
-          tone="good"
-          icon={Wallet}
-        />
-        <Stat label="Средний чек" value={som(avgCheck)} icon={Receipt} />
-        <Stat
-          label="Должны оплатить"
-          value={som(debt)}
-          hint={`${pending.length} платежей не закрыто`}
-          tone={debt > 0 ? "bad" : "good"}
-          icon={AlertCircle}
-        />
-        <Stat
+        <CompactStat label="Средний чек" value={som(avgCheck)} icon={Receipt} />
+        <CompactStat
           label="Доля команды"
           value={som(teamShare)}
           hint={`${Math.round(shares.targetologShare * 100)}% таргетологам`}
           icon={UsersRound}
         />
-        <Stat
+        <CompactStat
           label="Резерв на развитие"
           value={som(reserve)}
           hint={`${Math.round(shares.reserveShare * 100)}%`}
           icon={PiggyBank}
         />
-        <Stat
+        <CompactStat
           label="Расходы месяца"
           value={som(expensePaid)}
-          hint={expensePlanned ? `ещё запланировано ${som(expensePlanned)}` : "запланированных нет"}
-          tone={expensePaid ? "bad" : "good"}
+          hint={expensePlanned ? `+${som(expensePlanned)} в плане` : "план пуст"}
           icon={TrendingDown}
         />
-        <Stat
-          label="Чистая прибыль владельца"
-          value={som(ownerNet)}
-          hint={`доля ${som(ownerGross)} − расходы ${som(expensePaid)}`}
-          tone={ownerNet > 0 ? "good" : "bad"}
-          icon={TrendingUp}
-        />
-      </div>
-
-      <div className="mt-3 grid gap-3 grid-cols-2 lg:grid-cols-4">
-        <Stat
-          label="Рентабельность"
-          value={revenue ? `${Math.round((ownerNet / revenue) * 100)}%` : "—"}
-          hint="чистая прибыль в выручке, после расходов"
-          icon={Percent}
-        />
-        <Stat
+        <CompactStat
           label="Заявок за месяц"
           value={num(leads)}
-          hint={adSpent ? `средний CPL ${num(adSpent / (leads || 1))} сом` : "реклама не запускалась"}
+          hint={adSpent ? `CPL ${num(adSpent / (leads || 1))} сом` : "реклама не запускалась"}
           icon={Target}
         />
-        <Stat
-          label="Открытых проектов в цели"
+        <CompactStat
+          label="Проектов в цели по CPL"
           value={`${monthReports.filter((r) => reportMetrics(r).inTarget === true).length} из ${monthReports.length}`}
-          hint="отчётов в цели по CPL"
           tone={
             monthReports.length &&
             monthReports.filter((r) => reportMetrics(r).inTarget === true).length >= monthReports.length / 2
@@ -419,11 +436,11 @@ export default async function DashboardPage() {
           }
           icon={Flag}
         />
-        <Stat
+        <CompactStat
           label="Задач в работе"
           value={String(openTasksCount)}
           hint={overdueTasks ? `${overdueTasks} просрочено` : "просрочек нет"}
-          tone={overdueTasks ? "bad" : "good"}
+          tone={overdueTasks ? "bad" : "default"}
           icon={CalendarClock}
         />
       </div>

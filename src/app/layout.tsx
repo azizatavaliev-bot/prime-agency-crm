@@ -1,7 +1,24 @@
 import type { Metadata, Viewport } from "next";
+import { Inter, Manrope } from "next/font/google";
 import Script from "next/script";
 import "./globals.css";
 import TelegramApp from "@/components/TelegramApp";
+
+/**
+ * Шрифты системы. Inter — текст и цифры: у него честная кириллица и
+ * табличные цифры, поэтому суммы в столбцах не «пляшут». Manrope — заголовки
+ * и крупные числа: геометричнее и современнее системного шрифта.
+ */
+const inter = Inter({
+  subsets: ["latin", "cyrillic"],
+  variable: "--font-inter",
+  display: "swap",
+});
+const manrope = Manrope({
+  subsets: ["latin", "cyrillic"],
+  variable: "--font-manrope",
+  display: "swap",
+});
 
 export const metadata: Metadata = {
   title: "Prime Agency — система учёта агентства",
@@ -26,7 +43,7 @@ try {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="ru" suppressHydrationWarning>
+    <html lang="ru" suppressHydrationWarning className={`${inter.variable} ${manrope.variable}`}>
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
