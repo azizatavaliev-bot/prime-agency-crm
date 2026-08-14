@@ -1,3 +1,4 @@
+import Link from "next/link";
 import {
   Download,
   Wallet,
@@ -5,8 +6,7 @@ import {
   Target,
   UserMinus,
   Flag,
-  Plus,
-  Trash2,
+  ExternalLink,
   TrendingDown,
 } from "lucide-react";
 import { requireOwner } from "@/lib/auth";
@@ -15,8 +15,6 @@ import { reportMetrics } from "@/lib/finance";
 import { som, monthKey, monthLabel, num } from "@/lib/format";
 import { PAYMENT_KIND, EXPENSE_CATEGORY } from "@/lib/constants";
 import { PageHeader, Table, Stat, Section } from "@/components/ui";
-import FormModal from "@/components/FormModal";
-import { saveGoal, deleteGoal } from "@/lib/actions";
 import PrintButton from "@/components/PrintButton";
 import {
   RevenueProfitChart,
@@ -196,55 +194,12 @@ export default async function AnalyticsPage() {
         title="Цели: агентство и клиенты"
         icon={Flag}
         right={
-          <FormModal
-            label="Поставить цель"
-            title="Цель на месяц"
-            variant="ghost"
-            icon={<Plus size={15} />}
-            hint="Цель без клиента — цель всего агентства (видна на дашборде). Цель с клиентом — план по конкретному проекту. Для «Цены заявки» цель считается достигнутой, когда факт НИЖЕ плана."
-          >
-            <form action={saveGoal} className="grid gap-4 sm:grid-cols-2">
-              <div>
-                <label className="label">Месяц</label>
-                <input className="input" name="month" defaultValue={mk} placeholder="2026-08" />
-              </div>
-              <div>
-                <label className="label">Показатель</label>
-                <select className="input" name="metric" defaultValue="REVENUE">
-                  <option value="REVENUE">Выручка, сом</option>
-                  <option value="PROFIT">Прибыль владельца, сом</option>
-                  <option value="LEADS">Заявки, шт</option>
-                  <option value="CLIENTS">Активные клиенты, шт</option>
-                  <option value="CPL">Цена заявки, сом (не выше)</option>
-                </select>
-              </div>
-              <div>
-                <label className="label">Клиент</label>
-                <select className="input" name="clientId" defaultValue="">
-                  <option value="">— цель агентства —</option>
-                  {clients.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="label">План *</label>
-                <input className="input" name="target" type="number" min="0" step="any" required />
-              </div>
-              <div className="sm:col-span-2">
-                <label className="label">Комментарий</label>
-                <input className="input" name="comment" placeholder="за счёт чего достигаем" />
-              </div>
-              <div className="sm:col-span-2">
-                <button className="btn-primary">Сохранить цель</button>
-              </div>
-            </form>
-          </FormModal>
+          <Link href="/settings/goals" className="btn-ghost">
+            <ExternalLink size={15} /> Настроить цели
+          </Link>
         }
       >
-        <Table head={["Месяц", "Цель", "Показатель", "План", "Факт", "Выполнение", ""]}>
+        <Table head={["Месяц", "Цель", "Показатель", "План", "Факт", "Выполнение", "За счёт чего"]}>
           {goals.map((g) => {
             const isMoney = ["REVENUE", "PROFIT", "CPL"].includes(g.metric);
             const row = rows.find((r) => r.m === g.month);
@@ -290,14 +245,7 @@ export default async function AnalyticsPage() {
                 <td className={`td ${done ? "text-emerald-600" : "text-amber-600"}`}>
                   {Math.min(pct, 999)}% {done ? "· цель взята" : ""}
                 </td>
-                <td className="td">
-                  <form action={deleteGoal}>
-                    <input type="hidden" name="id" value={g.id} />
-                    <button className="btn-ghost !px-2 !py-1 text-red-600">
-                      <Trash2 size={13} />
-                    </button>
-                  </form>
-                </td>
+                <td className="td text-muted">{g.comment || "—"}</td>
               </tr>
             );
           })}

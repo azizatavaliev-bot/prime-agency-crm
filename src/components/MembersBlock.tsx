@@ -1,7 +1,7 @@
-import { UserPlus, Trash2, Users, Percent, Wallet } from "lucide-react";
-import { saveMember, deleteMember } from "@/lib/actions";
-import { ROLES } from "@/lib/constants";
-import { som } from "@/lib/format";
+import { UserPlus, Trash2, Users, Percent, Wallet, History } from "lucide-react";
+import { saveMember, deleteMember, saveMemberRate, deleteMemberRate } from "@/lib/actions";
+import { ROLES, PROJECT_ROLE } from "@/lib/constants";
+import { som, monthKey, monthLabel } from "@/lib/format";
 import { Avatar } from "@/components/ui";
 import FormModal from "@/components/FormModal";
 import Select from "@/components/Select";
@@ -15,10 +15,13 @@ type Member = {
   user: { id: string; name: string; role: string };
 };
 
-const PROJECT_ROLE = {
-  TARGETOLOG: "Таргетолог",
-  ACCOUNT: "Аккаунт-менеджер",
-  CONTRACTOR: "Подрядчик",
+export type RateRow = {
+  id: string;
+  userId: string;
+  role: string;
+  rateType: string;
+  rate: number;
+  fromMonth: string;
 };
 
 /** Команда проекта: кто работает и на какой ставке (процент или фикс). */
@@ -28,6 +31,7 @@ export default function MembersBlock({
   users,
   canEdit,
   avgCheck = 0,
+  history = [],
 }: {
   clientId: string;
   members: Member[];
@@ -35,7 +39,19 @@ export default function MembersBlock({
   canEdit: boolean;
   /** Абонплата клиента — чтобы сразу показать, сколько выходит участнику. */
   avgCheck?: number;
+  /** История ставок: по ней считаются зарплаты за прошлые месяцы. */
+  history?: RateRow[];
 }) {
+  const mk = monthKey();
+  // Планировать повышение вперёд полезнее, чем задним числом.
+  const months: string[] = [];
+  for (let i = 2; i >= -12; i--) {
+    const d = new Date();
+    d.setMonth(d.getMonth() + i);
+    months.push(monthKey(d));
+  }
+  const rateLabel = (rateType: string, rate: number) =>
+    rateType === "PERCENT" ? `${rate}%` : som(rate);
   const addForm = (
     <form action={saveMember} className="space-y-4">
       <input type="hidden" name="clientId" value={clientId} />
@@ -81,6 +97,14 @@ export default function MembersBlock({
             min="0"
             step="any"
             placeholder="34 или 15000"
+          />
+        </div>
+        <div>
+          <label className="label">Ставка действует с месяца</label>
+          <Select
+            name="fromMonth"
+            defaultValue={mk}
+            options={months.map((m) => ({ value: m, label: monthLabel(m) }))}
           />
         </div>
       </div>
@@ -153,6 +177,87 @@ export default function MembersBlock({
                   </div>
 
                   {m.note && <div className="mt-1 text-[11px] text-muted">{m.note}</div>}
+
+                  {/* История ставок: по ней считаются ведомости прошлых месяцев */}
+                  {(() => {
+                    const rows = history
+                      .filter((h) => h.userId === m.user.id && h.role === m.role)
+                      .sort((a, b) => b.fromMonth.localeCompare(a.fromMonth));
+                    if (rows.length === 0 && !canEdit) return null;
+                    return (
+                      <details className="mt-2">
+                        <summary className="flex cursor-pointer select-none items-center gap-1 text-[11px] text-muted">
+                          <History size={10} /> История ставок
+                          {rows.length > 0 && ` · ${rows.length}`}
+                        </summary>
+                        <div className="mt-1.5 space-y-1">
+                          {rows.map((h) => (
+                            <div
+                              key={h.id}
+                              className="flex items-center justify-between gap-2 text-[11px]"
+                            >
+                              <span className="text-muted">с {monthLabel(h.fromMonth)}</span>
+                              <span className="font-medium">{rateLabel(h.rateType, h.rate)}</span>
+                              {canEdit && (
+                                <form action={deleteMemberRate}>
+                                  <input type="hidden" name="id" value={h.id} />
+                                  <button
+                                    className="text-zinc-300 hover:text-red-600"
+                                    title="Удалить запись истории"
+                                  >
+                                    <Trash2 size={10} />
+                                  </button>
+                                </form>
+                              )}
+                            </div>
+                          ))}
+                          {rows.length === 0 && (
+                            <div className="text-[11px] text-muted">
+                              Записей нет — считаем по текущей ставке
+                            </div>
+                          )}
+                          {canEdit && (
+                            <form action={saveMemberRate} className="mt-1.5 flex flex-wrap gap-1.5">
+                              <input type="hidden" name="clientId" value={clientId} />
+                              <input type="hidden" name="userId" value={m.user.id} />
+                              <input type="hidden" name="role" value={m.role} />
+                              <select
+                                name="fromMonth"
+                                defaultValue={mk}
+                                className="input !w-auto !px-2 !py-1 !text-[11px]"
+                              >
+                                {months.map((mo) => (
+                                  <option key={mo} value={mo}>
+                                    {monthLabel(mo)}
+                                  </option>
+                                ))}
+                              </select>
+                              <select
+                                name="rateType"
+                                defaultValue={m.rateType}
+                                className="input !w-auto !px-2 !py-1 !text-[11px]"
+                              >
+                                <option value="PERCENT">%</option>
+                                <option value="FIXED">фикс</option>
+                              </select>
+                              <input
+                                name="rate"
+                                type="number"
+                                min="0"
+                                step="any"
+                                required
+                                placeholder="ставка"
+                                className="input !w-20 !px-2 !py-1 !text-[11px]"
+                              />
+                              <button className="btn-ghost !px-2 !py-1 !text-[11px]">
+                                Сохранить
+                              </button>
+                            </form>
+                          )}
+                        </div>
+                      </details>
+                    );
+                  })()}
                 </div>
 
                 {canEdit && (

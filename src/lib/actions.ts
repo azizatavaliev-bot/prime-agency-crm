@@ -3,12 +3,14 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "./prisma";
-import { requireUser, hashPassword } from "./auth";
+import { requireUser, hashPassword, verifyPassword, issueSession } from "./auth";
 import { can, clientScope, taskScope } from "./access";
 import { getShares, split, reportMetrics, getUsdRate } from "./finance";
 import { monthKey } from "./format";
-import { ROLES, DEFAULTS } from "./constants";
+import { nextPaymentDate } from "./payday";
+import { ROLES, DEFAULTS, BONUS_METRIC, RENEWAL_MODE } from "./constants";
 import { notifyAssignee, closeOrReopenTask } from "./tasks";
+import { payrollFor } from "./payroll";
 
 function str(fd: FormData, k: string) {
   const v = fd.get(k);
@@ -453,6 +455,7 @@ export async function saveUser(fd: FormData) {
     role,
     rate: n(fd, "rate") || null,
     rateType: req(fd, "rateType") || "PERCENT",
+    baseSalary: n(fd, "baseSalary"),
     projectLimit: Math.round(n(fd, "projectLimit")) || 5,
     active: fd.get("active") !== null,
   };
@@ -474,6 +477,39 @@ export async function saveUser(fd: FormData) {
     });
   }
   revalidatePath("/team");
+}
+
+/**
+ * Смена собственного пароля.
+ *
+ * Раньше сменить пароль мог только владелец и только чужой — сотруднику
+ * оставалось жить с выданным в переписке. Старый пароль спрашиваем, чтобы
+ * оставленная без присмотра сессия не давала сменить его насовсем.
+ */
+export async function changeOwnPassword(fd: FormData) {
+  const session = await requireUser();
+  const current = req(fd, "current");
+  const next = req(fd, "password");
+  const repeat = req(fd, "repeat");
+
+  if (next.length < 8) redirect("/profile?error=short");
+  if (next !== repeat) redirect("/profile?error=mismatch");
+
+  const user = await prisma.user.findUnique({ where: { id: session.id } });
+  if (!user) redirect("/login");
+  if (!(await verifyPassword(current, user.passwordHash))) redirect("/profile?error=wrong");
+  if (await verifyPassword(next, user.passwordHash)) redirect("/profile?error=same");
+
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { passwordHash: await hashPassword(next), passwordChangedAt: new Date() },
+  });
+  // Старые сессии погашены отметкой времени — себе сразу выдаём новую,
+  // иначе человек выкидывался бы на вход сразу после смены пароля.
+  await issueSession(user.id);
+
+  revalidatePath("/profile");
+  redirect("/profile?changed=1");
 }
 
 /* ---------------- Настройки и уведомления ---------------- */
@@ -544,6 +580,17 @@ export async function saveMember(fd: FormData) {
   if (existing) await prisma.clientMember.update({ where: { id: existing.id }, data });
   else await prisma.clientMember.create({ data });
 
+  // Ставку фиксируем в истории: ведомости прошлых месяцев не должны меняться
+  // от того, что сегодня договорились о другом проценте.
+  if (!existing || existing.rate !== data.rate || existing.rateType !== data.rateType) {
+    const fromMonth = req(fd, "fromMonth") || monthKey();
+    await prisma.memberRate.upsert({
+      where: { clientId_userId_role_fromMonth: { clientId, userId, role, fromMonth } },
+      create: { clientId, userId, role, rateType: data.rateType, rate: data.rate, fromMonth },
+      update: { rateType: data.rateType, rate: data.rate },
+    });
+  }
+
   // синхронизируем основного ответственного в карточке
   if (role === "TARGETOLOG") await prisma.client.update({ where: { id: clientId }, data: { targetologId: userId } });
   if (role === "ACCOUNT") await prisma.client.update({ where: { id: clientId }, data: { accountId: userId } });
@@ -571,6 +618,251 @@ export async function deleteMember(fd: FormData) {
   revalidatePath("/team");
 }
 
+/** Ставка участника с конкретного месяца — правка истории вручную. */
+export async function saveMemberRate(fd: FormData) {
+  const user = await requireUser();
+  if (user.role !== "OWNER") redirect("/no-access");
+  const clientId = req(fd, "clientId");
+  const userId = req(fd, "userId");
+  const role = req(fd, "role");
+  const fromMonth = req(fd, "fromMonth") || monthKey();
+  const rateType = req(fd, "rateType") || "PERCENT";
+  const rate = n(fd, "rate");
+  await prisma.memberRate.upsert({
+    where: { clientId_userId_role_fromMonth: { clientId, userId, role, fromMonth } },
+    create: { clientId, userId, role, rateType, rate, fromMonth, note: str(fd, "note") },
+    update: { rateType, rate, note: str(fd, "note") },
+  });
+  // Текущая ставка участника должна совпадать с последней записью истории.
+  const latest = await prisma.memberRate.findFirst({
+    where: { clientId, userId, role },
+    orderBy: { fromMonth: "desc" },
+  });
+  const member = await prisma.clientMember.findFirst({ where: { clientId, userId, role } });
+  if (member && latest)
+    await prisma.clientMember.update({
+      where: { id: member.id },
+      data: { rateType: latest.rateType, rate: latest.rate },
+    });
+  revalidatePath(`/clients/${clientId}`);
+  revalidatePath("/payroll");
+}
+
+export async function deleteMemberRate(fd: FormData) {
+  const user = await requireUser();
+  if (user.role !== "OWNER") redirect("/no-access");
+  const row = await prisma.memberRate.findUnique({ where: { id: req(fd, "id") } });
+  if (!row) return;
+  await prisma.memberRate.delete({ where: { id: row.id } });
+  revalidatePath(`/clients/${row.clientId}`);
+  revalidatePath("/payroll");
+}
+
+/* ---------------- Зарплаты: премии, правила, выплаты ---------------- */
+
+export async function saveBonus(fd: FormData) {
+  const user = await requireUser();
+  if (user.role !== "OWNER") redirect("/no-access");
+  const month = req(fd, "month") || monthKey();
+  const userId = req(fd, "userId");
+  // Премия за выплаченный месяц уже не попадёт в перевод — не даём начислить втихую.
+  const closed = await prisma.payout.findFirst({ where: { userId, month } });
+  if (closed) redirect(`/payroll?month=${month}&error=paid`);
+  const id = str(fd, "id");
+  const data = {
+    userId,
+    month,
+    amount: n(fd, "amount"),
+    reason: req(fd, "reason") || "Премия",
+    clientId: str(fd, "clientId"),
+  };
+  if (id) await prisma.bonus.update({ where: { id }, data });
+  else await prisma.bonus.create({ data });
+  await notify([userId], {
+    kind: "NEW_LEAD",
+    title: `Премия ${data.amount} сом`,
+    body: data.reason,
+    link: "/profile",
+  });
+  revalidatePath("/payroll");
+}
+
+export async function deleteBonus(fd: FormData) {
+  const user = await requireUser();
+  if (user.role !== "OWNER") redirect("/no-access");
+  const row = await prisma.bonus.findUnique({ where: { id: req(fd, "id") } });
+  if (!row) return;
+  const closed = await prisma.payout.findFirst({ where: { userId: row.userId, month: row.month } });
+  if (closed) redirect(`/payroll?month=${row.month}&error=paid`);
+  await prisma.bonus.delete({ where: { id: row.id } });
+  revalidatePath("/payroll");
+}
+
+export async function saveBonusRule(fd: FormData) {
+  const user = await requireUser();
+  if (user.role !== "OWNER") redirect("/no-access");
+  const metric = req(fd, "metric");
+  if (!Object.keys(BONUS_METRIC).includes(metric)) redirect("/settings/rules?error=metric");
+  const role = str(fd, "role");
+  if (role && !Object.keys(ROLES).includes(role)) redirect("/settings/rules?error=role");
+  const data = {
+    name: req(fd, "name") || "Премия",
+    metric,
+    role,
+    amountType: req(fd, "amountType") || "FIXED",
+    amount: n(fd, "amount"),
+    threshold: n(fd, "threshold"),
+    perClient: fd.get("perClient") !== null,
+    active: fd.get("active") !== null,
+    hint: str(fd, "hint"),
+    order: Math.round(n(fd, "order")) || 100,
+  };
+  const id = str(fd, "id");
+  if (id) await prisma.bonusRule.update({ where: { id }, data });
+  else await prisma.bonusRule.create({ data });
+  revalidatePath("/settings/rules");
+  revalidatePath("/payroll");
+}
+
+export async function deleteBonusRule(fd: FormData) {
+  const user = await requireUser();
+  if (user.role !== "OWNER") redirect("/no-access");
+  await prisma.bonusRule.delete({ where: { id: req(fd, "id") } });
+  revalidatePath("/settings/rules");
+  revalidatePath("/payroll");
+}
+
+export async function toggleBonusRule(fd: FormData) {
+  const user = await requireUser();
+  if (user.role !== "OWNER") redirect("/no-access");
+  const row = await prisma.bonusRule.findUnique({ where: { id: req(fd, "id") } });
+  if (!row) return;
+  await prisma.bonusRule.update({ where: { id: row.id }, data: { active: !row.active } });
+  revalidatePath("/settings/rules");
+  revalidatePath("/payroll");
+}
+
+/**
+ * Выплата зарплаты за месяц: снимок ведомости + расход категории «Выплаты команде».
+ *
+ * Сумму пересчитываем на сервере, а не берём из формы: иначе подменой поля
+ * можно выписать себе любой перевод.
+ */
+export async function payPayroll(fd: FormData) {
+  const user = await requireUser();
+  if (user.role !== "OWNER") redirect("/no-access");
+  const month = req(fd, "month") || monthKey();
+  const userId = req(fd, "userId");
+
+  const existing = await prisma.payout.findFirst({ where: { userId, month } });
+  if (existing) redirect(`/payroll?month=${month}&error=paid`);
+
+  const lines = await payrollFor(month);
+  const line = lines.find((l) => l.userId === userId);
+  if (!line) redirect(`/payroll?month=${month}&error=nobody`);
+  if (line.total <= 0) redirect(`/payroll?month=${month}&error=zero`);
+
+  const accountId = str(fd, "accountId");
+  const [y, m] = month.split("-").map(Number);
+  // Ставим дату внутри месяца ведомости, иначе расход уедет в чужой период.
+  const spentAt = new Date(y, m - 1, Math.min(new Date().getDate(), 28));
+
+  const expense = await prisma.expense.create({
+    data: {
+      title: `Зарплата: ${line.name}`,
+      category: "SALARY",
+      amount: line.total,
+      status: "PAID",
+      method: req(fd, "method") || "TRANSFER",
+      spentAt,
+      periodMonth: month,
+      userId,
+      accountId,
+      comment: `оклад ${line.base} + проекты ${line.projectShare} + премии ${line.bonusTotal}`,
+    },
+  });
+
+  await prisma.payout.create({
+    data: {
+      userId,
+      month,
+      base: line.base,
+      projectShare: line.projectShare,
+      bonus: line.bonusTotal,
+      amount: line.total,
+      paidAt: new Date(),
+      accountId,
+      expenseId: expense.id,
+      comment: str(fd, "comment"),
+    },
+  });
+
+  await notify([userId], {
+    kind: "PAYMENT_DUE",
+    title: `Зарплата за ${month} выплачена`,
+    body: `${line.total} сом`,
+    link: "/profile",
+  });
+
+  revalidatePath("/payroll");
+  revalidatePath("/finance");
+  revalidatePath("/dashboard");
+}
+
+/** Откат выплаты: снимок и расход удаляются, месяц снова открыт. */
+export async function cancelPayout(fd: FormData) {
+  const user = await requireUser();
+  if (user.role !== "OWNER") redirect("/no-access");
+  const row = await prisma.payout.findUnique({ where: { id: req(fd, "id") } });
+  if (!row) return;
+  if (row.expenseId)
+    await prisma.expense.deleteMany({ where: { id: row.expenseId } });
+  await prisma.payout.delete({ where: { id: row.id } });
+  revalidatePath("/payroll");
+  revalidatePath("/finance");
+  revalidatePath("/dashboard");
+}
+
+/** Условия сотрудничества по проекту: сколько берём, когда платят, что дальше. */
+export async function saveClientTerms(fd: FormData) {
+  const user = await requireUser();
+  if (!can.manageClients(user)) redirect("/no-access");
+  const clientId = req(fd, "clientId");
+  const client = await prisma.client.findFirst({
+    where: { AND: [{ id: clientId }, clientScope(user)] },
+  });
+  if (!client) redirect("/no-access");
+  const renewalMode = str(fd, "renewalMode");
+  if (renewalMode && !Object.keys(RENEWAL_MODE).includes(renewalMode)) redirect("/no-access");
+
+  // День оплаты поменяли — пересчитываем дату следующего платежа, если она
+  // осталась в прошлом. Иначе карточка говорила одновременно «через 3 дня»
+  // и «просрочено 4 дня».
+  const paymentDay = Math.round(n(fd, "paymentDay")) || null;
+  const staleNext = !client.nextPaymentAt || client.nextPaymentAt < new Date();
+  const nextPaymentAt =
+    paymentDay && staleNext ? nextPaymentDate(paymentDay) : client.nextPaymentAt;
+
+  await prisma.client.update({
+    where: { id: clientId },
+    data: {
+      nextPaymentAt,
+      avgCheck: n(fd, "avgCheck"),
+      paymentDay,
+      contractStart: date(fd, "contractStart"),
+      contractEnd: date(fd, "contractEnd"),
+      profitPercent: n(fd, "profitPercent") || null,
+      paymentTerms: str(fd, "paymentTerms"),
+      renewalMode,
+      priceReviewAt: date(fd, "priceReviewAt"),
+      termsNote: str(fd, "termsNote"),
+      agreement: str(fd, "agreement"),
+    },
+  });
+  revalidatePath(`/clients/${clientId}`);
+  revalidatePath("/clients");
+}
+
 /* ---------------- Цели ---------------- */
 
 export async function saveGoal(fd: FormData) {
@@ -580,9 +872,15 @@ export async function saveGoal(fd: FormData) {
   const month = req(fd, "month") || monthKey();
   const metric = req(fd, "metric");
   const data = { clientId, month, metric, target: n(fd, "target"), comment: str(fd, "comment") };
-  const existing = await prisma.goal.findFirst({ where: { clientId, month, metric } });
+  const id = str(fd, "id");
+  // Правка существующей цели: месяц или показатель могли поменять, поэтому
+  // ищем по id, а не по тройке ключей.
+  const existing = id
+    ? await prisma.goal.findUnique({ where: { id } })
+    : await prisma.goal.findFirst({ where: { clientId, month, metric } });
   if (existing) await prisma.goal.update({ where: { id: existing.id }, data });
   else await prisma.goal.create({ data });
+  revalidatePath("/settings/goals");
   revalidatePath("/analytics");
   revalidatePath("/dashboard");
   if (clientId) revalidatePath(`/clients/${clientId}`);
@@ -592,6 +890,7 @@ export async function deleteGoal(fd: FormData) {
   const user = await requireUser();
   if (user.role !== "OWNER") redirect("/no-access");
   await prisma.goal.delete({ where: { id: req(fd, "id") } });
+  revalidatePath("/settings/goals");
   revalidatePath("/analytics");
   revalidatePath("/dashboard");
 }
@@ -705,34 +1004,6 @@ export async function repeatExpenses(fd: FormData) {
   revalidatePath("/expenses");
   void created;
 }
-
-/** Создаёт расход-выплату по доле исполнителя за месяц. */
-export async function payoutTeam(fd: FormData) {
-  const user = await requireUser();
-  if (user.role !== "OWNER") redirect("/no-access");
-  const month = req(fd, "month") || monthKey();
-  const userId = req(fd, "userId");
-  const amount = n(fd, "amount");
-  const member = await prisma.user.findUnique({ where: { id: userId } });
-  const [y, m] = month.split("-").map(Number);
-  await prisma.expense.create({
-    data: {
-      title: `Выплата: ${member?.name ?? "сотрудник"}`,
-      category: "SALARY",
-      amount,
-      status: "PAID",
-      method: "TRANSFER",
-      spentAt: new Date(y, m - 1, Math.min(new Date().getDate(), 28)),
-      periodMonth: month,
-      userId,
-      comment: "доля с проектов за месяц",
-    },
-  });
-  revalidatePath("/expenses");
-  revalidatePath("/team");
-  revalidatePath("/dashboard");
-}
-
 
 /* ---------------- Счета, приходы, переводы, категории ---------------- */
 
@@ -1019,6 +1290,9 @@ export async function saveMarketingReport(fd: FormData) {
   revalidatePath("/marketing");
   revalidatePath("/marketing/report");
   revalidatePath("/marketing/calendar");
+  // Уводим со страницы правки: иначе форма остаётся в режиме «правка отчёта»
+  // и следующий ввод молча перезаписал бы только что сохранённый.
+  if (id) redirect("/marketing?tab=daily");
 }
 
 export async function deleteMarketingReport(fd: FormData) {

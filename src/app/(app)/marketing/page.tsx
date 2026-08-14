@@ -23,7 +23,7 @@ export const dynamic = "force-dynamic";
 export default async function MarketingPage({
   searchParams,
 }: {
-  searchParams: Promise<{ tab?: string; clientId?: string; y?: string; m?: string }>;
+  searchParams: Promise<{ tab?: string; clientId?: string; y?: string; m?: string; date?: string; edit?: string }>;
 }) {
   const user = await requireUser();
   if (!can.writeReports(user)) redirect("/no-access");
@@ -58,7 +58,7 @@ export default async function MarketingPage({
       <MarketingTabs active={tab} />
 
       {tab === "clients" && <ClientReportsTab sp={{ clientId: sp.clientId }} />}
-      {tab === "daily" && <DailyReportsTab />}
+      {tab === "daily" && <DailyReportsTab sp={{ date: sp.date, edit: sp.edit }} />}
       {tab === "calendar" && <MarketingCalendarTab sp={{ y: sp.y, m: sp.m }} />}
 
       {tab === "analytics" && (

@@ -218,7 +218,7 @@ export default function ClientForm({
                   defaultChecked={services.includes(sv.key)}
                   className="peer sr-only"
                 />
-                <span className="chip border-zinc-200 text-muted transition peer-checked:accent-gradient peer-checked:border-transparent peer-checked:text-white">
+                <span className="chip chip-toggle border-zinc-200 text-muted transition">
                   {sv.name}
                 </span>
               </label>

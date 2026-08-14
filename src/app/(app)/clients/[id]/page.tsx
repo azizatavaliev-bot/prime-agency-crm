@@ -10,14 +10,15 @@ import {
   Trash2,
   ExternalLink,
   CheckCircle2,
+  CalendarClock,
   User as UserIcon,
 } from "lucide-react";
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { clientScope, can } from "@/lib/access";
 import { reportMetrics } from "@/lib/finance";
-import { deleteClient, toggleTask } from "@/lib/actions";
-import { som, dateRu, num } from "@/lib/format";
+import { deleteClient, toggleTask, deletePayment } from "@/lib/actions";
+import { som, dateRu, num, toInputDate } from "@/lib/format";
 import { paymentChip, daysToContractEnd } from "@/lib/payday";
 import { dict } from "@/lib/dict";
 import {
@@ -26,6 +27,8 @@ import {
   stagesFor,
 } from "@/lib/constants";
 import { PageHeader, Table, Collapse, Stat, Field, Section } from "@/components/ui";
+import FormModal from "@/components/FormModal";
+import TermsForm from "@/components/TermsForm";
 import ClientForm from "@/components/ClientForm";
 import ClientOverview from "@/components/ClientOverview";
 import ClientStages from "@/components/ClientStages";
@@ -33,6 +36,7 @@ import ClientTabs from "@/components/ClientTabs";
 import GrowthPoints from "@/components/GrowthPoints";
 import ClientLinks from "@/components/ClientLinks";
 import MembersBlock from "@/components/MembersBlock";
+import TermsBlock from "@/components/TermsBlock";
 import PaymentForm from "@/components/PaymentForm";
 import ReportForm from "@/components/ReportForm";
 import TaskForm from "@/components/TaskForm";
@@ -57,6 +61,7 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
       expenses: { orderBy: { spentAt: "desc" } },
       snapshots: { orderBy: { takenAt: "asc" } },
       links: { orderBy: { createdAt: "desc" } },
+      rateHistory: { orderBy: { fromMonth: "desc" } },
     },
   });
   if (!client) notFound();
@@ -150,6 +155,32 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
         showProfit={can.seeAgencyFinance(user)}
       />
 
+      {/* Условия правятся прямо из шапки: дата оплаты нужна чаще всего,
+          и ради неё не должно приходиться искать вкладку. */}
+      {can.manageClients(user) && (
+        <div className="mt-3 flex flex-wrap gap-2">
+          <FormModal
+            label="Условия и даты оплаты"
+            title="Условия по проекту"
+            variant="ghost"
+            icon={<CalendarClock size={15} />}
+            hint="Сколько берём, какого числа платят, срок договора и что после его окончания."
+          >
+            <TermsForm client={client} />
+          </FormModal>
+          {showMoney && (
+            <FormModal
+              label="Добавить платёж"
+              title={`Новый платёж · ${client.name}`}
+              variant="ghost"
+              icon={<Plus size={15} />}
+            >
+              <PaymentForm clients={[]} contractors={contractors} fixedClientId={client.id} />
+            </FormModal>
+          )}
+        </div>
+      )}
+
       <div className="mt-4">
         <ClientStages
           clientId={client.id}
@@ -204,12 +235,21 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
                           <Field label="Заметки" value={client.notes || "—"} />
                       </div>
                     </div>
+              <TermsBlock client={client} canEdit={can.manageClients(user)} />
               <MembersBlock
                 clientId={client.id}
                 members={client.members}
                 users={users}
                 canEdit={user.role === "OWNER"}
                 avgCheck={client.avgCheck}
+                history={client.rateHistory.map((h) => ({
+                  id: h.id,
+                  userId: h.userId,
+                  role: h.role,
+                  rateType: h.rateType,
+                  rate: h.rate,
+                  fromMonth: h.fromMonth,
+                }))}
               />
               <GrowthPoints
                 clientId={client.id}
@@ -300,15 +340,55 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
                               <td className="td text-zinc-500">{PAYMENT_METHOD[p.method as keyof typeof PAYMENT_METHOD]}</td>
                               {user.role === "OWNER" && <td className="td">{som(p.ownerNet)}</td>}
                               <td className="td">
-                                {p.status !== "PAID" && (
-                                  <MarkPaidButton
-                                    paymentId={p.id}
-                                    clientName={client.name}
-                                    amount={som(p.amount)}
-                                    dueAt={dateRu(p.dueAt)}
-                                    compact
-                                  />
-                                )}
+                                <div className="flex items-center justify-end gap-1.5">
+                                  {p.status !== "PAID" && (
+                                    <MarkPaidButton
+                                      paymentId={p.id}
+                                      clientName={client.name}
+                                      amount={som(p.amount)}
+                                      dueAt={dateRu(p.dueAt)}
+                                      compact
+                                    />
+                                  )}
+                                  {can.seePayments(user) && (
+                                    <>
+                                      <FormModal
+                                        label=""
+                                        title={`Платёж · ${som(p.amount)}`}
+                                        variant="ghost"
+                                        icon={<Pencil size={13} />}
+                                        hint="Здесь меняются сумма, статус, дата плана и дата фактической оплаты."
+                                      >
+                                        <PaymentForm
+                                          clients={[]}
+                                          contractors={contractors}
+                                          fixedClientId={client.id}
+                                          payment={{
+                                            id: p.id,
+                                            kind: p.kind,
+                                            amount: p.amount,
+                                            status: p.status,
+                                            method: p.method,
+                                            dueAt: toInputDate(p.dueAt),
+                                            paidAt: p.paidAt ? toInputDate(p.paidAt) : null,
+                                            accountId: p.accountId,
+                                            execUserId: p.execUserId,
+                                            comment: p.comment,
+                                          }}
+                                        />
+                                      </FormModal>
+                                      <form action={deletePayment}>
+                                        <input type="hidden" name="id" value={p.id} />
+                                        <button
+                                          className="btn-ghost !px-2 !py-1 !text-xs hover:!text-red-600"
+                                          title="Удалить платёж"
+                                        >
+                                          <Trash2 size={13} />
+                                        </button>
+                                      </form>
+                                    </>
+                                  )}
+                                </div>
                               </td>
                             </tr>
                           ))}
