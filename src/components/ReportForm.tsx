@@ -63,11 +63,15 @@ export default function ReportForm({
 }) {
   type Row = {
     key: string;
-    spent: number;
+    /** Держим как есть, что ввёл человек ("29,3") — парсим в число только при подсчётах. */
+    spent: string;
     currency: string;
     metric: number;
     views: number;
+    objective: string;
   };
+  /** "29,3" → 29.3. Разделитель — запятая или точка, без разницы. */
+  const parseSpent = (v: string) => parseFloat(v.replace(",", ".")) || 0;
 
   // Старые отчёты могли быть сохранены с целью "Заявки"/"Посещения профиля" —
   // эти варианты убраны из выбора, но старые данные остаются читаемыми:
@@ -78,15 +82,15 @@ export default function ReportForm({
   const [clientId, setClientId] = useState(fixedClientId ?? clients[0]?.id ?? "");
   const [from, setFrom] = useState(report ? toInputDate(new Date(report.periodFrom)) : daysAgo(7));
   const [to, setTo] = useState(report ? toInputDate(new Date(report.periodTo)) : toInputDate(new Date()));
-  const [objective, setObjective] = useState<string>(normalizeObjective(report?.objective));
 
   const rowKeySeq = useRef(0);
   const newRow = (init?: Partial<Row>): Row => ({
     key: `row-${++rowKeySeq.current}`,
-    spent: 0,
+    spent: "",
     currency: "USD",
     metric: 0,
     views: 0,
+    objective: "ENGAGEMENT",
     ...init,
   });
 
@@ -97,10 +101,11 @@ export default function ReportForm({
     newRow(
       report
         ? {
-            spent: report.spent,
+            spent: String(report.spent),
             currency: "KGS",
             metric: report[METRIC_FIELD[report.objective] as keyof typeof report] as number,
             views: report.views ?? 0,
+            objective: normalizeObjective(report.objective),
           }
         : undefined
     ),
@@ -157,17 +162,37 @@ export default function ReportForm({
 
   // Каждую строку переводим в сомы по общему курсу и суммируем — так несколько
   // кампаний/кабинетов за один период сводятся в один отчёт.
-  const rowSom = (r: Row) => (r.currency === "USD" ? r.spent * rate : r.spent);
+  const rowSom = (r: Row) => (r.currency === "USD" ? parseSpent(r.spent) * rate : parseSpent(r.spent));
   const spentSom = rows.reduce((sum, r) => sum + rowSom(r), 0);
-  const metricSum = rows.reduce((sum, r) => sum + r.metric, 0);
   const viewsSum = rows.reduce((sum, r) => sum + r.views, 0);
   const hasUsdRow = rows.some((r) => r.currency === "USD");
+
+  // Кампании в одном отчёте могут гнаться за разными целями (вовлечённость и трафик
+  // в один день) — сводим метрики отдельно по каждой цели, а не в одну кучу.
+  const objectivesUsed = [...new Set(rows.map((r) => r.objective))];
+  const groupTotals = objectivesUsed.map((obj) => {
+    const objRows = rows.filter((r) => r.objective === obj);
+    return {
+      objective: obj,
+      spent: objRows.reduce((s, r) => s + rowSom(r), 0),
+      metric: objRows.reduce((s, r) => s + r.metric, 0),
+    };
+  });
+  const metricTotals: Record<string, number> = {};
+  for (const g of groupTotals) metricTotals[METRIC_FIELD[g.objective] ?? "leads"] = g.metric;
+  // Основная цель отчёта (для порога CPL и уведомлений) — та, где потрачено больше.
+  const primaryObjective = groupTotals.slice().sort((a, b) => b.spent - a.spent)[0]?.objective ?? "ENGAGEMENT";
 
   // цель по CPL обычно задана в карточке клиента — подставляем её
   const clientCpl = clients.find((c) => c.id === clientId)?.targetCpl ?? defaultTargetCpl ?? null;
 
-  const cpl = spentSom > 0 && metricSum > 0 ? spentSom / metricSum : null;
-  const overTarget = cpl !== null && clientCpl ? cpl > clientCpl : null;
+  const cplByObjective = groupTotals
+    .filter((g) => g.spent > 0 && g.metric > 0)
+    .map((g) => ({
+      ...g,
+      cpl: g.spent / g.metric,
+      overTarget: clientCpl ? g.spent / g.metric > clientCpl : null,
+    }));
 
   const periods: [string, string][] = [
     ["Неделя", daysAgo(7)],
@@ -180,8 +205,6 @@ export default function ReportForm({
     ["Позавчера", 2],
     ["3 дня назад", 3],
   ];
-
-  const metricFieldName = METRIC_FIELD[objective] ?? "leads";
 
   return (
     <form action={saveReport} className="space-y-4">
@@ -258,27 +281,21 @@ export default function ReportForm({
         </div>
       </FormSection>
 
-      {/* Итоговые поля, которые реально уходят в saveReport — считаются из строк ниже. */}
+      {/* Итоговые поля, которые реально уходят в saveReport — считаются из строк ниже.
+          Метрика пишется в свою колонку по каждой встретившейся цели — так один отчёт
+          может нести и вовлечённость, и трафик одновременно. */}
       <input type="hidden" name="spent" value={spentSom} />
-      <input type="hidden" name={metricFieldName} value={metricSum} />
+      <input type="hidden" name="leads" value={metricTotals.leads ?? 0} />
+      <input type="hidden" name="engagement" value={metricTotals.engagement ?? 0} />
+      <input type="hidden" name="traffic" value={metricTotals.traffic ?? 0} />
+      <input type="hidden" name="profileVisits" value={metricTotals.profileVisits ?? 0} />
       <input type="hidden" name="views" value={viewsSum} />
       <input type="hidden" name="actions" value={0} />
+      <input type="hidden" name="objective" value={primaryObjective} />
 
       {/* Цель по CPL решает клиент/владелец в карточке проекта — здесь её не переопределяем,
           просто передаём дальше, чтобы алерт по превышению порога продолжал работать. */}
       <input type="hidden" name="targetCpl" value={clientCpl ?? 999999} />
-
-      <FormSection title="Деньги и результат" hint="Из этих чисел считается цена заявки" icon={Banknote}>
-        <div className="sm:col-span-2">
-          <label className="label">Цель кампании</label>
-          <Select
-            name="objective"
-            defaultValue={objective}
-            onChange={setObjective}
-            options={Object.entries(REPORT_OBJECTIVE).map(([value, label]) => ({ value, label }))}
-          />
-        </div>
-      </FormSection>
 
       <FormSection
         title="Скриншот кабинета"
@@ -334,7 +351,7 @@ export default function ReportForm({
         <div className="space-y-3">
           {rows.map((r, i) => (
             <div key={r.key} className="rounded-xl border border-zinc-200 p-3">
-              <div className="mb-2 flex items-center justify-between">
+              <div className="mb-2 flex items-center justify-between gap-2">
                 <span className="text-xs font-medium text-muted">
                   {rows.length > 1 ? `Кампания ${i + 1}` : "Кампания"}
                 </span>
@@ -348,6 +365,15 @@ export default function ReportForm({
                   </button>
                 )}
               </div>
+              <div className="mb-3">
+                <label className="label">Цель кампании</label>
+                <Select
+                  name={`row-objective-${r.key}`}
+                  defaultValue={r.objective}
+                  onChange={(v) => updateRow(r.key, { objective: v })}
+                  options={Object.entries(REPORT_OBJECTIVE).map(([value, label]) => ({ value, label }))}
+                />
+              </div>
               <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
                 <div>
                   <label className="label">Потрачено</label>
@@ -357,10 +383,10 @@ export default function ReportForm({
                       type="text"
                       inputMode="decimal"
                       placeholder="0"
-                      value={r.spent === 0 ? "" : r.spent}
+                      value={r.spent}
                       onChange={(e) => {
-                        const v = e.target.value.replace(",", ".");
-                        if (v === "" || /^\d*\.?\d*$/.test(v)) updateRow(r.key, { spent: v === "" ? 0 : Number(v) || 0 });
+                        const v = e.target.value;
+                        if (v === "" || /^\d*[.,]?\d*$/.test(v)) updateRow(r.key, { spent: v });
                       }}
                     />
                     <div className="w-24">
@@ -377,7 +403,7 @@ export default function ReportForm({
                   </div>
                 </div>
                 <div>
-                  <label className="label">{METRIC_LABEL[objective] ?? "Заявки"}</label>
+                  <label className="label">{METRIC_LABEL[r.objective] ?? "Заявки"}</label>
                   <input
                     className="input"
                     type="text"
@@ -432,20 +458,26 @@ export default function ReportForm({
         </div>
       </FormSection>
 
-      {/* живой расчёт: видно результат ещё до сохранения */}
-      {cpl !== null && (
-        <div
-          className={`rounded-2xl p-3 text-sm ${
-            overTarget ? "bg-red-50 text-red-700" : "bg-emerald-50 text-emerald-700"
-          }`}
-        >
-          Цена заявки: <b>{num(cpl)} сом</b>
-          {clientCpl ? (
-            <>
-              {" "}
-              при цели {num(clientCpl)} сом — {overTarget ? "порог превышен" : "в цели"}
-            </>
-          ) : null}
+      {/* живой расчёт: видно результат ещё до сохранения, отдельно по каждой цели, если их несколько */}
+      {cplByObjective.length > 0 && (
+        <div className="space-y-2">
+          {cplByObjective.map((g) => (
+            <div
+              key={g.objective}
+              className={`rounded-2xl p-3 text-sm ${
+                g.overTarget ? "bg-red-50 text-red-700" : "bg-emerald-50 text-emerald-700"
+              }`}
+            >
+              {cplByObjective.length > 1 && <b>{REPORT_OBJECTIVE[g.objective as keyof typeof REPORT_OBJECTIVE]}: </b>}
+              Цена заявки: <b>{num(g.cpl)} сом</b>
+              {clientCpl ? (
+                <>
+                  {" "}
+                  при цели {num(clientCpl)} сом — {g.overTarget ? "порог превышен" : "в цели"}
+                </>
+              ) : null}
+            </div>
+          ))}
         </div>
       )}
 

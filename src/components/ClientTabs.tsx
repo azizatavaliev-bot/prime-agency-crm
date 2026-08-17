@@ -42,7 +42,7 @@ export default function ClientTabs({
 
   return (
     <div>
-      <div className="mb-4 -mx-4 flex gap-2 overflow-x-auto border-b border-zinc-200 px-4 pb-3 sm:mx-0 sm:flex-wrap sm:px-0">
+      <div className="mb-4 -mx-4 flex gap-3 overflow-x-auto border-b border-zinc-200 px-4 pb-3 sm:mx-0 sm:flex-wrap sm:px-0">
         {tabs.map((t) => {
           const Icon = t.icon;
           const isActive = active === t.key;
@@ -51,10 +51,10 @@ export default function ClientTabs({
             <button
               key={t.key}
               onClick={() => setActive(t.key)}
-              className={`flex shrink-0 items-center gap-2 rounded-xl px-3.5 py-2 text-sm transition ${
+              className={`flex shrink-0 items-center gap-2 rounded-xl border px-4 py-2.5 text-sm transition ${
                 isActive
-                  ? "accent-gradient font-medium text-white"
-                  : "bg-subtle text-muted hover:text-zinc-900"
+                  ? "accent-gradient border-transparent font-medium text-white"
+                  : "border-zinc-200 bg-subtle text-muted hover:border-zinc-300 hover:text-zinc-900"
               }`}
             >
               <Icon size={15} /> {t.label}
