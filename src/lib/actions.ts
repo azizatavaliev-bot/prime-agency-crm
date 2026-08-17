@@ -53,7 +53,7 @@ async function owners() {
  * (client.accountId) и клиенту в портал (Notification.clientId), если задача
  * привязана к клиенту. Один путь для saveTask и toggleTask.
  */
-async function notifyTaskStakeholders(
+export async function notifyTaskStakeholders(
   t: { id: string; clientId: string | null; board: string },
   client: { targetologId: string | null; accountId: string | null } | null | undefined,
   kind: string,

@@ -5,6 +5,7 @@ import { SignJWT, jwtVerify } from "jose";
 import bcrypt from "bcryptjs";
 import { prisma } from "./prisma";
 import type { Role } from "./constants";
+import { clearUnitySession } from "./unity";
 
 /**
  * Ключ подписи сессий. На проде обязателен: с общеизвестным запасным
@@ -169,6 +170,7 @@ export async function issueSession(userId: string): Promise<SessionUser | null> 
 export async function logout() {
   const jar = await cookies();
   jar.delete(COOKIE);
+  await clearUnitySession();
 }
 
 export async function getSession(): Promise<SessionUser | null> {

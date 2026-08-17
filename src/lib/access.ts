@@ -62,6 +62,8 @@ export const can = {
   editClient: (u: SessionUser, client: { targetologId: string | null; accountId: string | null }) =>
     can.manageClients(u) || (u.role === "TARGETOLOG" && client.targetologId === u.id),
   manageTeam: (u: SessionUser) => u.role === "SUPER_ADMIN" || u.role === "ADMIN",
+  /** ИИ-инбокс: вставка транскриптов/чата и подтверждение кандидатов в задачи. */
+  manageTaskInbox: (u: SessionUser) => u.role === "SUPER_ADMIN" || u.role === "ADMIN" || u.role === "TEAM_LEAD",
   writeReports: (u: SessionUser) => u.role === "SUPER_ADMIN" || u.role === "ADMIN" || u.role === "TARGETOLOG",
   seeAllBoards: (u: SessionUser) => u.role === "SUPER_ADMIN" || u.role === "ADMIN" || u.role === "ACCOUNTANT",
   /**

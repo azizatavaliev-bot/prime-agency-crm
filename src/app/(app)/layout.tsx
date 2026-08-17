@@ -1,6 +1,7 @@
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { ROLES } from "@/lib/constants";
+import { can } from "@/lib/access";
 import { stopImpersonatingAction } from "@/lib/actions";
 import Nav, { type NavItem } from "@/components/Nav";
 import TopBar from "@/components/TopBar";
@@ -26,7 +27,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   if (user.role !== "DEVELOPER" && user.role !== "EDITOR")
     items.push({ href: "/marketing", label: "Маркетинг", icon: "marketing" });
   items.push({ href: "/tasks", label: "Задачи", icon: "tasks" });
+  if (can.manageTaskInbox(user)) items.push({ href: "/tasks/inbox", label: "ИИ-инбокс", icon: "taskInbox" });
   items.push({ href: "/notes", label: "Заметки", icon: "notes" });
+  items.push({ href: "/unity", label: "Unity", icon: "unity" });
   items.push({ href: "/regulations", label: "Регламенты", icon: "regulations" });
 
   if (user.role === "SUPER_ADMIN" || user.role === "ADMIN") {

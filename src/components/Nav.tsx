@@ -26,10 +26,8 @@ import {
   LogOut,
   Zap,
   Grid2x2,
-  ArrowUpRight,
+  Sparkles,
 } from "lucide-react";
-
-const UNITY_URL = "https://adminapp-production-217b.up.railway.app";
 
 export const NAV_ICONS = {
   dashboard: LayoutDashboard,
@@ -42,6 +40,8 @@ export const NAV_ICONS = {
   regulations: BookText,
   notes: NotebookText,
   tasks: KanbanSquare,
+  taskInbox: Sparkles,
+  unity: Grid2x2,
   team: UserCog,
   analytics: PieChart,
   notifications: Bell,
@@ -132,18 +132,6 @@ export default function Nav({
           <div className="mt-1 pl-12 text-xs text-muted">Система учёта агентства</div>
         </div>
 
-        <a
-          href={UNITY_URL}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="mb-4 hidden items-center justify-between rounded-xl border border-zinc-200 bg-subtle px-3 py-2.5 text-sm transition hover:bg-zinc-100 lg:flex"
-        >
-          <span className="flex items-center gap-2 text-muted">
-            <Grid2x2 size={16} />
-            Перейти в Unity
-          </span>
-          <ArrowUpRight size={15} className="text-muted" />
-        </a>
 
         <nav className="space-y-4">
           {[...groups.entries()].map(([group, list]) => (
