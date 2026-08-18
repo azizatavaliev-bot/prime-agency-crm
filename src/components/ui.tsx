@@ -56,7 +56,9 @@ export function Stat({
         )}
         <div className="min-w-0">
           <div className="text-xs text-muted">{label}</div>
-          <div className={`mt-0.5 text-xl lg:text-2xl font-semibold tracking-tight ${tones[tone]}`}>
+          <div
+            className={`font-display mt-0.5 text-xl font-semibold tracking-tight lg:text-2xl ${tones[tone]}`}
+          >
             {value}
           </div>
           {hint && <div className="mt-1 text-xs text-muted">{hint}</div>}
@@ -161,6 +163,125 @@ export function Section({
   );
 }
 
+/**
+ * Главный показатель дня. Раньше все двенадцать плиток дашборда были одного
+ * размера, и выручка терялась рядом со средним чеком — глазу не за что
+ * зацепиться. Крупными делаем только то, ради чего владелец открывает систему.
+ */
+export function HeroStat({
+  label,
+  value,
+  hint,
+  tone = "default",
+  icon: Icon,
+  progress,
+  delta,
+}: {
+  label: string;
+  value: string;
+  hint?: string;
+  tone?: "default" | "good" | "warn" | "bad";
+  icon: LucideIcon;
+  /** Выполнение плана: доля 0–1 и подпись под полосой. */
+  progress?: { ratio: number; caption: string };
+  /** Сравнение с прошлым месяцем: рост в процентах и что с чем сравниваем. */
+  delta?: { percent: number; caption: string; goodWhenUp?: boolean };
+}) {
+  const iconTone = {
+    default: "accent-soft accent-text",
+    good: "bg-emerald-100 text-emerald-600",
+    warn: "bg-amber-100 text-amber-600",
+    bad: "bg-red-100 text-red-600",
+  }[tone];
+  const valueTone = {
+    default: "",
+    good: "text-emerald-600",
+    warn: "text-amber-600",
+    bad: "text-red-600",
+  }[tone];
+
+  const up = (delta?.percent ?? 0) > 0;
+  const good = delta?.goodWhenUp === false ? !up : up;
+  const barTone =
+    tone === "bad" ? "bg-red-500" : tone === "warn" ? "bg-amber-500" : "bg-emerald-500";
+
+  return (
+    <div className="card card-hover p-5">
+      <div className="flex items-start justify-between gap-3">
+        <div className={`stat-icon !h-10 !w-10 ${iconTone}`}>
+          <Icon size={19} strokeWidth={1.9} />
+        </div>
+        {delta && delta.percent !== 0 && (
+          <span
+            className={`badge ${
+              good
+                ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                : "bg-red-50 text-red-700 border-red-200"
+            }`}
+            title={delta.caption}
+          >
+            {up ? "↑" : "↓"} {Math.abs(delta.percent)}%
+          </span>
+        )}
+      </div>
+
+      <div className={`font-display mt-3 text-3xl font-semibold tracking-tight lg:text-[34px] ${valueTone}`}>
+        {value}
+      </div>
+      <div className="mt-1 text-sm text-muted">{label}</div>
+
+      {progress && (
+        <div className="mt-3">
+          <div className="h-1.5 overflow-hidden rounded-full bg-subtle">
+            <div
+              className={`h-full rounded-full transition-all ${barTone}`}
+              style={{ width: `${Math.min(100, Math.max(0, progress.ratio * 100))}%` }}
+            />
+          </div>
+          <div className="mt-1.5 text-[11px] text-muted">{progress.caption}</div>
+        </div>
+      )}
+
+      {hint && !progress && <div className="mt-2 text-[11px] text-muted">{hint}</div>}
+      {hint && progress && <div className="mt-1 text-[11px] text-muted">{hint}</div>}
+    </div>
+  );
+}
+
+/** Второстепенный показатель: лента под главными, без спора за внимание. */
+export function CompactStat({
+  label,
+  value,
+  hint,
+  tone = "default",
+  icon: Icon,
+}: {
+  label: string;
+  value: string;
+  hint?: string;
+  tone?: "default" | "good" | "warn" | "bad";
+  icon?: LucideIcon;
+}) {
+  const valueTone = {
+    default: "",
+    good: "text-emerald-600",
+    warn: "text-amber-600",
+    bad: "text-red-600",
+  }[tone];
+  return (
+    <div className="card px-3.5 py-3">
+      <div className="flex items-center gap-1.5 text-[11px] text-muted">
+        {Icon && <Icon size={12} strokeWidth={1.9} />}
+        <span className="truncate">{label}</span>
+      </div>
+      <div className={`font-display mt-1 text-lg font-semibold tracking-tight ${valueTone}`}>
+        {value}
+      </div>
+      {hint && <div className="mt-0.5 text-[11px] text-muted truncate" title={hint}>{hint}</div>}
+    </div>
+  );
+}
+
 export function MiniStat({
   label,
   value,
@@ -170,16 +291,18 @@ export function MiniStat({
   value: string;
   tone?: "default" | "good" | "warn" | "bad";
 }) {
-  const tones = {
-    default: "bg-subtle",
-    good: "bg-emerald-50 text-emerald-700",
-    warn: "bg-amber-50 text-amber-700",
-    bad: "bg-red-50 text-red-700",
-  };
+  const valueTone = {
+    default: "",
+    good: "text-emerald-600",
+    warn: "text-amber-600",
+    bad: "text-red-600",
+  }[tone];
   return (
-    <div className={`rounded-2xl p-4 ${tones[tone]}`}>
-      <div className="text-xs opacity-70">{label}</div>
-      <div className="mt-1 text-lg font-semibold tracking-tight">{value}</div>
+    <div className="card px-3.5 py-3">
+      <div className="text-[11px] text-muted">{label}</div>
+      <div className={`font-display mt-1 text-lg font-semibold tracking-tight ${valueTone}`}>
+        {value}
+      </div>
     </div>
   );
 }

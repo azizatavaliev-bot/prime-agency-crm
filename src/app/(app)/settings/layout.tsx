@@ -9,6 +9,8 @@ const ITEMS: SubNavItem[] = [
   { href: "/settings", label: "Общие", icon: "general" },
   { href: "/settings/dictionaries", label: "Справочники", icon: "dictionaries" },
   { href: "/settings/team", label: "Сотрудники", icon: "team" },
+  { href: "/settings/rules", label: "Премии", icon: "rules" },
+  { href: "/settings/goals", label: "Цели и метрики", icon: "goals" },
   { href: "/settings/templates", label: "Шаблоны задач", icon: "templates" },
   { href: "/settings/notifications", label: "Уведомления", icon: "notifications" },
   { href: "/settings/export", label: "Экспорт", icon: "export" },

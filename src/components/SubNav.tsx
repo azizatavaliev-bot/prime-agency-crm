@@ -10,6 +10,8 @@ import {
   Bell,
   Plug,
   Layers,
+  Sparkles,
+  Target,
   type LucideIcon,
 } from "lucide-react";
 
@@ -21,6 +23,8 @@ const ICONS: Record<string, LucideIcon> = {
   notifications: Bell,
   integrations: Plug,
   templates: Layers,
+  rules: Sparkles,
+  goals: Target,
 };
 
 export type SubNavItem = { href: string; label: string; icon: keyof typeof ICONS };

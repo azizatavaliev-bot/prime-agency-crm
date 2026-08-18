@@ -46,6 +46,7 @@ export type TeamMember = {
   projectLimit: number;
   active: boolean;
   phone?: string | null;
+  baseSalary?: number;
 };
 
 export default function UserForm({
@@ -148,6 +149,30 @@ export default function UserForm({
           })}
         </div>
       </div>
+
+      {role !== "OWNER" && (
+        <div className="rounded-2xl border border-zinc-200 p-4">
+          <div className="mb-3 text-sm font-medium">Фикс-оклад</div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div>
+              <label className="label">Оклад за месяц, сом</label>
+              <input
+                className="input"
+                name="baseSalary"
+                type="number"
+                min="0"
+                step="any"
+                defaultValue={member?.baseSalary ?? 0}
+                placeholder="0"
+              />
+            </div>
+          </div>
+          <div className="mt-2 text-xs text-muted">
+            Платится каждый месяц независимо от проектов. Оставьте 0, если человек получает только
+            долю с проектов. В ведомости оклад и доли складываются.
+          </div>
+        </div>
+      )}
 
       {needsRate && (
         <div className="rounded-2xl border border-zinc-200 p-4">

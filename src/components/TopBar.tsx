@@ -39,7 +39,7 @@ export default function TopBar({
   unread,
   recent,
 }: {
-  user: { name: string; roleLabel: string };
+  user: { name: string; roleLabel: string; role: string };
   unread: number;
   recent: TopNotification[];
 }) {
@@ -237,13 +237,16 @@ export default function TopBar({
               >
                 <UserIcon size={15} /> Профиль
               </Link>
-              <Link
-                href="/settings"
-                onClick={() => setMenuOpen(false)}
-                className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm transition hover:bg-subtle"
-              >
-                <Settings size={15} /> Настройки
-              </Link>
+              {/* Настройки открыты только владельцу — остальным пункт вёл в «нет доступа» */}
+              {user.role === "OWNER" && (
+                <Link
+                  href="/settings"
+                  onClick={() => setMenuOpen(false)}
+                  className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm transition hover:bg-subtle"
+                >
+                  <Settings size={15} /> Настройки
+                </Link>
+              )}
               <form action="/api/logout" method="post">
                 <button className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-red-600 transition hover:bg-red-50">
                   <LogOut size={15} /> Выйти

@@ -106,7 +106,7 @@ export default function RegulationForm({
                 defaultChecked={reg?.assignees.includes(u.id)}
                 className="peer sr-only"
               />
-              <span className="chip border-zinc-200 text-muted transition peer-checked:accent-gradient peer-checked:border-transparent peer-checked:text-white">
+              <span className="chip chip-toggle border-zinc-200 text-muted transition">
                 {u.name}
               </span>
             </label>
