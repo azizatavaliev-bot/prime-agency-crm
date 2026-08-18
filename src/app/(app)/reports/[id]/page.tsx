@@ -4,7 +4,7 @@ import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { clientScope } from "@/lib/access";
 import { reportMetrics } from "@/lib/finance";
-import { som, dateRu, num } from "@/lib/format";
+import { som, dateRu, num, targetCplLabel } from "@/lib/format";
 import PrintButton from "@/components/PrintButton";
 
 export const dynamic = "force-dynamic";
@@ -86,11 +86,16 @@ export default async function ClientReportPage({ params }: { params: Promise<{ i
         <div className="mt-8">
           <div className="text-sm font-medium">Итог периода</div>
           <p className="mt-2 text-sm leading-relaxed text-zinc-600">
-            {m.inTarget === false
-              ? `Цена заявки ${num(m.cpl ?? 0)} сом выше плановой ${num(r.targetCpl)} сом. Слабые связки отключаем, запускаем новые гипотезы и обновляем креативы.`
-              : m.inTarget
-                ? `Цена заявки ${num(m.cpl ?? 0)} сом укладывается в план ${num(r.targetCpl)} сом. Рабочие связки масштабируем и увеличиваем бюджет.`
-                : "За период заявок не зафиксировано — идёт тест гипотез."}
+            {(() => {
+              const target = targetCplLabel(r.targetCpl);
+              if (m.inTarget === false)
+                return `Цена заявки ${num(m.cpl ?? 0)} сом выше плановой ${target}. Слабые связки отключаем, запускаем новые гипотезы и обновляем креативы.`;
+              if (m.inTarget)
+                return target === "—"
+                  ? `Цена заявки ${num(m.cpl ?? 0)} сом — плановый порог по проекту пока не задан.`
+                  : `Цена заявки ${num(m.cpl ?? 0)} сом укладывается в план ${target}. Рабочие связки масштабируем и увеличиваем бюджет.`;
+              return "За период заявок не зафиксировано — идёт тест гипотез.";
+            })()}
           </p>
           {r.comment && <p className="mt-3 text-sm leading-relaxed text-zinc-600">{r.comment}</p>}
         </div>

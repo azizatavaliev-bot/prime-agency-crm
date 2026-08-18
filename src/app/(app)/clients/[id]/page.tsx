@@ -26,8 +26,9 @@ import {
   deletePayment,
   addClientNote,
   deleteClientNote,
+  deleteReport,
 } from "@/lib/actions";
-import { som, dateRu, num, toInputDate } from "@/lib/format";
+import { som, dateRu, num, toInputDate, targetCplLabel } from "@/lib/format";
 import { paymentChip, daysToContractEnd } from "@/lib/payday";
 import { dict } from "@/lib/dict";
 import {
@@ -423,15 +424,44 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
                                   >
                                     {m.cpl ? `${num(m.cpl)} сом` : "—"}
                                   </td>
-                                  <td className="td text-zinc-500">{som(r.targetCpl)}</td>
+                                  <td className="td text-zinc-500">{targetCplLabel(r.targetCpl)}</td>
                                   <td className={`td ${m.cpaOk === false ? "text-red-600" : m.cpaOk ? "text-emerald-600" : ""}`}>
                                     {m.cpa ? `${num(m.cpa)} сом` : "—"}
                                   </td>
                                   <td className="td text-zinc-500">{r.bundles || "—"}</td>
                                   <td className="td">
-                                    <Link href={`/reports/${r.id}`} className="btn-ghost !px-3 !py-1 !text-xs">
-                                      <ExternalLink size={13} /> Клиенту
-                                    </Link>
+                                    <div className="flex items-center gap-1">
+                                      <Link href={`/reports/${r.id}`} className="btn-ghost !px-3 !py-1 !text-xs">
+                                        <ExternalLink size={13} /> Клиенту
+                                      </Link>
+                                      {can.writeReports(user) && (
+                                        <>
+                                          <FormModal
+                                            label=""
+                                            title={`Отчёт за период — ${client.name}`}
+                                            variant="ghost"
+                                            icon={<Pencil size={13} />}
+                                            hint="Если ошиблись в цифрах, цели или скриншоте — поправьте и сохраните заново."
+                                          >
+                                            <ReportForm
+                                              clients={[]}
+                                              fixedClientId={client.id}
+                                              defaultTargetCpl={client.targetCpl}
+                                              report={{ ...r, hasScreenshot: Boolean(r.screenshot) }}
+                                            />
+                                          </FormModal>
+                                          <form action={deleteReport}>
+                                            <input type="hidden" name="id" value={r.id} />
+                                            <button
+                                              className="btn-ghost !px-2 !py-1 !text-xs hover:!text-red-600"
+                                              title="Удалить отчёт"
+                                            >
+                                              <Trash2 size={13} />
+                                            </button>
+                                          </form>
+                                        </>
+                                      )}
+                                    </div>
                                   </td>
                                 </>
                               }

@@ -4,6 +4,7 @@ import {
   Plus,
   FileText,
   Trash2,
+  Pencil,
   FileBarChart,
   Wallet,
   Users,
@@ -16,7 +17,7 @@ import { prisma } from "@/lib/prisma";
 import { clientScope, can } from "@/lib/access";
 import { reportMetrics } from "@/lib/finance";
 import { deleteReport } from "@/lib/actions";
-import { som, dateRu, num } from "@/lib/format";
+import { som, dateRu, num, targetCplLabel } from "@/lib/format";
 import { Table, Stat } from "@/components/ui";
 import FormModal from "@/components/FormModal";
 import FilterSelect from "@/components/FilterSelect";
@@ -113,7 +114,7 @@ export default async function ClientReportsTab({ sp }: { sp: { clientId?: string
                 >
                   {m.cpl ? `${num(m.cpl)} сом` : "—"}
                 </td>
-                <td className="td text-zinc-500">{som(r.targetCpl)}</td>
+                <td className="td text-zinc-500">{targetCplLabel(r.targetCpl)}</td>
                 <td className={`td ${m.cpaOk === false ? "text-red-600" : m.cpaOk ? "text-emerald-600" : ""}`}>
                   {m.cpa ? `${num(m.cpa)} сом` : "—"}
                 </td>
@@ -137,12 +138,28 @@ export default async function ClientReportsTab({ sp }: { sp: { clientId?: string
                       <FileText size={13} /> Клиенту
                     </Link>
                     {can.writeReports(user) && (
-                      <form action={deleteReport}>
-                        <input type="hidden" name="id" value={r.id} />
-                        <button className="btn-ghost !px-2 !py-1 text-red-600">
-                          <Trash2 size={13} />
-                        </button>
-                      </form>
+                      <>
+                        <FormModal
+                          label=""
+                          title={`Отчёт за период — ${r.client.name}`}
+                          variant="ghost"
+                          icon={<Pencil size={13} />}
+                          hint="Если ошиблись в цифрах, цели или скриншоте — поправьте и сохраните заново."
+                        >
+                          <ReportForm
+                            clients={[]}
+                            fixedClientId={r.clientId}
+                            defaultTargetCpl={r.client.targetCpl}
+                            report={{ ...r, hasScreenshot: Boolean(r.screenshot) }}
+                          />
+                        </FormModal>
+                        <form action={deleteReport}>
+                          <input type="hidden" name="id" value={r.id} />
+                          <button className="btn-ghost !px-2 !py-1 text-red-600" title="Удалить отчёт">
+                            <Trash2 size={13} />
+                          </button>
+                        </form>
+                      </>
                     )}
                   </div>
                 </td>

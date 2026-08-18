@@ -34,7 +34,7 @@ import {
   addEmployeeNote,
   deleteEmployeeNote,
 } from "@/lib/actions";
-import { som, dateRu, num, daysUntil } from "@/lib/format";
+import { som, dateRu, num, daysUntil, targetCplLabel } from "@/lib/format";
 import { paymentChip, daysToContractEnd } from "@/lib/payday";
 import {
   CLIENT_STATUS,
@@ -458,7 +458,7 @@ export function ClientModal({
                                   >
                                     {m.cpl ? `${num(m.cpl)} сом` : "—"}
                                   </td>
-                                  <td className="px-3 py-2 text-sm text-zinc-500 whitespace-nowrap">{som(r.targetCpl)}</td>
+                                  <td className="px-3 py-2 text-sm text-zinc-500 whitespace-nowrap">{targetCplLabel(r.targetCpl)}</td>
                                   <td className="px-3 py-2 text-sm whitespace-nowrap">
                                     {m.inTarget === null ? (
                                       "—"
@@ -817,7 +817,7 @@ export function ReportModal({
         <div className="grid gap-4 rounded-2xl border border-zinc-200 p-4 sm:grid-cols-2">
           <Field label="Рекламный бюджет" value={som(report.budget)} />
           <Field label="Целевых действий" value={String(report.actions)} />
-          <Field label="Целевой CPL" value={som(report.targetCpl)} />
+          <Field label="Целевой CPL" value={targetCplLabel(report.targetCpl)} />
           <Field label="Целевой CPA" value={report.targetCpa ? som(report.targetCpa) : "—"} />
           <Field label="Статус связок" value={report.bundles || "—"} />
           <Field label="Комментарий" value={report.comment || "—"} />
