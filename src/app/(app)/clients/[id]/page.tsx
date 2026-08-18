@@ -13,6 +13,7 @@ import {
   CalendarClock,
   User as UserIcon,
   MessageSquare,
+  Sparkles,
 } from "lucide-react";
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -47,6 +48,7 @@ import MembersBlock from "@/components/MembersBlock";
 import TermsBlock from "@/components/TermsBlock";
 import PaymentForm from "@/components/PaymentForm";
 import ReportForm from "@/components/ReportForm";
+import ScreenshotReportUpload from "@/components/ScreenshotReportUpload";
 import TaskForm from "@/components/TaskForm";
 import MarkPaidButton from "@/components/MarkPaidButton";
 import { PayStatusBadge, ReportModal, StatusBadge, TaskModal, servicesLabel } from "@/components/details";
@@ -385,7 +387,10 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
             <>
                     <Section title="Отчёты по таргету (по неделям)" icon={TrendingUp}>
                       {can.writeReports(user) && (
-                        <div className="mb-3">
+                        <div className="mb-3 space-y-2">
+                          <Collapse title="Заполнить по скриншотам (ИИ)" icon={Sparkles}>
+                            <ScreenshotReportUpload clientId={client.id} />
+                          </Collapse>
                           <Collapse title="Новый отчёт" icon={Plus}>
                             <ReportForm clients={[]} fixedClientId={client.id} defaultTargetCpl={client.targetCpl} />
                           </Collapse>

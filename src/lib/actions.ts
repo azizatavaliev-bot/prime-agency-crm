@@ -47,7 +47,7 @@ async function screenshotFrom(fd: FormData, k: string): Promise<{ screenshot: Ui
   return { screenshot: bytes, screenshotMime: file.type || "image/jpeg" };
 }
 
-async function notify(userIds: (string | null | undefined)[], data: { kind: string; title: string; body?: string; link?: string }) {
+export async function notify(userIds: (string | null | undefined)[], data: { kind: string; title: string; body?: string; link?: string }) {
   const ids = [...new Set(userIds.filter(Boolean) as string[])];
   if (!ids.length) return;
   await prisma.notification.createMany({
@@ -55,7 +55,7 @@ async function notify(userIds: (string | null | undefined)[], data: { kind: stri
   });
 }
 
-async function owners() {
+export async function owners() {
   const list = await prisma.user.findMany({ where: { role: "SUPER_ADMIN", active: true } });
   return list.map((u) => u.id);
 }

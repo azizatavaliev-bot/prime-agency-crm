@@ -86,3 +86,94 @@ export async function extractTaskCandidates(
     rawText: c.rawText,
   }));
 }
+
+export type ExtractedReportEntry = {
+  sourceImageIndex: number;
+  date: string; // YYYY-MM-DD
+  directionName: string | null;
+  objective: "LEADS" | "ENGAGEMENT" | "TRAFFIC" | "PROFILE_VISITS";
+  spend: number;
+  currency: "KGS" | "USD";
+  metric: number; // счётчик, соответствующий objective (заявки/вовлечённость/переходы/посещения)
+  impressions: number;
+};
+
+const REPORT_SCREENSHOT_SCHEMA = {
+  type: Type.OBJECT,
+  properties: {
+    entries: {
+      type: Type.ARRAY,
+      items: {
+        type: Type.OBJECT,
+        properties: {
+          sourceImageIndex: { type: Type.INTEGER, description: "Номер скриншота (с 0), откуда взята эта строка" },
+          date: { type: Type.STRING, description: "Дата в формате YYYY-MM-DD. Если на скрине период — конец периода. Если разбивка по дням — своя дата на каждую строку" },
+          directionName: { type: Type.STRING, description: "Название направления/кампании/кабинета как написано на скрине — иначе пустая строка", nullable: true },
+          objective: { type: Type.STRING, enum: ["LEADS", "ENGAGEMENT", "TRAFFIC", "PROFILE_VISITS"], description: "Цель кампании по тому, что считает скрин: заявки/лиды — LEADS, вовлечённость (лайки/сохранения/реакции) — ENGAGEMENT, переходы/клики — TRAFFIC, посещения профиля — PROFILE_VISITS" },
+          spend: { type: Type.NUMBER, description: "Потрачено, число" },
+          currency: { type: Type.STRING, enum: ["KGS", "USD"], description: "Валюта расхода на скрине" },
+          metric: { type: Type.NUMBER, description: "Значение метрики, соответствующей objective" },
+          impressions: { type: Type.NUMBER, description: "Показы, если есть на скрине — иначе 0" },
+        },
+        required: ["sourceImageIndex", "date", "objective", "spend", "currency", "metric"],
+      },
+    },
+  },
+  required: ["entries"],
+};
+
+/**
+ * Вычленяет строки рекламных отчётов из скриншотов рекламных кабинетов через Gemini Vision.
+ * По одному скрину может выйти несколько строк (недельная разбивка по дням/кампаниям).
+ * Ничего не пишет в БД — запись и подстановку/создание направлений делает
+ * reportScreenshotActions.ts.
+ */
+export async function extractReportsFromScreenshots(
+  images: { mimeType: string; base64: string }[],
+  context: { directions: { id: string; name: string }[] }
+): Promise<ExtractedReportEntry[]> {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) throw new Error("GEMINI_API_KEY не настроен — добавьте ключ в .env");
+
+  const ai = new GoogleGenAI({ apiKey });
+  const today = new Date().toISOString().slice(0, 10);
+  const directionsList = context.directions.map((d) => d.name).join(", ") || "(пока нет ни одного)";
+
+  const parts = [
+    {
+      text:
+        `Ты разбираешь скриншоты рекламных кабинетов (Meta Ads, Instagram и т.п.) для агентства. ` +
+        `Сегодня ${today}. Прислано ${images.length} скриншот(ов), пронумерованных с 0 по порядку. ` +
+        `Для каждого скриншота вычлени одну строку на каждую дату/кампанию, которую видишь: если это недельная ` +
+        `таблица по дням — строка на каждый день; если один период целиком — одна строка с датой конца периода. ` +
+        `Уже заведённые направления этого проекта: ${directionsList}. Если на скрине видно название кампании/направления, ` +
+        `похожее на одно из них — пиши именно это существующее название (не выдумывай другое написание). ` +
+        `Если название новое — пиши как есть, оно будет заведено как новое направление. Если направление на скрине ` +
+        `не подписано вообще — оставляй directionName пустым.`,
+    },
+    ...images.map((img) => ({ inlineData: { mimeType: img.mimeType, data: img.base64 } })),
+  ];
+
+  const response = await ai.models.generateContent({
+    model: "gemini-2.5-flash",
+    contents: parts,
+    config: {
+      responseMimeType: "application/json",
+      responseSchema: REPORT_SCREENSHOT_SCHEMA,
+    },
+  });
+
+  const text = response.text;
+  if (!text) return [];
+  const parsed = JSON.parse(text) as { entries?: ExtractedReportEntry[] };
+  return (parsed.entries ?? []).map((e) => ({
+    sourceImageIndex: e.sourceImageIndex ?? 0,
+    date: e.date,
+    directionName: e.directionName || null,
+    objective: e.objective || "ENGAGEMENT",
+    spend: e.spend || 0,
+    currency: e.currency || "KGS",
+    metric: e.metric || 0,
+    impressions: e.impressions || 0,
+  }));
+}
