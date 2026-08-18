@@ -585,19 +585,33 @@ export async function deleteTask(fd: FormData) {
 
 /* ---------------- Команда ---------------- */
 
-export async function saveUser(fd: FormData) {
+export type SaveUserState = { ok: boolean; error?: string };
+
+export async function saveUser(_prev: SaveUserState, fd: FormData): Promise<SaveUserState> {
   const user = await requireUser();
   if (!can.manageTeam(user)) redirect("/no-access");
   const id = str(fd, "id");
   const password = str(fd, "password");
-  // Короткий пароль подбирается за минуты — не пускаем такие в систему.
-  if (password && password.length < 8) redirect("/team?error=short-password");
+  // Короткий пароль подбирается за минуты — не пускаем такие в систему,
+  // но теперь явно говорим почему, а не молча отменяем сохранение.
+  if (password && password.length < 8) return { ok: false, error: "Пароль короче 8 символов — остальное не сохранено, введите длиннее" };
   // Роль только из известного списка: неизвестная снимает фильтры доступа.
   const role = req(fd, "role");
   if (!Object.keys(ROLES).includes(role)) redirect("/no-access");
+
+  const login = req(fd, "login").trim().toLowerCase();
+  const email = req(fd, "email").toLowerCase();
+  if (!login) return { ok: false, error: "Укажите логин" };
+
+  const dupe = await prisma.user.findFirst({
+    where: { OR: [{ login }, { email }], NOT: id ? { id } : undefined },
+    select: { id: true, login: true, email: true },
+  });
+  if (dupe) return { ok: false, error: dupe.login === login ? `Логин «${login}» уже занят` : `Email «${email}» уже занят` };
+
   const base = {
-    login: req(fd, "login").trim().toLowerCase(),
-    email: req(fd, "email").toLowerCase(),
+    login,
+    email,
     name: req(fd, "name"),
     phone: str(fd, "phone"),
     role,
@@ -620,11 +634,14 @@ export async function saveUser(fd: FormData) {
         : base,
     });
   } else {
+    if (!password) return { ok: false, error: "Задайте пароль сотруднику" };
     await prisma.user.create({
-      data: { ...base, passwordHash: await hashPassword(password || "prime2026") },
+      data: { ...base, passwordHash: await hashPassword(password) },
     });
   }
   revalidatePath("/team");
+  revalidatePath("/settings/team");
+  return { ok: true };
 }
 
 /* ---------------- Заметки о сотруднике ---------------- */
