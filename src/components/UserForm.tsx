@@ -6,6 +6,7 @@ import { saveUser } from "@/lib/actions";
 import { ROLES } from "@/lib/constants";
 import Select from "./Select";
 import PasswordField from "./PasswordField";
+import DecimalInput from "./DecimalInput";
 
 /** Что реально открывает каждая роль — видно прямо при выборе. */
 const ROLE_ICONS: Record<keyof typeof ROLES, LucideIcon> = {
@@ -156,15 +157,7 @@ export default function UserForm({
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
               <label className="label">Оклад за месяц, сом</label>
-              <input
-                className="input"
-                name="baseSalary"
-                type="number"
-                min="0"
-                step="any"
-                defaultValue={member?.baseSalary ?? 0}
-                placeholder="0"
-              />
+              <DecimalInput name="baseSalary" defaultValue={member?.baseSalary ?? 0} placeholder="0" />
             </div>
           </div>
           <div className="mt-2 text-xs text-muted">
@@ -192,12 +185,8 @@ export default function UserForm({
             </div>
             <div>
               <label className="label">{rateType === "PERCENT" ? "Процент, %" : "Сумма, сом"}</label>
-              <input
-                className="input"
+              <DecimalInput
                 name="rate"
-                type="number"
-                step="any"
-                min="0"
                 defaultValue={member?.rate ?? ""}
                 placeholder={rateType === "PERCENT" ? "34" : "15000"}
               />

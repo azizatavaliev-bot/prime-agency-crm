@@ -38,17 +38,19 @@ export default function MarketingReportForm({
 }) {
   type Row = {
     key: string;
-    spend: number;
+    /** Держим как есть, что ввёл человек ("29,3") — парсим в число только при подсчётах. */
+    spend: string;
     currency: string;
     leads: number;
     impressions: number;
     inquiries: number;
   };
+  const parseSpend = (v: string) => parseFloat(v.replace(",", ".")) || 0;
 
   const rowKeySeq = useRef(0);
   const newRow = (init?: Partial<Row>): Row => ({
     key: `row-${++rowKeySeq.current}`,
-    spend: 0,
+    spend: "",
     currency: "KGS",
     leads: 0,
     impressions: 0,
@@ -58,14 +60,15 @@ export default function MarketingReportForm({
 
   const [rows, setRows] = useState<Row[]>([
     newRow({
-      spend: defaults?.spend ?? 0,
+      spend: defaults?.spend ? String(defaults.spend) : "",
       currency: defaults?.currency ?? "KGS",
       leads: defaults?.leads ?? 0,
       impressions: defaults?.impressions ?? 0,
       inquiries: defaults?.inquiries ?? 0,
     }),
   ]);
-  const [rate, setRate] = useState(usdRate);
+  const [rateText, setRateText] = useState(String(usdRate));
+  const rate = parseFloat(rateText.replace(",", ".")) || 0;
 
   const addRow = () => setRows((rs) => [...rs, newRow()]);
   const removeRow = (key: string) => setRows((rs) => (rs.length > 1 ? rs.filter((r) => r.key !== key) : rs));
@@ -74,7 +77,7 @@ export default function MarketingReportForm({
 
   // Каждую строку переводим в сомы по общему курсу и суммируем — так несколько
   // кампаний/кабинетов за один день сводятся в один отчёт.
-  const rowSom = (r: Row) => (r.currency === "USD" ? r.spend * rate : r.spend);
+  const rowSom = (r: Row) => (r.currency === "USD" ? parseSpend(r.spend) * rate : parseSpend(r.spend));
   const spendSom = rows.reduce((sum, r) => sum + rowSom(r), 0);
   const leads = rows.reduce((sum, r) => sum + r.leads, 0);
   const impressions = rows.reduce((sum, r) => sum + r.impressions, 0);
@@ -154,10 +157,13 @@ export default function MarketingReportForm({
                   <div className="flex gap-2">
                     <input
                       className="input"
-                      type="number"
-                      step="0.01"
+                      type="text"
+                      inputMode="decimal"
                       value={r.spend}
-                      onChange={(e) => updateRow(r.key, { spend: Number(e.target.value) || 0 })}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        if (v === "" || /^\d*[.,]?\d*$/.test(v)) updateRow(r.key, { spend: v });
+                      }}
                     />
                     <div className="w-24">
                       <Select
@@ -212,10 +218,13 @@ export default function MarketingReportForm({
               <label className="label !mb-0">Курс USD</label>
               <input
                 className="input !py-1.5 w-28"
-                type="number"
-                step="0.01"
-                value={rate}
-                onChange={(e) => setRate(Number(e.target.value) || 0)}
+                type="text"
+                inputMode="decimal"
+                value={rateText}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  if (v === "" || /^\d*[.,]?\d*$/.test(v)) setRateText(v);
+                }}
               />
               <span className="text-xs text-muted">
                 итого расход — {Math.round(spendSom).toLocaleString("ru-RU")} сом

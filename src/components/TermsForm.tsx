@@ -3,6 +3,7 @@ import { RENEWAL_MODE } from "@/lib/constants";
 import { toInputDate } from "@/lib/format";
 import Select from "./Select";
 import DatePicker from "./DatePicker";
+import DecimalInput from "./DecimalInput";
 
 export type ClientTerms = {
   id: string;
@@ -28,15 +29,7 @@ export default function TermsForm({ client }: { client: ClientTerms }) {
       <div className="grid gap-4 sm:grid-cols-2">
         <div>
           <label className="label">Сколько берём в месяц, сом</label>
-          <input
-            className="input"
-            name="avgCheck"
-            type="number"
-            min="0"
-            step="any"
-            defaultValue={client.avgCheck}
-            placeholder="30000"
-          />
+          <DecimalInput name="avgCheck" defaultValue={client.avgCheck} placeholder="30000" />
         </div>
         <div>
           <label className="label">Какого числа платит</label>
@@ -61,12 +54,8 @@ export default function TermsForm({ client }: { client: ClientTerms }) {
         </div>
         <div>
           <label className="label">% от прибыли клиента</label>
-          <input
-            className="input"
+          <DecimalInput
             name="profitPercent"
-            type="number"
-            min="0"
-            step="any"
             defaultValue={client.profitPercent ?? ""}
             placeholder="если работаем за процент"
           />

@@ -110,7 +110,8 @@ export default function ReportForm({
         : undefined
     ),
   ]);
-  const [rate, setRate] = useState(DEFAULTS.usdRate);
+  const [rateText, setRateText] = useState(String(DEFAULTS.usdRate));
+  const rate = parseFloat(rateText.replace(",", ".")) || 0;
 
   // Скриншот кабинета: файл держим напрямую в input (через DataTransfer, чтобы
   // форма отправила его как обычную загрузку), а превью — отдельно в state.
@@ -444,10 +445,13 @@ export default function ReportForm({
                 <label className="label !mb-0">Курс USD</label>
                 <input
                   className="input !py-1.5 w-28"
-                  type="number"
-                  step="0.01"
-                  value={rate}
-                  onChange={(e) => setRate(Number(e.target.value) || 0)}
+                  type="text"
+                  inputMode="decimal"
+                  value={rateText}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    if (v === "" || /^\d*[.,]?\d*$/.test(v)) setRateText(v);
+                  }}
                 />
               </>
             )}

@@ -5,6 +5,7 @@ import { som, monthKey, monthLabel } from "@/lib/format";
 import { Avatar } from "@/components/ui";
 import FormModal from "@/components/FormModal";
 import Select from "@/components/Select";
+import DecimalInput from "@/components/DecimalInput";
 
 type Member = {
   id: string;
@@ -91,14 +92,7 @@ export default function MembersBlock({
         </div>
         <div>
           <label className="label">Значение</label>
-          <input
-            className="input"
-            name="rate"
-            type="number"
-            min="0"
-            step="any"
-            placeholder="34 или 15000"
-          />
+          <DecimalInput name="rate" placeholder="34 или 15000" />
         </div>
         <div>
           <label className="label">Ставка действует с месяца</label>
@@ -241,11 +235,8 @@ export default function MembersBlock({
                                 <option value="PERCENT">%</option>
                                 <option value="FIXED">фикс</option>
                               </select>
-                              <input
+                              <DecimalInput
                                 name="rate"
-                                type="number"
-                                min="0"
-                                step="any"
                                 required
                                 placeholder="ставка"
                                 className="input !w-20 !px-2 !py-1 !text-[11px]"

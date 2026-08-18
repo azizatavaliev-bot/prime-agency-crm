@@ -30,8 +30,9 @@ function str(fd: FormData, k: string) {
 function req(fd: FormData, k: string) {
   return String(fd.get(k) ?? "").trim();
 }
+/** Число из формы. Запятая — тоже десятичный разделитель: не все печатают через точку. */
 function n(fd: FormData, k: string) {
-  return Number(String(fd.get(k) ?? "0").replace(/\s/g, "")) || 0;
+  return Number(String(fd.get(k) ?? "0").replace(/\s/g, "").replace(",", ".")) || 0;
 }
 function date(fd: FormData, k: string) {
   const v = str(fd, k);

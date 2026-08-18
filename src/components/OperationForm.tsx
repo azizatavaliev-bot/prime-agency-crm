@@ -59,7 +59,10 @@ export default function OperationForm({
   users: { id: string; name: string }[];
 }) {
   const [kind, setKind] = useState<"INCOME" | "EXPENSE">("INCOME");
-  const [amount, setAmount] = useState(0);
+  // Текст как есть (запятая/точка) — число для расчёта «останется» парсим отдельно,
+  // иначе дробная часть слетает при каждом нажатии клавиши.
+  const [amountText, setAmountText] = useState("");
+  const amount = parseFloat(amountText.replace(",", ".")) || 0;
   const [accountId, setAccountId] = useState(accounts[0]?.id ?? "");
   const [category, setCategory] = useState(incomeCategories[0]?.key ?? "");
 
@@ -124,13 +127,16 @@ export default function OperationForm({
               isExpense ? "text-red-700" : "text-emerald-700"
             }`}
             name="amount"
-            type="number"
-            step="0.01"
-            min="0"
+            type="text"
+            inputMode="decimal"
             required
             autoFocus
             placeholder="0"
-            onChange={(e) => setAmount(Number(e.target.value) || 0)}
+            value={amountText}
+            onChange={(e) => {
+              const v = e.target.value;
+              if (v === "" || /^\d*[.,]?\d*$/.test(v)) setAmountText(v);
+            }}
           />
           <span className="shrink-0 text-lg font-medium text-muted">сом</span>
         </div>

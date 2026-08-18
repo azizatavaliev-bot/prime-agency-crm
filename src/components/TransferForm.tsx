@@ -16,7 +16,7 @@ export default function TransferForm({ accounts }: { accounts: Acc[] }) {
 
   const from = accounts.find((a) => a.id === fromId);
   const to = accounts.find((a) => a.id === toId);
-  const sum = Number(amount) || 0;
+  const sum = parseFloat(amount.replace(",", ".")) || 0;
 
   const sameAccount = fromId === toId;
   const notEnough = from ? sum > from.balance : false;
@@ -70,12 +70,14 @@ export default function TransferForm({ accounts }: { accounts: Acc[] }) {
           <input
             className="input"
             name="amount"
-            type="number"
-            min="0"
-            step="any"
+            type="text"
+            inputMode="decimal"
             required
             value={amount}
-            onChange={(e) => setAmount(e.target.value)}
+            onChange={(e) => {
+              const v = e.target.value;
+              if (v === "" || /^\d*[.,]?\d*$/.test(v)) setAmount(v);
+            }}
           />
         </div>
         <div>

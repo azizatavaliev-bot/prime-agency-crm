@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { reportMetrics } from "@/lib/finance";
 import { saveClientFeedback } from "@/lib/actions";
 import { som, dateRu } from "@/lib/format";
+import DecimalInput from "@/components/DecimalInput";
 
 export const dynamic = "force-dynamic";
 
@@ -74,15 +75,7 @@ export default async function PortalReportPage({ params }: { params: Promise<{ i
             </div>
             <div>
               <label className="label">Конверсия в продажу, %</label>
-              <input
-                className="input"
-                name="clientConversion"
-                type="number"
-                min="0"
-                max="100"
-                step="any"
-                defaultValue={r.clientConversion ?? ""}
-              />
+              <DecimalInput name="clientConversion" defaultValue={r.clientConversion ?? ""} />
             </div>
             <div>
               <label className="label">Качество лидов (1–5)</label>

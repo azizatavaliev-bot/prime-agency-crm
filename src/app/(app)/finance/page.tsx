@@ -18,6 +18,7 @@ import {
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { can } from "@/lib/access";
+import DecimalInput from "@/components/DecimalInput";
 import { accountBalances, cashflow } from "@/lib/accounts";
 import {
   saveAccount,
@@ -140,15 +141,12 @@ export default async function FinancePage({
       </div>
       <div>
         <label className="label">Начальный остаток, сом</label>
-        <input className="input" name="opening" type="number" step="any" defaultValue={a?.opening ?? 0} />
+        <DecimalInput name="opening" defaultValue={a?.opening ?? 0} />
       </div>
       <div>
         <label className="label">Минимальный остаток, сом</label>
-        <input
-          className="input"
+        <DecimalInput
           name="minBalance"
-          type="number"
-          step="any"
           defaultValue={a?.minBalance ?? ""}
           placeholder="предупредим, если ниже"
         />
