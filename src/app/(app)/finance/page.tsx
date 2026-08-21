@@ -162,7 +162,8 @@ export default async function FinancePage({
         <label className="label">Заметка</label>
         <input className="input" name="note" defaultValue={a?.note ?? ""} />
       </div>
-      <div className="flex items-end">
+      {/* Галочка на всю строку: одна в колонке она смотрелась обрывком ряда */}
+      <div className="flex items-end sm:col-span-2">
         <label className="flex items-center gap-2 text-sm">
           <input type="checkbox" name="active" defaultChecked={a?.active ?? true} /> Активен
         </label>

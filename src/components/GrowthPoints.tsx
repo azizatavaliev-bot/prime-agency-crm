@@ -55,7 +55,8 @@ function snapshotForm(clientId: string, type: "POINT_A" | "POINT_B", snap?: Snap
           <label className="label">Выручка клиента, сом</label>
           <DecimalInput name="revenue" defaultValue={snap?.revenue ?? ""} />
         </div>
-        <div>
+        {/* Пятое поле в двухколоночном ряду — тянем на всю строку, чтобы справа не зияло пусто */}
+        <div className="sm:col-span-2">
           <label className="label">Конверсия в продажу, %</label>
           <DecimalInput name="conversion" defaultValue={snap?.conversion ?? ""} />
         </div>

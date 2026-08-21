@@ -512,6 +512,39 @@ input:focus-visible + .chip-toggle {
 
 }
 
+/* Окно центрируется по рабочей области, а не по всему экрану: слева стоит
+   меню шириной 16rem, и без этой поправки модалка визуально уезжала влево.
+   Портал живёт в body, поэтому наличие меню проверяем через :has. */
+@media (min-width: 1024px) {
+  body:has(.app-shell) .modal-root {
+    padding-left: 16rem;
+  }
+}
+
+/* Последнее поле дотягивается до края, если ряд неполный: иначе справа
+   остаётся пустая колонка и форма выглядит съехавшей влево.
+   :nth-child(odd) у последнего = полей нечётное число. */
+@media (min-width: 640px) {
+  .fill-last-row.sm\:grid-cols-2 > *:last-child:nth-child(odd) {
+    grid-column: span 2;
+  }
+  .fill-last-row.sm\:grid-cols-3 > *:last-child:nth-child(3n + 1) {
+    grid-column: span 3;
+  }
+  .fill-last-row.sm\:grid-cols-3 > *:last-child:nth-child(3n + 2) {
+    grid-column: span 2;
+  }
+}
+/* Тот же приём для сеток, которые на широком экране разъезжаются на три колонки */
+@media (min-width: 1024px) {
+  .fill-last-row.lg\:grid-cols-3 > *:last-child:nth-child(3n + 1) {
+    grid-column: span 3;
+  }
+  .fill-last-row.lg\:grid-cols-3 > *:last-child:nth-child(3n + 2) {
+    grid-column: span 2;
+  }
+}
+
 /* «стеклянная» шапка модалки */
 .modal-head {
   background: color-mix(in srgb, var(--surface) 92%, transparent);

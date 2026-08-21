@@ -26,6 +26,23 @@ import { toInputDate } from "@/lib/format";
 
 type Opt = { key: string; name: string };
 
+/**
+ * Частые назначения по категории: руками одно и то же печатать долго,
+ * а формулировки в журнале должны быть одинаковые — иначе поиск не работает.
+ */
+const TITLE_HINTS: Record<string, string[]> = {
+  CLIENT: ["Абонплата за месяц", "Доплата за месяц", "Разовая услуга"],
+  REFUND: ["Возврат от подрядчика", "Возврат за сервис"],
+  PARTNER: ["Партнёрская комиссия за рекомендацию"],
+  OWN: ["Пополнение кассы"],
+  ADS: ["Пополнение рекламного кабинета", "Продвижение постов"],
+  SALARY: ["Зарплата за месяц", "Аванс", "Бонус"],
+  SUBSCRIPTION: ["Подписка на сервис", "Продление домена"],
+  OFFICE: ["Аренда офиса", "Интернет и связь", "Хозрасходы"],
+  TAX: ["Налог", "Патент", "Соцфонд"],
+  EDU: ["Обучение команды", "Курс для сотрудника"],
+};
+
 /** Иконка категории: список глазами читается быстрее, чем строкой текста. */
 const CATEGORY_ICON: Record<string, LucideIcon> = {
   ADS: Megaphone,
@@ -65,6 +82,8 @@ export default function OperationForm({
   const amount = parseFloat(amountText.replace(",", ".")) || 0;
   const [accountId, setAccountId] = useState(accounts[0]?.id ?? "");
   const [category, setCategory] = useState(incomeCategories[0]?.key ?? "");
+  // Назначение держим в состоянии — подсказки должны подставляться в поле
+  const [title, setTitle] = useState("");
 
   const isExpense = kind === "EXPENSE";
   const cats = isExpense ? expenseCategories : incomeCategories;
@@ -77,7 +96,7 @@ export default function OperationForm({
       <input type="hidden" name="kind" value={kind} />
 
       {/* Переключатель типа — задаёт смысл всей формы */}
-      <div className="grid grid-cols-2 gap-2 rounded-2xl bg-subtle p-1">
+      <div className="grid grid-cols-2 gap-1.5 rounded-2xl bg-subtle p-1.5">
         {(
           [
             { key: "INCOME", label: "Доход", icon: TrendingUp },
@@ -97,12 +116,14 @@ export default function OperationForm({
                 const next = t.key === "EXPENSE" ? expenseCategories : incomeCategories;
                 setCategory(next[0]?.key ?? "");
               }}
-              className={`flex items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-sm font-medium transition ${
+              /* focus-visible:ring-inset — обычная рамка фокуса вылезала
+                 за край серой подложки и кнопка выглядела кривой */
+              className={`flex items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-sm font-medium outline-none transition focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[color:var(--accent)] ${
                 active
                   ? t.key === "INCOME"
                     ? "bg-emerald-500 text-white shadow-sm"
                     : "bg-red-500 text-white shadow-sm"
-                  : "text-muted hover:text-zinc-900"
+                  : "text-muted hover:bg-subtle hover:text-zinc-900"
               }`}
             >
               <Icon size={16} /> {t.label}
@@ -147,13 +168,6 @@ export default function OperationForm({
         )}
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div>
-          <label className="label">Дата</label>
-          <DatePicker name="when" defaultValue={toInputDate(new Date())} required />
-        </div>
-      </div>
-
       {/* Категории кнопками с иконками: их немного, и выбор глазами быстрее списка */}
       <div>
         <label className="label">Категория</label>
@@ -187,11 +201,36 @@ export default function OperationForm({
         <input
           className="input"
           name="title"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
           placeholder={isExpense ? "За что платим" : "За что получили"}
         />
+        {/* Готовые формулировки под выбранную категорию — один клик вместо набора */}
+        {(TITLE_HINTS[category] ?? []).length > 0 && (
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {(TITLE_HINTS[category] ?? []).map((h) => (
+              <button
+                key={h}
+                type="button"
+                onClick={() => setTitle(h)}
+                className={`chip transition ${
+                  title === h
+                    ? "border-transparent bg-zinc-900 text-white"
+                    : "border-zinc-200 text-muted hover:bg-subtle"
+                }`}
+              >
+                {h}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2">
+        <div>
+          <label className="label">Дата</label>
+          <DatePicker name="when" defaultValue={toInputDate(new Date())} required />
+        </div>
         <div>
           <label className="label">Клиент (необязательно)</label>
           <Select
@@ -204,7 +243,7 @@ export default function OperationForm({
           />
         </div>
         {isExpense && (
-          <div>
+          <div className="sm:col-span-2">
             <label className="label">Кому платим</label>
             <Select
               name="userId"
@@ -218,27 +257,36 @@ export default function OperationForm({
         )}
       </div>
 
-      {/* Счёт кнопками: их мало, выпадающий список тут только мешает */}
+      {/* Счёт карточками: мелкими чипами было не разобрать, куда уходят деньги,
+          поэтому показываем ещё и остаток по каждому счёту */}
       <div>
-        <label className="label flex items-center gap-1.5">
-          <Landmark size={13} /> Счёт
+        {/* Иконка inline-block: у .label задан display:block, и flex на нём не работает */}
+        <label className="label">
+          <Landmark size={13} className="mr-1.5 inline-block align-[-2px]" />
+          Счёт
         </label>
         <input type="hidden" name="accountId" value={accountId} />
-        <div className="flex flex-wrap gap-2">
-          {accounts.map((a) => (
-            <button
-              key={a.id}
-              type="button"
-              onClick={() => setAccountId(a.id)}
-              className={`chip transition ${
-                accountId === a.id
-                  ? "accent-gradient border-transparent text-white"
-                  : "border-zinc-200 text-muted hover:bg-subtle"
-              }`}
-            >
-              {a.name}
-            </button>
-          ))}
+        <div className="grid gap-2 sm:grid-cols-3">
+          {accounts.map((a) => {
+            const on = accountId === a.id;
+            return (
+              <button
+                key={a.id}
+                type="button"
+                onClick={() => setAccountId(a.id)}
+                className={`rounded-2xl border px-3 py-2.5 text-left outline-none transition focus-visible:ring-2 focus-visible:ring-[color:var(--accent)] ${
+                  on
+                    ? "accent-gradient border-transparent text-white shadow-sm"
+                    : "border-zinc-200 hover:bg-subtle"
+                }`}
+              >
+                <div className="truncate text-sm font-medium">{a.name}</div>
+                <div className={`mt-0.5 text-xs ${on ? "text-white/80" : "text-muted"}`}>
+                  {som(a.balance)}
+                </div>
+              </button>
+            );
+          })}
         </div>
         {account && amount > 0 && (
           <div className={`mt-2 text-xs ${notEnough ? "text-red-600" : "text-muted"}`}>

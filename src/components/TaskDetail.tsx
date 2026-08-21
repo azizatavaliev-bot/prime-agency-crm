@@ -77,7 +77,9 @@ export default function TaskDetail({
   return (
     <div className="grid gap-4 lg:grid-cols-2">
       <div className="space-y-4">
-        <div className="grid gap-4 rounded-2xl border border-zinc-200 p-4 sm:grid-cols-2">
+        {/* Полей переменное число (повтор и описание есть не у всех задач) —
+            fill-last-row дотягивает последнее, чтобы ряд не обрывался */}
+        <div className="fill-last-row grid gap-4 rounded-2xl border border-zinc-200 p-4 sm:grid-cols-2">
           <Field label="Ответственный" value={task.assigneeName ?? "не назначен"} />
           <Field label="Клиент" value={task.clientName ?? "—"} />
           <Field label="Дедлайн" value={task.dueAtLabel} />

@@ -125,9 +125,18 @@ export function Table({ head, children }: { head: string[]; children: React.Reac
 
 /* ---------- элементы карточек внутри модалок ---------- */
 
-export function Field({ label, value }: { label: string; value: React.ReactNode }) {
+export function Field({
+  label,
+  value,
+  /** Растянуть на всю строку: для длинных значений и чтобы не оставлять дырку в ряду. */
+  wide = false,
+}: {
+  label: string;
+  value: React.ReactNode;
+  wide?: boolean;
+}) {
   return (
-    <div>
+    <div className={wide ? "sm:col-span-2" : undefined}>
       <div className="field-label">{label}</div>
       <div className="field-value">{value ?? "—"}</div>
     </div>

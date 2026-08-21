@@ -124,22 +124,31 @@ export default function UserForm({
             placeholder="name@prime.kg"
           />
         </div>
-        <PasswordField isNew={!member} />
+        {/* Пароль на всю ширину: полей нечётное число, иначе он висел половинкой слева,
+            а рядом с ним ещё четыре кнопки — узкая колонка их сжимала */}
+        <div className="sm:col-span-2">
+          <PasswordField isNew={!member} />
+        </div>
       </div>
 
       {/* Роль карточками: сразу понятно, что человек увидит в системе */}
       <div>
         <div className="label">Роль и доступ</div>
         <div className="grid gap-2 sm:grid-cols-2">
-          {Object.entries(ROLE_META).map(([key, meta]) => {
+          {Object.entries(ROLE_META).map(([key, meta], i, all) => {
             const Icon = meta.icon;
             const active = role === key;
+            // Ролей нечётное число — последнюю тянем на всю строку, иначе она
+            // висит одинокой половинкой и ряд выглядит оборванным
+            const wide = i === all.length - 1 && all.length % 2 === 1;
             return (
               <button
                 key={key}
                 type="button"
                 onClick={() => setRole(key)}
                 className={`flex items-start gap-2.5 rounded-xl border p-3 text-left transition ${
+                  wide ? "sm:col-span-2" : ""
+                } ${
                   active
                     ? "accent-soft border-transparent ring-2 ring-[var(--accent)]"
                     : "border-zinc-200 hover:bg-subtle"
@@ -165,11 +174,10 @@ export default function UserForm({
       {role !== "OWNER" && (
         <div className="rounded-2xl border border-zinc-200 p-4">
           <div className="mb-3 text-sm font-medium">Фикс-оклад</div>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div>
-              <label className="label">Оклад за месяц, сом</label>
-              <DecimalInput name="baseSalary" defaultValue={member?.baseSalary ?? 0} placeholder="0" />
-            </div>
+          {/* Поле одно — грид на две колонки оставлял справа пустое место */}
+          <div>
+            <label className="label">Оклад за месяц, сом</label>
+            <DecimalInput name="baseSalary" defaultValue={member?.baseSalary ?? 0} placeholder="0" />
           </div>
           <div className="mt-2 text-xs text-muted">
             Платится каждый месяц независимо от проектов. Оставьте 0, если человек получает только

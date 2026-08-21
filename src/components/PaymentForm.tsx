@@ -57,10 +57,11 @@ export default function PaymentForm({
   return (
     <form action={savePayment} className="space-y-4">
       {payment && <input type="hidden" name="id" value={payment.id} />}
+      {/* Скрытое поле держим вне секции: внутри грида оно считалось ячейкой,
+          и ряд «Тип / Сумма / Статус» оставался с дыркой справа */}
+      {fixedClientId && <input type="hidden" name="clientId" value={fixedClientId} />}
       <FormSection title="Что оплачивают" icon={Wallet}>
-        {fixedClientId ? (
-          <input type="hidden" name="clientId" value={fixedClientId} />
-        ) : (
+        {!fixedClientId && (
           <div>
             <label className="label">Клиент *</label>
             <Select

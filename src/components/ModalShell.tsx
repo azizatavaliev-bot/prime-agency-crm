@@ -72,7 +72,7 @@ export default function ModalShell({
 
   return createPortal(
     <div
-      className="fixed inset-0 flex items-end justify-center sm:items-center"
+      className="modal-root fixed inset-0 flex items-end justify-center sm:items-center"
       style={{ zIndex: z }}
       role="dialog"
       aria-modal="true"

@@ -163,7 +163,9 @@ export default function TaskForm({
             />
           </div>
         )}
-        <div>
+        {/* Когда задачу заводят из карточки клиента, поля «Клиент» нет — и
+            «Ответственный» оставался одинокой половинкой слева */}
+        <div className={fixedClientId ? "sm:col-span-2" : ""}>
           <label className="label">
             Ответственный
             {!assigneeTouched && assigneeId && <span className="ml-1 text-[10px] text-muted">(по проекту)</span>}

@@ -210,10 +210,10 @@ export default function ReportForm({
   return (
     <form action={saveReport} className="space-y-4">
       {report && <input type="hidden" name="id" value={report.id} />}
+      {/* Скрытое поле вне секции: внутри грида оно занимало ячейку и ломало ряд */}
+      {fixedClientId && <input type="hidden" name="clientId" value={fixedClientId} />}
       <FormSection title="Проект и период" icon={CalendarRange}>
-        {fixedClientId ? (
-          <input type="hidden" name="clientId" value={fixedClientId} />
-        ) : (
+        {!fixedClientId && (
           <div className="sm:col-span-2">
             <label className="label">Проект *</label>
             <Select

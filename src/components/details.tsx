@@ -301,7 +301,7 @@ export function ClientModal({
               content: (
                 <div className="space-y-4">
                         <Section title="Данные проекта" icon={UserIcon}>
-                          <div className="grid gap-4 rounded-2xl border border-zinc-200 p-4 sm:grid-cols-2 lg:grid-cols-3">
+                          <div className="fill-last-row grid gap-4 rounded-2xl border border-zinc-200 p-4 sm:grid-cols-2 lg:grid-cols-3">
                             <Field label="Контакт" value={client.contact || "—"} />
                             <Field label="Таргетолог" value={client.targetolog?.name ?? "не назначен"} />
                             <Field label="Аккаунт-менеджер" value={client.account?.name ?? "—"} />
@@ -712,12 +712,12 @@ export function PaymentModal({
       </div>
 
       <Section title="Детали платежа" icon={Wallet}>
-        <div className="grid gap-4 rounded-2xl border border-zinc-200 p-4 sm:grid-cols-2">
+        <div className="fill-last-row grid gap-4 rounded-2xl border border-zinc-200 p-4 sm:grid-cols-2">
           <Field label="Плановая дата" value={dateRu(payment.dueAt)} />
           <Field label="Метод" value={PAYMENT_METHOD[payment.method as keyof typeof PAYMENT_METHOD]} />
           <Field label="Месяц выручки" value={payment.periodMonth} />
           <Field label="Счёт" value={payment.account?.name ?? "не указан"} />
-          <Field label="Комментарий" value={payment.comment || "—"} />
+          <Field label="Комментарий" value={payment.comment || "—"} wide />
         </div>
       </Section>
 
@@ -819,7 +819,7 @@ export function ReportModal({
       </div>
 
       <Section title="Пороги решения и связки" icon={Target}>
-        <div className="grid gap-4 rounded-2xl border border-zinc-200 p-4 sm:grid-cols-2">
+        <div className="fill-last-row grid gap-4 rounded-2xl border border-zinc-200 p-4 sm:grid-cols-2">
           <Field label="Рекламный бюджет" value={som(report.budget)} />
           <Field label="Целевых действий" value={String(report.actions)} />
           <Field label="Целевой CPL" value={targetCplLabel(report.targetCpl)} />
@@ -913,7 +913,7 @@ export function TaskModal({
         </Badge>
       }
     >
-      <div className="grid gap-4 rounded-2xl border border-zinc-200 p-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="fill-last-row grid gap-4 rounded-2xl border border-zinc-200 p-4 sm:grid-cols-2 lg:grid-cols-3">
         <Field label="Ответственный" value={task.assignee?.name ?? "не назначен"} />
         <Field label="Дедлайн" value={dateRu(task.dueAt)} />
         <Field
@@ -1190,14 +1190,14 @@ export function ExpenseModal({
       </div>
 
       <Section title="Детали расхода" icon={Wallet}>
-        <div className="grid gap-4 rounded-2xl border border-zinc-200 p-4 sm:grid-cols-2">
+        <div className="fill-last-row grid gap-4 rounded-2xl border border-zinc-200 p-4 sm:grid-cols-2">
           <Field label="Категория" value={<ExpenseCategoryBadge category={expense.category} />} />
           <Field label="Способ оплаты" value={EXPENSE_METHOD[expense.method as keyof typeof EXPENSE_METHOD]} />
           <Field label="Месяц учёта" value={expense.periodMonth} />
           <Field label="Получатель" value={expense.user?.name ?? "—"} />
           <Field label="Счёт" value={expense.account?.name ?? "не указан"} />
           <Field label="Проект" value={expense.client?.name ?? "расход агентства"} />
-          <Field label="Комментарий" value={expense.comment || "—"} />
+          <Field label="Комментарий" value={expense.comment || "—"} wide />
         </div>
       </Section>
 

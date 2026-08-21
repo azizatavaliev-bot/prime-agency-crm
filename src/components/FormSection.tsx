@@ -31,7 +31,9 @@ export default function FormSection({
           {hint && <div className="mt-1 text-xs leading-relaxed text-muted">{hint}</div>}
         </div>
       </div>
-      <div className={`grid gap-x-4 gap-y-4 ${cols}`}>{children}</div>
+      {/* fill-last-row: часть полей условная (клиент, дата факт. оплаты), и при
+          нечётном их числе последнее висело половинкой — теперь дотягивается */}
+      <div className={`grid fill-last-row gap-x-4 gap-y-4 ${cols}`}>{children}</div>
     </section>
   );
 }

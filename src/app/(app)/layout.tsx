@@ -51,7 +51,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   items.push({ href: "/profile", label: "Профиль", icon: "profile", group: "Управление" });
 
   return (
-    <div className="lg:flex min-h-screen">
+    <div className="app-shell lg:flex min-h-screen">
       <Nav items={items} user={{ name: user.name, roleLabel: ROLES[user.role] }} unread={unread} />
       <main className="min-w-0 flex-1">
         {user.impersonating && (
