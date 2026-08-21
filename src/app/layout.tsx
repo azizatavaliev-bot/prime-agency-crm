@@ -43,6 +43,7 @@ export const viewport: Viewport = {
 const themeScript = `
 try {
   var t = localStorage.getItem('prime-theme') || 'system';
+  var tint = localStorage.getItem('prime-tint') || 'neutral';
   var mq = window.matchMedia('(prefers-color-scheme: dark)');
   var apply = function () {
     var dark = t === 'dark' || (t === 'system' && mq.matches);
@@ -50,6 +51,8 @@ try {
   };
   apply();
   if (t === 'system') mq.addEventListener('change', apply);
+  document.documentElement.classList.toggle('tint-warm', tint === 'warm');
+  document.documentElement.classList.toggle('tint-cool', tint === 'cool');
 } catch (e) {}
 `;
 

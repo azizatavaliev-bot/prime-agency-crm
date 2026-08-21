@@ -1,4 +1,4 @@
-import { Send, Link2, Unlink, Info, HandCoins, KeyRound } from "lucide-react";
+import { Send, Link2, Unlink, Info, HandCoins, KeyRound, Palette } from "lucide-react";
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { createTgLinkCode, unlinkTelegram } from "@/lib/actions";
@@ -8,6 +8,7 @@ import { ROLES } from "@/lib/constants";
 import { som, dateRu, monthKey, monthLabel } from "@/lib/format";
 import { PageHeader, Field, Section } from "@/components/ui";
 import ChangePassword from "@/components/ChangePassword";
+import ThemeToggle from "@/components/ThemeToggle";
 
 export const dynamic = "force-dynamic";
 
@@ -113,6 +114,12 @@ export default async function ProfilePage({
           </div>
         </Section>
       )}
+
+      <Section title="Оформление" icon={Palette}>
+        <div className="card p-4">
+          <ThemeToggle />
+        </div>
+      </Section>
 
       <Section title="Пароль" icon={KeyRound}>
         <ChangePassword error={sp.error} changed={sp.changed === "1"} />
