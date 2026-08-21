@@ -109,7 +109,7 @@ export default async function GoalsSettingsPage() {
         </div>
 
         <div className="mt-3 flex flex-wrap gap-2">
-          <Link href="/analytics" className="btn-ghost">
+          <Link href="/finance?tab=analytics" className="btn-ghost">
             <ExternalLink size={15} /> Выполнение целей в «Аналитике»
           </Link>
           <Link href="/settings/rules" className="btn-ghost">

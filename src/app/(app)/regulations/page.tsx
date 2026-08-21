@@ -31,20 +31,21 @@ export default async function RegulationsPage() {
   const isOwner = user.role === "SUPER_ADMIN";
 
   // Сотрудник видит только свои зоны — чужие обязанности ему не нужны.
-  const all = await prisma.regulation.findMany({
-    where: { active: true },
-    include: { owner: { select: { id: true, name: true } } },
-    orderBy: [{ order: "asc" }, { title: "asc" }],
-  });
+  const [all, users] = await Promise.all([
+    prisma.regulation.findMany({
+      where: { active: true },
+      include: { owner: { select: { id: true, name: true } } },
+      orderBy: [{ order: "asc" }, { title: "asc" }],
+    }),
+    prisma.user.findMany({
+      where: { active: true },
+      select: { id: true, name: true, role: true },
+      orderBy: { name: "asc" },
+    }),
+  ]);
   const regs = isOwner
     ? all
     : all.filter((r) => r.ownerId === user.id || r.assignees.split(",").includes(user.id));
-
-  const users = await prisma.user.findMany({
-    where: { active: true },
-    select: { id: true, name: true, role: true },
-    orderBy: { name: "asc" },
-  });
   const nameById = new Map(users.map((u) => [u.id, u.name]));
 
   const parsed = regs.map((r) => {

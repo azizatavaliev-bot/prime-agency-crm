@@ -36,27 +36,47 @@ export default async function TasksPage({
   const filterAssigneeId = sp.assigneeId || "";
   const filterClientId = sp.clientId || "";
 
-  const rows = await prisma.task.findMany({
-    where: {
-      AND: [
-        taskScope(user),
-        { board },
-        showArchived ? { NOT: { archivedAt: null } } : { archivedAt: null },
-        filterAssigneeId ? { assigneeId: filterAssigneeId } : {},
-        filterClientId ? { clientId: filterClientId } : {},
-      ],
-    },
-    include: {
-      client: { select: { id: true, name: true } },
-      assignee: { select: { name: true } },
-      checklist: { orderBy: { order: "asc" } },
-      comments: {
-        orderBy: { createdAt: "asc" },
-        include: { user: { select: { name: true } } },
-      },
-    },
-    orderBy: { createdAt: "desc" },
-  });
+  // Ни один из этих запросов не зависит от результата другого — гоним разом
+  const [rows, targetStages, devStages, videoStages, tagList, stagesRaw, clients, users, templates] =
+    await Promise.all([
+      prisma.task.findMany({
+        where: {
+          AND: [
+            taskScope(user),
+            { board },
+            showArchived ? { NOT: { archivedAt: null } } : { archivedAt: null },
+            filterAssigneeId ? { assigneeId: filterAssigneeId } : {},
+            filterClientId ? { clientId: filterClientId } : {},
+          ],
+        },
+        include: {
+          client: { select: { id: true, name: true } },
+          assignee: { select: { name: true } },
+          checklist: { orderBy: { order: "asc" } },
+          comments: {
+            orderBy: { createdAt: "asc" },
+            include: { user: { select: { name: true } } },
+          },
+        },
+        orderBy: { createdAt: "desc" },
+      }),
+      dict("STAGE_TARGET"),
+      dict("STAGE_DEV"),
+      dict("STAGE_VIDEO"),
+      dict("TASK_TAG"),
+      stagesOf(board),
+      prisma.client.findMany({
+        where: clientScope(user),
+        select: { id: true, name: true, targetologId: true, accountId: true },
+        orderBy: { name: "asc" },
+      }),
+      prisma.user.findMany({ where: { active: true }, select: { id: true, name: true, role: true } }),
+      prisma.taskTemplate.findMany({
+        where: { active: true },
+        include: { _count: { select: { items: true } } },
+        orderBy: [{ order: "asc" }, { name: "asc" }],
+      }),
+    ]);
 
   // Подстраховка: если у какой-то задачи остался старый (до упрощения) этап
   // доски «Таргет», не даём ей пропасть с доски — переносим в новую схему на лету.
@@ -64,34 +84,13 @@ export default async function TasksPage({
     if (t.board === "TARGET") t.stage = normalizeTargetStage(t.stage);
   }
   const sorted = sortTasks(rows);
-  const [targetStages, devStages, videoStages, tagList] = await Promise.all([
-    dict("STAGE_TARGET"),
-    dict("STAGE_DEV"),
-    dict("STAGE_VIDEO"),
-    dict("TASK_TAG"),
-  ]);
   const stagesByBoard: Record<string, { key: string; name: string }[]> = {
     TARGET: targetStages,
     DEV: devStages,
     VIDEO: videoStages,
   };
-  const stages: [string, string][] = (await stagesOf(board)).map((s) => [s.key, s.name]);
+  const stages: [string, string][] = stagesRaw.map((s) => [s.key, s.name]);
   const tagLabels = Object.fromEntries(tagList.map((t) => [t.key, t.name]));
-
-  const [clients, users] = await Promise.all([
-    prisma.client.findMany({
-      where: clientScope(user),
-      select: { id: true, name: true, targetologId: true, accountId: true },
-      orderBy: { name: "asc" },
-    }),
-    prisma.user.findMany({ where: { active: true }, select: { id: true, name: true, role: true } }),
-  ]);
-
-  const templates = await prisma.taskTemplate.findMany({
-    where: { active: true },
-    include: { _count: { select: { items: true } } },
-    orderBy: [{ order: "asc" }, { name: "asc" }],
-  });
 
   const cards: TaskCardData[] = sorted.map((t) => ({
     id: t.id,

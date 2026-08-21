@@ -125,7 +125,7 @@ export default async function BonusRulesPage() {
           ))}
         </div>
         <div className="mt-3">
-          <Link href="/payroll" className="btn-ghost">
+          <Link href="/team?tab=payroll" className="btn-ghost">
             <ExternalLink size={15} /> Открыть ведомость зарплат
           </Link>
         </div>

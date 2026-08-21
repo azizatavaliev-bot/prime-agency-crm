@@ -1,4 +1,5 @@
 import "server-only";
+import { cache } from "react";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { SignJWT, jwtVerify } from "jose";
@@ -179,7 +180,12 @@ export async function logout() {
   jar.delete(COOKIE);
 }
 
-export async function getSession(): Promise<SessionUser | null> {
+/**
+ * cache() дедуплицирует вызов в рамках одного запроса: layout и страница
+ * оба зовут requireUser(), и без этого юзер читался из базы дважды на
+ * каждую навигацию.
+ */
+export const getSession = cache(async (): Promise<SessionUser | null> => {
   const jar = await cookies();
   const token = jar.get(COOKIE)?.value;
   if (!token || !secretConfigured()) return null;
@@ -217,7 +223,7 @@ export async function getSession(): Promise<SessionUser | null> {
   } catch {
     return null;
   }
-}
+});
 
 /**
  * Админ смотрит интерфейс глазами сотрудника: выдаём токен на личность

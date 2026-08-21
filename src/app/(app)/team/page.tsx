@@ -1,184 +1,64 @@
-import Link from "next/link";
-import { UserPlus, Users, HandCoins, Eye } from "lucide-react";
+import { UserPlus } from "lucide-react";
 import { requireUser } from "@/lib/auth";
-import { prisma } from "@/lib/prisma";
-import { getShares } from "@/lib/finance";
-import { saveUser, payoutTeam, impersonateUser } from "@/lib/actions";
-
-import { ROLES } from "@/lib/constants";
-import { can } from "@/lib/access";
 import { redirect } from "next/navigation";
-import { som, monthKey } from "@/lib/format";
-import { PageHeader, Table, Badge } from "@/components/ui";
+import { can } from "@/lib/access";
+import { PageHeader } from "@/components/ui";
 import FormModal from "@/components/FormModal";
-import { TeamModal } from "@/components/details";
 import UserForm from "@/components/UserForm";
-import ShareAccess from "@/components/ShareAccess";
+import TeamTabs from "@/components/TeamTabs";
+import { getShares } from "@/lib/finance";
+import MembersTab from "./_tabs/MembersTab";
+import PayrollTab from "./_tabs/PayrollTab";
 
 export const dynamic = "force-dynamic";
 
-export default async function TeamPage() {
+/**
+ * «Команда» и «Зарплаты» — раньше два разных пункта меню про одних и тех же
+ * людей. Теперь одна страница с вкладками, как в «Финансах»: список
+ * сотрудников и ведомость на выплату лежат рядом.
+ */
+export default async function TeamPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ tab?: string; month?: string; error?: string }>;
+}) {
   const me = await requireUser();
   // Раньше страница была доступна только супер-админу — но действия команды
   // (saveUser, impersonateUser) уже разрешены и админу через can.manageTeam,
   // так что и сама страница должна открываться ему, иначе кнопка «Войти как»
   // была бы недостижима.
   if (!can.manageTeam(me)) redirect("/no-access");
-  const shares = await getShares();
 
-  const users = await prisma.user.findMany({
-    include: {
-      clientsAsTargetolog: true,
-      clientsAsAccount: true,
-      tasks: { include: { client: true } },
-      employeeNotes: { include: { author: true }, orderBy: { createdAt: "desc" } },
-    },
-    orderBy: { createdAt: "asc" },
-  });
-  const mk = monthKey();
-  const payouts = await prisma.payment.groupBy({
-    by: ["execUserId"],
-    where: { periodMonth: mk, status: "PAID" },
-    _sum: { execShare: true },
-  });
-  const payoutMap = Object.fromEntries(payouts.map((p) => [p.execUserId, p._sum.execShare ?? 0]));
-  const paidOut = await prisma.expense.groupBy({
-    by: ["userId"],
-    where: { periodMonth: mk, category: "SALARY" },
-    _sum: { amount: true },
-  });
-  const paidOutMap = Object.fromEntries(paidOut.map((p) => [p.userId, p._sum.amount ?? 0]));
-  const activeStatuses = ["TEST", "ACTIVE", "RISK"];
-  // Адрес системы попадает в сообщение сотруднику
-  const appUrl = process.env.APP_URL || "http://localhost:5210";
+  const sp = await searchParams;
+  const canSeePayroll = me.role === "SUPER_ADMIN";
+  const tab = sp.tab === "payroll" && canSeePayroll ? "payroll" : "members";
+
+  // Нужен только на вкладке «Сотрудники» (лимит проектов и кнопка добавления) — не тянем зря на «Зарплатах».
+  const shares = tab === "members" ? await getShares() : null;
 
   return (
     <div>
       <PageHeader
         title="Команда"
-        subtitle={`Лимит ${shares.projectLimit} проектов на таргетолога · «Начислено» — доля с оплат клиентов, «Выплачено» — записанные расходы`}
+        subtitle="Сотрудники, доступы и зарплаты — в одном разделе"
         right={
-          <FormModal
-            label="Добавить сотрудника"
-            title="Новый сотрудник"
-            icon={<UserPlus size={16} />}
-            hint="Ставка по умолчанию применяется ко всем его проектам. Индивидуальную ставку под конкретного клиента задают в карточке клиента → «Команда проекта»."
-          >
-            <UserForm defaultLimit={shares.projectLimit} />
-          </FormModal>
+          tab === "members" && shares ? (
+            <FormModal
+              label="Добавить сотрудника"
+              title="Новый сотрудник"
+              icon={<UserPlus size={16} />}
+              hint="Ставка по умолчанию применяется ко всем его проектам. Индивидуальную ставку под конкретного клиента задают в карточке клиента → «Команда проекта»."
+            >
+              <UserForm defaultLimit={shares.projectLimit} />
+            </FormModal>
+          ) : undefined
         }
       />
 
-      <Table
-        head={["Сотрудник", "Роль", "Ставка", "Оклад", "Загрузка", "Задачи", "Начислено", "Выплачено", "Доступ", ""]}
-      >
-        {users.map((u) => {
-          const projects = u.role === "TEAM_LEAD" ? u.clientsAsAccount : u.clientsAsTargetolog;
-          const load = projects.filter((c) => activeStatuses.includes(c.status)).length;
-          const limit = u.projectLimit || shares.projectLimit;
-          const pct = Math.round((load / limit) * 100);
-          const openTasks = u.tasks.filter((t) => !t.done).length;
-          const showLoad = u.role === "TARGETOLOG" || u.role === "TEAM_LEAD";
-          return (
-            <TeamModal
-              key={u.id}
-              member={u}
-              projects={projects}
-              tasks={u.tasks}
-              payout={payoutMap[u.id] ?? 0}
-              limit={limit}
-              notes={u.employeeNotes}
-              canManageNotes={can.manageTeam(me)}
-              className={u.active ? "" : "opacity-50"}
-              row={
-                <>
-                  <td className="td">
-                    <div className="font-medium">{u.name}</div>
-                    <div className="text-xs text-zinc-500">{u.email}</div>
-                  </td>
-                  <td className="td">{ROLES[u.role as keyof typeof ROLES]}</td>
-                  <td className="td">
-                    {u.rate ? (u.rateType === "PERCENT" ? `${u.rate}%` : som(u.rate)) : "—"}
-                  </td>
-                  <td className={`td ${u.baseSalary > 0 ? "" : "text-muted"}`}>
-                    {u.baseSalary > 0 ? som(u.baseSalary) : "—"}
-                  </td>
-                  <td className="td">
-                    {showLoad ? (
-                      <span className="flex items-center gap-2">
-                        <span>
-                          {load} из {limit}
-                        </span>
-                        {u.role === "TARGETOLOG" && (
-                          <Badge
-                            className={
-                              pct >= 100
-                                ? "bg-red-100 text-red-700 border-red-200"
-                                : pct >= 80
-                                  ? "bg-amber-100 text-amber-700 border-amber-200"
-                                  : "bg-emerald-100 text-emerald-700 border-emerald-200"
-                            }
-                          >
-                            {pct >= 100 ? "перегрузка" : pct >= 80 ? "близко к лимиту" : "норма"}
-                          </Badge>
-                        )}
-                      </span>
-                    ) : (
-                      "—"
-                    )}
-                  </td>
-                  <td className="td">{openTasks}</td>
-                  <td className="td font-medium">{som(payoutMap[u.id] ?? 0)}</td>
-                  <td className={`td ${(paidOutMap[u.id] ?? 0) > 0 ? "text-emerald-600" : "text-muted"}`}>
-                    {som(paidOutMap[u.id] ?? 0)}
-                  </td>
-                  <td className="td">
-                    <div className="flex items-center gap-2">
-                      <ShareAccess
-                        userId={u.id}
-                        name={u.name}
-                        email={u.email}
-                        roleLabel={ROLES[u.role as keyof typeof ROLES]}
-                        appUrl={appUrl}
-                      />
-                      {u.id !== me.id && u.active && (
-                        <form action={impersonateUser}>
-                          <input type="hidden" name="userId" value={u.id} />
-                          <button
-                            className="btn-ghost !px-3 !py-1 !text-xs"
-                            title="Смотреть интерфейс от лица этого сотрудника"
-                          >
-                            <Eye size={13} /> Войти как
-                          </button>
-                        </form>
-                      )}
-                    </div>
-                  </td>
-                  <td className="td">
-                    {/* Выплата — только через ведомость: там оклад, доли и премии в одной сумме. */}
-                    <Link
-                      href={`/payroll?month=${mk}`}
-                      className="btn-ghost !px-3 !py-1 !text-xs"
-                      title="Открыть ведомость зарплат за месяц"
-                    >
-                      <HandCoins size={13} /> Ведомость
-                    </Link>
-                  </td>
-                </>
-              }
-            >
-              <UserForm member={u} defaultLimit={shares.projectLimit} />
-            </TeamModal>
-          );
-        })}
-        {users.length === 0 && (
-          <tr>
-            <td className="td text-zinc-500" colSpan={10}>
-              <Users size={14} className="inline" /> Сотрудников нет
-            </td>
-          </tr>
-        )}
-      </Table>
+      <TeamTabs active={tab} showPayroll={canSeePayroll} />
+
+      {tab === "members" && shares && <MembersTab me={me} projectLimit={shares.projectLimit} />}
+      {tab === "payroll" && canSeePayroll && <PayrollTab sp={{ month: sp.month, error: sp.error }} />}
     </div>
   );
 }

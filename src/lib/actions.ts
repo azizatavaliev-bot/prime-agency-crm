@@ -899,7 +899,7 @@ export async function saveMemberRate(fd: FormData) {
       data: { rateType: latest.rateType, rate: latest.rate },
     });
   revalidatePath(`/clients/${clientId}`);
-  revalidatePath("/payroll");
+  revalidatePath("/team");
 }
 
 export async function deleteMemberRate(fd: FormData) {
@@ -909,7 +909,7 @@ export async function deleteMemberRate(fd: FormData) {
   if (!row) return;
   await prisma.memberRate.delete({ where: { id: row.id } });
   revalidatePath(`/clients/${row.clientId}`);
-  revalidatePath("/payroll");
+  revalidatePath("/team");
 }
 
 /* ---------------- Зарплаты: премии, правила, выплаты ---------------- */
@@ -921,7 +921,7 @@ export async function saveBonus(fd: FormData) {
   const userId = req(fd, "userId");
   // Премия за выплаченный месяц уже не попадёт в перевод — не даём начислить втихую.
   const closed = await prisma.payout.findFirst({ where: { userId, month } });
-  if (closed) redirect(`/payroll?month=${month}&error=paid`);
+  if (closed) redirect(`/team?tab=payroll&month=${month}&error=paid`);
   const id = str(fd, "id");
   const data = {
     userId,
@@ -938,7 +938,7 @@ export async function saveBonus(fd: FormData) {
     body: data.reason,
     link: "/profile",
   });
-  revalidatePath("/payroll");
+  revalidatePath("/team");
 }
 
 export async function deleteBonus(fd: FormData) {
@@ -947,9 +947,9 @@ export async function deleteBonus(fd: FormData) {
   const row = await prisma.bonus.findUnique({ where: { id: req(fd, "id") } });
   if (!row) return;
   const closed = await prisma.payout.findFirst({ where: { userId: row.userId, month: row.month } });
-  if (closed) redirect(`/payroll?month=${row.month}&error=paid`);
+  if (closed) redirect(`/team?tab=payroll&month=${row.month}&error=paid`);
   await prisma.bonus.delete({ where: { id: row.id } });
-  revalidatePath("/payroll");
+  revalidatePath("/team");
 }
 
 export async function saveBonusRule(fd: FormData) {
@@ -975,7 +975,7 @@ export async function saveBonusRule(fd: FormData) {
   if (id) await prisma.bonusRule.update({ where: { id }, data });
   else await prisma.bonusRule.create({ data });
   revalidatePath("/settings/rules");
-  revalidatePath("/payroll");
+  revalidatePath("/team");
 }
 
 export async function deleteBonusRule(fd: FormData) {
@@ -983,7 +983,7 @@ export async function deleteBonusRule(fd: FormData) {
   if (user.role !== "SUPER_ADMIN") redirect("/no-access");
   await prisma.bonusRule.delete({ where: { id: req(fd, "id") } });
   revalidatePath("/settings/rules");
-  revalidatePath("/payroll");
+  revalidatePath("/team");
 }
 
 export async function toggleBonusRule(fd: FormData) {
@@ -993,7 +993,7 @@ export async function toggleBonusRule(fd: FormData) {
   if (!row) return;
   await prisma.bonusRule.update({ where: { id: row.id }, data: { active: !row.active } });
   revalidatePath("/settings/rules");
-  revalidatePath("/payroll");
+  revalidatePath("/team");
 }
 
 /**
@@ -1009,12 +1009,12 @@ export async function payPayroll(fd: FormData) {
   const userId = req(fd, "userId");
 
   const existing = await prisma.payout.findFirst({ where: { userId, month } });
-  if (existing) redirect(`/payroll?month=${month}&error=paid`);
+  if (existing) redirect(`/team?tab=payroll&month=${month}&error=paid`);
 
   const lines = await payrollFor(month);
   const line = lines.find((l) => l.userId === userId);
-  if (!line) redirect(`/payroll?month=${month}&error=nobody`);
-  if (line.total <= 0) redirect(`/payroll?month=${month}&error=zero`);
+  if (!line) redirect(`/team?tab=payroll&month=${month}&error=nobody`);
+  if (line.total <= 0) redirect(`/team?tab=payroll&month=${month}&error=zero`);
 
   const accountId = str(fd, "accountId");
   const [y, m] = month.split("-").map(Number);
@@ -1058,7 +1058,7 @@ export async function payPayroll(fd: FormData) {
     link: "/profile",
   });
 
-  revalidatePath("/payroll");
+  revalidatePath("/team");
   revalidatePath("/finance");
   revalidatePath("/dashboard");
 }
@@ -1072,7 +1072,7 @@ export async function cancelPayout(fd: FormData) {
   if (row.expenseId)
     await prisma.expense.deleteMany({ where: { id: row.expenseId } });
   await prisma.payout.delete({ where: { id: row.id } });
-  revalidatePath("/payroll");
+  revalidatePath("/team");
   revalidatePath("/finance");
   revalidatePath("/dashboard");
 }
@@ -1459,7 +1459,7 @@ function revalidateAll() {
     "/tasks",
     "/reports",
     "/dashboard",
-    "/analytics",
+    "/team",
   ])
     revalidatePath(p);
 }

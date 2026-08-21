@@ -36,6 +36,7 @@ import Donut, { DONUT_COLORS } from "@/components/Donut";
 import FinanceTabs from "@/components/FinanceTabs";
 import PaymentsTab from "./_tabs/PaymentsTab";
 import ExpensesTab from "./_tabs/ExpensesTab";
+import AnalyticsTab from "./_tabs/AnalyticsTab";
 import BigMoney from "@/components/BigMoney";
 
 export const dynamic = "force-dynamic";
@@ -54,17 +55,20 @@ export default async function FinancePage({
   const sp = await searchParams;
   const month = sp.month || monthKey();
 
-  const [accounts, flow, clients, d] = await Promise.all([
+  // Все запросы независимые — раньше половина ждала своей очереди отдельным await
+  const [accounts, flow, clients, d, staff, paymentsCount, expensesCount] = await Promise.all([
     accountBalances(),
     cashflow(month),
     prisma.client.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } }),
     dicts(["INCOME_CATEGORY", "EXPENSE_CATEGORY", "PAYMENT_KIND", "ACCOUNT_KIND"]),
+    prisma.user.findMany({
+      where: { active: true },
+      select: { id: true, name: true },
+      orderBy: { name: "asc" },
+    }),
+    prisma.payment.count({ where: { periodMonth: month } }),
+    prisma.expense.count({ where: { periodMonth: month } }),
   ]);
-  const staff = await prisma.user.findMany({
-    where: { active: true },
-    select: { id: true, name: true },
-    orderBy: { name: "asc" },
-  });
 
   const categoryLabel = (kind: string, key: string | null) => {
     if (!key) return "—";
@@ -74,11 +78,14 @@ export default async function FinancePage({
     return key;
   };
 
-  const [paymentsCount, expensesCount] = await Promise.all([
-    prisma.payment.count({ where: { periodMonth: month } }),
-    prisma.expense.count({ where: { periodMonth: month } }),
-  ]);
-  const tab = sp.tab === "payments" || sp.tab === "expenses" || sp.tab === "accounts" ? sp.tab : "overview";
+  const canSeeAnalytics = user.role === "SUPER_ADMIN";
+  const tab =
+    sp.tab === "payments" ||
+    sp.tab === "expenses" ||
+    sp.tab === "accounts" ||
+    (sp.tab === "analytics" && canSeeAnalytics)
+      ? sp.tab
+      : "overview";
   const activeAccounts = accounts.filter((a) => a.active);
   const totalBalance = accounts.reduce((s, a) => s + a.balance, 0);
   const lowAccounts = accounts.filter((a) => a.low && a.active);
@@ -217,6 +224,7 @@ export default async function FinancePage({
         active={tab}
         month={month}
         counts={{ payments: paymentsCount, expenses: expensesCount, accounts: accounts.length }}
+        showAnalytics={canSeeAnalytics}
       />
 
       {tab === "overview" && (
@@ -622,6 +630,8 @@ export default async function FinancePage({
       {tab === "payments" && <PaymentsTab sp={{ month, status: sp.status }} />}
 
       {tab === "expenses" && <ExpensesTab sp={{ month, category: sp.category }} />}
+
+      {tab === "analytics" && canSeeAnalytics && <AnalyticsTab />}
     </div>
   );
 }

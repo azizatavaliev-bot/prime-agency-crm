@@ -34,10 +34,22 @@ export const viewport: Viewport = {
   themeColor: "#6d5efc",
 };
 
+/**
+ * Три темы: светлая, тёмная, системная (следует за настройкой ОС и меняется
+ * на лету, если пользователь переключит её прямо во время работы).
+ * Выполняется до отрисовки — иначе страница на долю секунды мигает светлой
+ * темой перед тем, как применится сохранённая тёмная.
+ */
 const themeScript = `
 try {
-  var t = localStorage.getItem('prime-theme');
-  if (t === 'dark') document.documentElement.classList.add('dark');
+  var t = localStorage.getItem('prime-theme') || 'system';
+  var mq = window.matchMedia('(prefers-color-scheme: dark)');
+  var apply = function () {
+    var dark = t === 'dark' || (t === 'system' && mq.matches);
+    document.documentElement.classList.toggle('dark', dark);
+  };
+  apply();
+  if (t === 'system') mq.addEventListener('change', apply);
 } catch (e) {}
 `;
 

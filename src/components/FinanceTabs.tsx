@@ -1,29 +1,36 @@
 import Link from "next/link";
-import { LayoutGrid, Wallet, TrendingDown, Landmark, type LucideIcon } from "lucide-react";
+import { LayoutGrid, Wallet, TrendingDown, Landmark, PieChart, type LucideIcon } from "lucide-react";
 
 const TABS: { key: string; label: string; icon: LucideIcon }[] = [
   { key: "overview", label: "Обзор", icon: LayoutGrid },
   { key: "payments", label: "Оплаты", icon: Wallet },
   { key: "expenses", label: "Расходы", icon: TrendingDown },
   { key: "accounts", label: "Счета", icon: Landmark },
+  { key: "analytics", label: "Аналитика", icon: PieChart },
 ];
 
 /**
  * Вкладки раздела финансов. Ссылками, а не состоянием: каждая вкладка
  * грузит только свои данные и остаётся в адресе — можно скинуть коллеге.
+ *
+ * «Аналитика» раньше была отдельным пунктом меню — перенесена сюда вкладкой,
+ * поэтому показывается только тем, кому и раньше была видна (владельцу).
  */
 export default function FinanceTabs({
   active,
   month,
   counts,
+  showAnalytics = false,
 }: {
   active: string;
   month: string;
   counts?: Record<string, number>;
+  showAnalytics?: boolean;
 }) {
+  const tabs = showAnalytics ? TABS : TABS.filter((t) => t.key !== "analytics");
   return (
     <div className="mb-5 flex flex-wrap gap-2 border-b border-zinc-200 pb-3">
-      {TABS.map((t) => {
+      {tabs.map((t) => {
         const Icon = t.icon;
         const isActive = active === t.key;
         const count = counts?.[t.key];

@@ -557,6 +557,7 @@ model MarketingReport {
   usdRate     Float? // курс на момент ввода, если currency=USD
   leads       Int      @default(0)
   impressions Int      @default(0)
+  clicks      Int      @default(0)
   inquiries   Int      @default(0)
   notes       String?
   authorId    String?

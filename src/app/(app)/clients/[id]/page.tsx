@@ -57,31 +57,34 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
   const { id } = await params;
   const user = await requireUser();
 
-  const client = await prisma.client.findFirst({
-    where: { AND: [{ id }, clientScope(user)] },
-    include: {
-      targetolog: true,
-      account: true,
-      payments: { orderBy: { dueAt: "desc" } },
-      reports: { orderBy: { periodTo: "desc" } },
-      tasks: { include: { assignee: true, client: true }, orderBy: { createdAt: "desc" } },
-      members: { include: { user: true } },
-      expenses: { orderBy: { spentAt: "desc" } },
-      snapshots: { orderBy: { takenAt: "asc" } },
-      links: { orderBy: { createdAt: "desc" } },
-      projectNotes: { include: { author: true }, orderBy: { createdAt: "desc" } },
-      rateHistory: { orderBy: { fromMonth: "desc" } },
-    },
-  });
+  // users/clientStatuses не зависят от client — гоним параллельно вместо очереди
+  const [client, users, clientStatuses] = await Promise.all([
+    prisma.client.findFirst({
+      where: { AND: [{ id }, clientScope(user)] },
+      include: {
+        targetolog: true,
+        account: true,
+        payments: { orderBy: { dueAt: "desc" } },
+        reports: { orderBy: { periodTo: "desc" } },
+        tasks: { include: { assignee: true, client: true }, orderBy: { createdAt: "desc" } },
+        members: { include: { user: true } },
+        expenses: { orderBy: { spentAt: "desc" } },
+        snapshots: { orderBy: { takenAt: "asc" } },
+        links: { orderBy: { createdAt: "desc" } },
+        projectNotes: { include: { author: true }, orderBy: { createdAt: "desc" } },
+        rateHistory: { orderBy: { fromMonth: "desc" } },
+      },
+    }),
+    prisma.user.findMany({
+      where: { active: true },
+      select: { id: true, name: true, role: true },
+    }),
+    dict("CLIENT_STATUS"),
+  ]);
   if (!client) notFound();
 
-  const users = await prisma.user.findMany({
-    where: { active: true },
-    select: { id: true, name: true, role: true },
-  });
   const contractors = users.filter((u) => u.role === "DEVELOPER");
   const clientOpts = [{ id: client.id, name: client.name }];
-  const clientStatuses = await dict("CLIENT_STATUS");
   const links = client.links;
 
   const showMoney = can.seePayments(user);

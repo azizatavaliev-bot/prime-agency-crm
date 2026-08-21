@@ -287,6 +287,29 @@ tbody tr:hover {
 .dark .bg-sky-100 {
   background-color: rgb(14 165 233 / 0.16) !important;
 }
+/* те же пастельные фоны, но с прозрачностью (bg-*-50/60 и т.п.) — у Tailwind
+   это отдельные классы, старые правила выше их не покрывали, и такие карточки
+   (BigMoney, строка риска в таблице проектов) оставались блёкло-белыми */
+.dark .bg-emerald-50\/60 {
+  background-color: rgb(16 185 129 / 0.12) !important;
+}
+.dark .bg-amber-50\/40 {
+  background-color: rgb(245 158 11 / 0.12) !important;
+}
+.dark .bg-red-50\/60 {
+  background-color: rgb(239 68 68 / 0.12) !important;
+}
+.dark .bg-sky-50\/60 {
+  background-color: rgb(14 165 233 / 0.12) !important;
+}
+/* полупрозрачные белые подложки (чипы поверх цветных карточек, шапка портала)
+   на тёмном фоне оставались белыми пятнами — переводим на var(--surface) */
+.dark .bg-white\/70 {
+  background-color: color-mix(in srgb, var(--surface) 70%, transparent) !important;
+}
+.dark .bg-white\/80 {
+  background-color: color-mix(in srgb, var(--surface) 82%, transparent) !important;
+}
 .dark .border-emerald-200 {
   border-color: rgb(16 185 129 / 0.3) !important;
 }
@@ -309,6 +332,20 @@ tbody tr:hover {
   color: rgb(248 113 113) !important;
 }
 .dark .text-sky-700 {
+  color: rgb(56 189 248) !important;
+}
+/* -800 текст на пастельных плашках (инфо-баннеры, чипы) читался бы почти
+   тем же цветом, что и фон под ним — берём тот же светлый оттенок, что и -700 */
+.dark .text-emerald-800 {
+  color: rgb(52 211 153) !important;
+}
+.dark .text-amber-800 {
+  color: rgb(251 191 36) !important;
+}
+.dark .text-red-800 {
+  color: rgb(248 113 113) !important;
+}
+.dark .text-sky-800 {
   color: rgb(56 189 248) !important;
 }
 

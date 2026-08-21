@@ -6,6 +6,7 @@ import { saveMarketingReport } from "@/lib/actions";
 import FormSection from "./FormSection";
 import Select, { type SelectOption } from "./Select";
 import DatePicker from "./DatePicker";
+import SubmitButton from "./SubmitButton";
 import { toInputDate } from "@/lib/format";
 
 export default function MarketingReportForm({
@@ -236,7 +237,11 @@ export default function MarketingReportForm({
         <textarea className="input" name="notes" rows={2} defaultValue={defaults?.notes ?? ""} />
       </div>
 
-      <button className="btn-primary w-full">Сохранить отчёт</button>
+      <div className="form-footer">
+        <SubmitButton pendingLabel="Сохраняем отчёт…">
+          {defaults?.id ? "Сохранить изменения" : "Сохранить отчёт"}
+        </SubmitButton>
+      </div>
     </form>
   );
 }

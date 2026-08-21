@@ -7,7 +7,16 @@ import TopBar from "@/components/TopBar";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const user = await requireUser();
-  const unread = await prisma.notification.count({ where: { userId: user.id, read: false } });
+  // Счётчик и список уведомлений раньше ждали друг друга по очереди —
+  // запросы независимые, гоним их параллельно.
+  const [unread, recent] = await Promise.all([
+    prisma.notification.count({ where: { userId: user.id, read: false } }),
+    prisma.notification.findMany({
+      where: { userId: user.id },
+      orderBy: { createdAt: "desc" },
+      take: 8,
+    }),
+  ]);
 
   const items: NavItem[] = [];
   items.push({
@@ -30,19 +39,13 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   items.push({ href: "/regulations", label: "Регламенты", icon: "regulations" });
 
   if (user.role === "SUPER_ADMIN" || user.role === "ADMIN") {
+    // «Зарплаты» — вкладка внутри «Команды», «Аналитика» — вкладка внутри «Финансов»:
+    // те же данные, что и в этих разделах, отдельные пункты меню только дублировали их.
     items.push({ href: "/team", label: "Команда", icon: "team", group: "Управление" });
-    items.push({ href: "/payroll", label: "Зарплаты", icon: "payroll", group: "Управление" });
-    items.push({ href: "/analytics", label: "Аналитика", icon: "analytics", group: "Управление" });
     items.push({ href: "/settings", label: "Настройки", icon: "settings", group: "Управление" });
   }
   items.push({ href: "/notifications", label: "Уведомления", icon: "notifications", group: "Управление" });
   items.push({ href: "/profile", label: "Профиль", icon: "profile", group: "Управление" });
-
-  const recent = await prisma.notification.findMany({
-    where: { userId: user.id },
-    orderBy: { createdAt: "desc" },
-    take: 8,
-  });
 
   return (
     <div className="lg:flex min-h-screen">

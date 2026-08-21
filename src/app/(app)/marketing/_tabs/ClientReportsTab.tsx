@@ -27,20 +27,21 @@ export default async function ClientReportsTab({ sp }: { sp: { clientId?: string
   const user = await requireUser();
   if (user.role === "DEVELOPER" || user.role === "EDITOR") redirect("/no-access");
 
-  const clients = await prisma.client.findMany({
-    where: clientScope(user),
-    select: { id: true, name: true, targetCpl: true },
-    orderBy: { name: "asc" },
-  });
-
-  const reports = await prisma.adReport.findMany({
-    where: {
-      AND: [{ client: clientScope(user) }, sp.clientId ? { clientId: sp.clientId } : {}],
-    },
-    include: { client: true, author: true },
-    orderBy: { periodTo: "desc" },
-    take: 100,
-  });
+  const [clients, reports] = await Promise.all([
+    prisma.client.findMany({
+      where: clientScope(user),
+      select: { id: true, name: true, targetCpl: true },
+      orderBy: { name: "asc" },
+    }),
+    prisma.adReport.findMany({
+      where: {
+        AND: [{ client: clientScope(user) }, sp.clientId ? { clientId: sp.clientId } : {}],
+      },
+      include: { client: true, author: true },
+      orderBy: { periodTo: "desc" },
+      take: 100,
+    }),
+  ]);
 
   const withM = reports.map((r) => ({ r, m: reportMetrics(r) }));
   const inTarget = withM.filter((x) => x.m.inTarget === true).length;

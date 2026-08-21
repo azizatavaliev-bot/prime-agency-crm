@@ -18,34 +18,35 @@ export default async function PaymentsTab({ sp }: { sp: { month?: string; status
   if (!can.seePayments(user)) redirect("/no-access");
   const month = sp.month || monthKey();
 
-  const payments = await prisma.payment.findMany({
-    where: {
-      AND: [
-        { client: clientScope(user) },
-        { periodMonth: month },
-        sp.status ? { status: sp.status } : {},
-      ],
-    },
-    include: { client: true, account: true },
-    orderBy: { dueAt: "asc" },
-  });
-
-  const clients = await prisma.client.findMany({
-    where: clientScope(user),
-    select: { id: true, name: true, avgCheck: true },
-    orderBy: { name: "asc" },
-  });
-  const contractors = await prisma.user.findMany({
-    where: { role: "DEVELOPER", active: true },
-    select: { id: true, name: true },
-  });
-  const accounts = await prisma.account.findMany({
-    where: { active: true },
-    select: { id: true, name: true },
-    orderBy: { name: "asc" },
-  });
-
-  const dd = await dicts(["PAYMENT_KIND", "PAYMENT_METHOD", "CLIENT_STATUS"]);
+  // Пять независимых запросов — раньше каждый ждал предыдущий по очереди
+  const [payments, clients, contractors, accounts, dd] = await Promise.all([
+    prisma.payment.findMany({
+      where: {
+        AND: [
+          { client: clientScope(user) },
+          { periodMonth: month },
+          sp.status ? { status: sp.status } : {},
+        ],
+      },
+      include: { client: true, account: true },
+      orderBy: { dueAt: "asc" },
+    }),
+    prisma.client.findMany({
+      where: clientScope(user),
+      select: { id: true, name: true, avgCheck: true },
+      orderBy: { name: "asc" },
+    }),
+    prisma.user.findMany({
+      where: { role: "DEVELOPER", active: true },
+      select: { id: true, name: true },
+    }),
+    prisma.account.findMany({
+      where: { active: true },
+      select: { id: true, name: true },
+      orderBy: { name: "asc" },
+    }),
+    dicts(["PAYMENT_KIND", "PAYMENT_METHOD", "CLIENT_STATUS"]),
+  ]);
   const paid = payments.filter((p) => p.status === "PAID");
   const revenue = paid.reduce((s, p) => s + p.amount, 0);
   const debt = payments.filter((p) => p.status === "DEBT").reduce((s, p) => s + p.amount, 0);

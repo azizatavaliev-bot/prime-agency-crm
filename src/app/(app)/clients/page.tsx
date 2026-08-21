@@ -45,31 +45,32 @@ export default async function ClientsPage({
   if (user.role === "DEVELOPER" || user.role === "EDITOR") redirect("/no-access");
   const sp = await searchParams;
 
-  const clients = await prisma.client.findMany({
-    where: {
-      AND: [
-        clientScope(user),
-        sp.status ? { status: sp.status } : {},
-        sp.q ? { name: { contains: sp.q } } : {},
-      ],
-    },
-    include: {
-      targetolog: true,
-      account: true,
-      payments: { orderBy: { dueAt: "desc" } },
-      reports: { orderBy: { periodTo: "desc" } },
-      tasks: { include: { assignee: true, client: true }, orderBy: { createdAt: "desc" } },
-      members: { include: { user: true } },
-      expenses: { orderBy: { spentAt: "desc" } },
-    },
-    orderBy: { createdAt: "desc" },
-  });
-
-  const users = await prisma.user.findMany({
-    where: { active: true },
-    select: { id: true, name: true, role: true },
-  });
-  const d = await dicts(["CLIENT_STATUS", "SERVICE", "SOURCE", "NICHE"]);
+  const [clients, users, d] = await Promise.all([
+    prisma.client.findMany({
+      where: {
+        AND: [
+          clientScope(user),
+          sp.status ? { status: sp.status } : {},
+          sp.q ? { name: { contains: sp.q } } : {},
+        ],
+      },
+      include: {
+        targetolog: true,
+        account: true,
+        payments: { orderBy: { dueAt: "desc" } },
+        reports: { orderBy: { periodTo: "desc" } },
+        tasks: { include: { assignee: true, client: true }, orderBy: { createdAt: "desc" } },
+        members: { include: { user: true } },
+        expenses: { orderBy: { spentAt: "desc" } },
+      },
+      orderBy: { createdAt: "desc" },
+    }),
+    prisma.user.findMany({
+      where: { active: true },
+      select: { id: true, name: true, role: true },
+    }),
+    dicts(["CLIENT_STATUS", "SERVICE", "SOURCE", "NICHE"]),
+  ]);
   const mk = monthKey();
 
   // по умолчанию — как в FADAMOS: сверху те, у кого оплата ближе

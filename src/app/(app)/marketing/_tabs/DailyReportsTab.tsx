@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { FileText, Plus, Trash2, Pencil } from "lucide-react";
+import { FileText, Trash2, Pencil } from "lucide-react";
 
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -10,8 +10,8 @@ import { dicts } from "@/lib/dict";
 import { deleteMarketingReport } from "@/lib/actions";
 import { som, num, dateRu } from "@/lib/format";
 import { cpl } from "@/lib/marketing";
-import { Table, Collapse, Section } from "@/components/ui";
-import MarketingReportForm from "@/components/MarketingReportForm";
+import { Table, Collapse } from "@/components/ui";
+import DailyReportModal from "@/components/DailyReportModal";
 
 export default async function DailyReportsTab({
   sp = {},
@@ -51,20 +51,12 @@ export default async function DailyReportsTab({
 
   return (
     <div>
-
-      <Section
-        title={editing ? "Правка отчёта" : "Новый отчёт"}
-        icon={FileText}
-        right={
-          editing ? (
-            <Link href="/marketing?tab=daily" className="btn-ghost !px-3 !py-1.5 !text-xs">
-              Отменить правку
-            </Link>
-          ) : undefined
-        }
-      >
-
-        <MarketingReportForm
+      <div className="mb-6 flex items-center justify-between gap-3">
+        <div className="text-sm text-muted">
+          {reports.length} отчёт{reports.length === 1 ? "" : reports.length < 5 ? "а" : "ов"} за последнее время
+        </div>
+        <DailyReportModal
+          editing={Boolean(editing)}
           channels={opts(MARKETING_CHANNEL)}
           sources={opts(MARKETING_SOURCE)}
           directions={opts(MARKETING_DIRECTION)}
@@ -93,9 +85,9 @@ export default async function DailyReportsTab({
                 : undefined
           }
         />
-      </Section>
+      </div>
 
-      <div className="mt-6">
+      <div>
         <Collapse title={`Сводка за период (${reports.length})`} icon={FileText}>
           <Table head={["Дата", "Канал", "Источник", "Расход", "Лиды", "CPL", "Клиент", "Автор", ""]}>
             {reports.map((r) => {
