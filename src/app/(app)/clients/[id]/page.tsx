@@ -13,11 +13,12 @@ import {
   CalendarClock,
   User as UserIcon,
   MessageSquare,
+  Sparkles,
 } from "lucide-react";
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { clientScope, can } from "@/lib/access";
-import { reportMetrics } from "@/lib/finance";
+import { reportMetrics, reportMetricValue, getUsdRate } from "@/lib/finance";
 import { isOverdue } from "@/lib/tasks";
 import {
   deleteClient,
@@ -25,13 +26,15 @@ import {
   deletePayment,
   addClientNote,
   deleteClientNote,
+  deleteReport,
 } from "@/lib/actions";
-import { som, dateRu, num, toInputDate } from "@/lib/format";
+import { som, dateRu, num, toInputDate, targetCplLabel } from "@/lib/format";
 import { paymentChip, daysToContractEnd } from "@/lib/payday";
 import { dict } from "@/lib/dict";
 import {
   PAYMENT_KIND,
   PAYMENT_METHOD,
+  OBJECTIVE_METRIC_LABEL,
   stagesFor,
 } from "@/lib/constants";
 import { PageHeader, Table, Collapse, Stat, Field, Section } from "@/components/ui";
@@ -47,6 +50,7 @@ import MembersBlock from "@/components/MembersBlock";
 import TermsBlock from "@/components/TermsBlock";
 import PaymentForm from "@/components/PaymentForm";
 import ReportForm from "@/components/ReportForm";
+import ScreenshotReportUpload from "@/components/ScreenshotReportUpload";
 import TaskForm from "@/components/TaskForm";
 import MarkPaidButton from "@/components/MarkPaidButton";
 import { PayStatusBadge, ReportModal, StatusBadge, TaskModal, servicesLabel } from "@/components/details";
@@ -98,6 +102,7 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
     : null;
   const lastReport = client.reports[0];
   const lastMetrics = lastReport ? reportMetrics(lastReport) : null;
+  const usdRate = await getUsdRate();
 
   return (
     <div>
@@ -388,13 +393,16 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
             <>
                     <Section title="Отчёты по таргету (по неделям)" icon={TrendingUp}>
                       {can.writeReports(user) && (
-                        <div className="mb-3">
+                        <div className="mb-3 space-y-2">
+                          <Collapse title="Заполнить по скриншотам (ИИ)" icon={Sparkles}>
+                            <ScreenshotReportUpload clientId={client.id} />
+                          </Collapse>
                           <Collapse title="Новый отчёт" icon={Plus}>
                             <ReportForm clients={[]} fixedClientId={client.id} defaultTargetCpl={client.targetCpl} />
                           </Collapse>
                         </div>
                       )}
-                      <Table head={["Период", "Бюджет", "Потрачено", "Заявки", "CPL", "Цель CPL", "CPA", "Связки", ""]}>
+                      <Table head={["Период", "Бюджет", "Потрачено", "Результат", "Показы", "CPL", "Цель CPL", "CPA", "Связки", ""]}>
                         {client.reports.map((r) => {
                           const m = reportMetrics(r);
                           return (
@@ -405,6 +413,7 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
                               clientId={client.id}
                               canEdit={can.writeReports(user)}
                               defaultTargetCpl={client.targetCpl}
+                              usdRate={usdRate}
                               className={m.inTarget === false ? "bg-red-50" : m.inTarget ? "bg-emerald-50" : ""}
                               row={
                                 <>
@@ -412,8 +421,15 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
                                     {dateRu(r.periodFrom)} — {dateRu(r.periodTo)}
                                   </td>
                                   <td className="td">{som(r.budget)}</td>
-                                  <td className="td">{som(r.spent)}</td>
-                                  <td className="td">{r.leads}</td>
+                                  <td className="td">
+                                    {som(r.spent)}
+                                    <span className="ml-1 text-xs text-muted">≈ ${num(r.spent / usdRate)}</span>
+                                  </td>
+                                  <td className="td">
+                                    {reportMetricValue(r)}
+                                    <span className="ml-1 text-xs text-muted">{OBJECTIVE_METRIC_LABEL[r.objective] ?? ""}</span>
+                                  </td>
+                                  <td className="td text-zinc-500">{r.views || "—"}</td>
                                   <td
                                     className={`td font-medium ${
                                       m.cplOk === false ? "text-red-600" : m.cplOk ? "text-emerald-600" : ""
@@ -421,15 +437,44 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
                                   >
                                     {m.cpl ? `${num(m.cpl)} сом` : "—"}
                                   </td>
-                                  <td className="td text-zinc-500">{som(r.targetCpl)}</td>
+                                  <td className="td text-zinc-500">{targetCplLabel(r.targetCpl)}</td>
                                   <td className={`td ${m.cpaOk === false ? "text-red-600" : m.cpaOk ? "text-emerald-600" : ""}`}>
                                     {m.cpa ? `${num(m.cpa)} сом` : "—"}
                                   </td>
                                   <td className="td text-zinc-500">{r.bundles || "—"}</td>
                                   <td className="td">
-                                    <Link href={`/reports/${r.id}`} className="btn-ghost !px-3 !py-1 !text-xs">
-                                      <ExternalLink size={13} /> Клиенту
-                                    </Link>
+                                    <div className="flex items-center gap-1">
+                                      <Link href={`/reports/${r.id}`} className="btn-ghost !px-3 !py-1 !text-xs">
+                                        <ExternalLink size={13} /> Клиенту
+                                      </Link>
+                                      {can.writeReports(user) && (
+                                        <>
+                                          <FormModal
+                                            label=""
+                                            title={`Отчёт за период — ${client.name}`}
+                                            variant="ghost"
+                                            icon={<Pencil size={13} />}
+                                            hint="Если ошиблись в цифрах, цели или скриншоте — поправьте и сохраните заново."
+                                          >
+                                            <ReportForm
+                                              clients={[]}
+                                              fixedClientId={client.id}
+                                              defaultTargetCpl={client.targetCpl}
+                                              report={{ ...r, hasScreenshot: Boolean(r.screenshot) }}
+                                            />
+                                          </FormModal>
+                                          <form action={deleteReport}>
+                                            <input type="hidden" name="id" value={r.id} />
+                                            <button
+                                              className="btn-ghost !px-2 !py-1 !text-xs hover:!text-red-600"
+                                              title="Удалить отчёт"
+                                            >
+                                              <Trash2 size={13} />
+                                            </button>
+                                          </form>
+                                        </>
+                                      )}
+                                    </div>
                                   </td>
                                 </>
                               }

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { saveGoal } from "@/lib/actions";
 import { GOAL_METRIC, GOAL_METRIC_HINT } from "@/lib/constants";
 import Select from "./Select";
+import DecimalInput from "./DecimalInput";
 
 export type GoalData = {
   id: string;
@@ -62,15 +63,7 @@ export default function GoalForm({
         </div>
         <div>
           <label className="label">План</label>
-          <input
-            className="input"
-            name="target"
-            type="number"
-            min="0"
-            step="any"
-            required
-            defaultValue={goal?.target ?? ""}
-          />
+          <DecimalInput name="target" required defaultValue={goal?.target ?? ""} />
         </div>
       </div>
 

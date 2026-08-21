@@ -6,6 +6,7 @@ import { toInputDate } from "@/lib/format";
 import Select from "./Select";
 import DatePicker from "./DatePicker";
 import FormSection from "./FormSection";
+import DecimalInput from "./DecimalInput";
 
 export default function IncomeForm({
   categories,
@@ -33,7 +34,7 @@ export default function IncomeForm({
         </div>
         <div>
           <label className="label">Сумма, сом *</label>
-          <input className="input" name="amount" type="number" min="0" step="any" required />
+          <DecimalInput name="amount" required />
         </div>
       </FormSection>
 

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { reportMetrics } from "@/lib/finance";
+import { reportMetrics, reportMetricValue } from "@/lib/finance";
 import {
   CLIENT_STATUS,
   PAYMENT_KIND,
@@ -44,7 +44,7 @@ export async function GET(req: Request) {
   } else if (type === "reports") {
     const list = await prisma.adReport.findMany({ include: { client: true } });
     rows = [
-      ["Проект", "С", "По", "Бюджет", "Потрачено", "Заявки", "CPL", "Цель CPL", "CPA", "В цели"],
+      ["Проект", "С", "По", "Бюджет", "Потрачено", "Цель кампании", "Результат", "Показы", "CPL", "Цель CPL", "CPA", "В цели"],
       ...list.map((r) => {
         const m = reportMetrics(r);
         return [
@@ -53,7 +53,9 @@ export async function GET(req: Request) {
           d(r.periodTo),
           Math.round(r.budget),
           Math.round(r.spent),
-          r.leads,
+          r.objective,
+          reportMetricValue(r),
+          r.views,
           m.cpl ? Math.round(m.cpl) : "",
           Math.round(r.targetCpl),
           m.cpa ? Math.round(m.cpa) : "",

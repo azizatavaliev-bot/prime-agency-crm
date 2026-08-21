@@ -50,6 +50,8 @@ model User {
   employeeNotes        EmployeeNote[]    @relation("employeeNoteSubject")
   employeeNotesWritten EmployeeNote[]    @relation("employeeNoteAuthor")
   notes                Note[]
+  taskCandidatesAssigned TaskCandidate[]  @relation("candidateAssignee")
+  taskCandidatesCreated  TaskCandidate[]  @relation("candidateCreator")
   rateHistory          MemberRate[]
   bonuses              Bonus[]
   payouts              Payout[]
@@ -115,6 +117,7 @@ model Client {
   adTransactions   AdTransaction[]
   projectNotes     ClientNote[]
   personalNotes    Note[]
+  taskCandidates   TaskCandidate[]
   rateHistory      MemberRate[]
   bonuses          Bonus[]
 
@@ -385,6 +388,33 @@ model Task {
 
   @@index([assigneeId, done])
   @@index([dueAt])
+}
+
+// source: MANUAL (вставленный текст) | AUDIO (транскрипт планёрки) | CHAT (лог командного чата)
+// status: PENDING (ждёт решения) | CONFIRMED (создана задача) | REJECTED (отклонена)
+/// Кандидат в задачу, вычлененный ИИ из транскрипта планёрки или командного чата.
+/// Не задача — требует подтверждения человеком на экране инбокса, прежде чем
+/// превратиться в настоящий Task (см. confirmTaskCandidate в taskCandidateActions.ts).
+model TaskCandidate {
+  id          String    @id @default(cuid())
+  source      String    @default("MANUAL")
+  rawText     String // фрагмент исходного транскрипта/чата, из которого извлекли кандидата
+  title       String
+  comment     String?
+  clientId    String?
+  client      Client?   @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  assigneeId  String?
+  assignee    User?     @relation("candidateAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+  dueAt       DateTime?
+  priority    String    @default("MEDIUM")
+  status      String    @default("PENDING")
+  createdTaskId String?
+  createdById String?
+  createdBy   User?     @relation("candidateCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt   DateTime  @default(now())
+  decidedAt   DateTime?
+
+  @@index([status, createdAt])
 }
 
 /// Лёгкий пункт чеклиста внутри задачи (не отдельная задача).

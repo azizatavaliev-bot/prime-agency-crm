@@ -31,8 +31,9 @@ function str(fd: FormData, k: string) {
 function req(fd: FormData, k: string) {
   return String(fd.get(k) ?? "").trim();
 }
+/** Число из формы. Запятая — тоже десятичный разделитель: не все печатают через точку. */
 function n(fd: FormData, k: string) {
-  return Number(String(fd.get(k) ?? "0").replace(/\s/g, "")) || 0;
+  return Number(String(fd.get(k) ?? "0").replace(/\s/g, "").replace(",", ".")) || 0;
 }
 function date(fd: FormData, k: string) {
   const v = str(fd, k);
@@ -47,7 +48,7 @@ async function screenshotFrom(fd: FormData, k: string): Promise<{ screenshot: Ui
   return { screenshot: bytes, screenshotMime: file.type || "image/jpeg" };
 }
 
-async function notify(userIds: (string | null | undefined)[], data: { kind: string; title: string; body?: string; link?: string }) {
+export async function notify(userIds: (string | null | undefined)[], data: { kind: string; title: string; body?: string; link?: string }) {
   const ids = [...new Set(userIds.filter(Boolean) as string[])];
   if (!ids.length) return;
   await prisma.notification.createMany({
@@ -55,7 +56,7 @@ async function notify(userIds: (string | null | undefined)[], data: { kind: stri
   });
 }
 
-async function owners() {
+export async function owners() {
   const list = await prisma.user.findMany({ where: { role: "SUPER_ADMIN", active: true } });
   return list.map((u) => u.id);
 }
@@ -65,7 +66,7 @@ async function owners() {
  * (client.accountId) и клиенту в портал (Notification.clientId), если задача
  * привязана к клиенту. Один путь для saveTask и toggleTask.
  */
-async function notifyTaskStakeholders(
+export async function notifyTaskStakeholders(
   t: { id: string; clientId: string | null; board: string },
   client: { targetologId: string | null; accountId: string | null } | null | undefined,
   kind: string,
@@ -585,19 +586,33 @@ export async function deleteTask(fd: FormData) {
 
 /* ---------------- Команда ---------------- */
 
-export async function saveUser(fd: FormData) {
+export type SaveUserState = { ok: boolean; error?: string };
+
+export async function saveUser(_prev: SaveUserState, fd: FormData): Promise<SaveUserState> {
   const user = await requireUser();
   if (!can.manageTeam(user)) redirect("/no-access");
   const id = str(fd, "id");
   const password = str(fd, "password");
-  // Короткий пароль подбирается за минуты — не пускаем такие в систему.
-  if (password && password.length < 8) redirect("/team?error=short-password");
+  // Короткий пароль подбирается за минуты — не пускаем такие в систему,
+  // но теперь явно говорим почему, а не молча отменяем сохранение.
+  if (password && password.length < 8) return { ok: false, error: "Пароль короче 8 символов — остальное не сохранено, введите длиннее" };
   // Роль только из известного списка: неизвестная снимает фильтры доступа.
   const role = req(fd, "role");
   if (!Object.keys(ROLES).includes(role)) redirect("/no-access");
+
+  const login = req(fd, "login").trim().toLowerCase();
+  const email = req(fd, "email").toLowerCase();
+  if (!login) return { ok: false, error: "Укажите логин" };
+
+  const dupe = await prisma.user.findFirst({
+    where: { OR: [{ login }, { email }], NOT: id ? { id } : undefined },
+    select: { id: true, login: true, email: true },
+  });
+  if (dupe) return { ok: false, error: dupe.login === login ? `Логин «${login}» уже занят` : `Email «${email}» уже занят` };
+
   const base = {
-    login: req(fd, "login").trim().toLowerCase(),
-    email: req(fd, "email").toLowerCase(),
+    login,
+    email,
     name: req(fd, "name"),
     phone: str(fd, "phone"),
     role,
@@ -620,11 +635,14 @@ export async function saveUser(fd: FormData) {
         : base,
     });
   } else {
+    if (!password) return { ok: false, error: "Задайте пароль сотруднику" };
     await prisma.user.create({
-      data: { ...base, passwordHash: await hashPassword(password || "prime2026") },
+      data: { ...base, passwordHash: await hashPassword(password) },
     });
   }
   revalidatePath("/team");
+  revalidatePath("/settings/team");
+  return { ok: true };
 }
 
 /* ---------------- Заметки о сотруднике ---------------- */

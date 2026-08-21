@@ -19,7 +19,7 @@ import { prisma } from "@/lib/prisma";
 import { isOverdue, startOfToday } from "@/lib/tasks";
 import { dict } from "@/lib/dict";
 import { clientScope, taskScope } from "@/lib/access";
-import { getShares, reportMetrics } from "@/lib/finance";
+import { getShares, reportMetrics, reportMetricValue } from "@/lib/finance";
 import { runRemindersIfDue } from "@/lib/reminders";
 import { som, monthKey, monthLabel, dateRu, daysUntil, num } from "@/lib/format";
 import { stagesFor } from "@/lib/constants";
@@ -68,7 +68,7 @@ export default async function DashboardPage() {
 
     const activeClients = clients.filter((c) => ["TEST", "ACTIVE", "RISK"].includes(c.status));
     const monthReports = clients.flatMap((c) => c.reports.filter((r) => monthKey(r.periodTo) === mk));
-    const leads = monthReports.reduce((s, r) => s + r.leads, 0);
+    const leads = monthReports.reduce((s, r) => s + reportMetricValue(r), 0);
     const spent = monthReports.reduce((s, r) => s + r.spent, 0);
     const inTarget = monthReports.filter((r) => reportMetrics(r).inTarget === true).length;
     const overdue = tasks.filter((t) => isOverdue(t.dueAt, t.done)).length;
@@ -242,7 +242,11 @@ export default async function DashboardPage() {
         .sort((a, b) => b.periodTo.getTime() - a.periodTo.getTime());
       const last = cReports[0] ?? null;
       const prev = cReports[1] ?? null;
-      const cplOf = (r: typeof last) => (r && r.leads > 0 ? r.spent / r.leads : null);
+      const cplOf = (r: typeof last) => {
+        if (!r) return null;
+        const metric = reportMetricValue(r);
+        return metric > 0 ? r.spent / metric : null;
+      };
       const cpl = cplOf(last);
       const prevCpl = cplOf(prev);
       const cTasks = allTasks.filter((t: { clientId: string | null; done: boolean; dueAt: Date | null }) => t.clientId === c.id && !t.done);

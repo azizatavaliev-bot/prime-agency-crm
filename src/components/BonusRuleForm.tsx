@@ -4,6 +4,7 @@ import { useState } from "react";
 import { saveBonusRule } from "@/lib/actions";
 import { BONUS_METRIC, BONUS_METRIC_HINT, BONUS_AMOUNT_TYPE, ROLES } from "@/lib/constants";
 import Select from "./Select";
+import DecimalInput from "./DecimalInput";
 
 export type BonusRuleData = {
   id: string;
@@ -70,12 +71,8 @@ export default function BonusRuleForm({ rule }: { rule?: BonusRuleData }) {
         </div>
         <div>
           <label className="label">{amountType === "PERCENT" ? "Процент, %" : "Сумма, сом"}</label>
-          <input
-            className="input"
+          <DecimalInput
             name="amount"
-            type="number"
-            min="0"
-            step="any"
             required
             defaultValue={rule?.amount ?? ""}
             placeholder={amountType === "PERCENT" ? "10" : "5000"}
@@ -85,12 +82,8 @@ export default function BonusRuleForm({ rule }: { rule?: BonusRuleData }) {
         {thresholdLabel && (
           <div>
             <label className="label">{thresholdLabel}</label>
-            <input
-              className="input"
+            <DecimalInput
               name="threshold"
-              type="number"
-              min="0"
-              step="any"
               defaultValue={rule?.threshold ?? 0}
               placeholder={metric === "TASKS_ONTIME" ? "90" : "0"}
             />

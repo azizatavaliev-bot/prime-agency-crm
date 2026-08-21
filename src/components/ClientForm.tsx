@@ -8,6 +8,7 @@ import Select from "./Select";
 import DatePicker from "./DatePicker";
 import FormSection from "./FormSection";
 import SubmitButton from "./SubmitButton";
+import DecimalInput from "./DecimalInput";
 
 type UserOpt = { id: string; name: string; role: string };
 type Opt = { key: string; name: string };
@@ -164,14 +165,7 @@ export default function ClientForm({
       <FormSection title="Деньги" hint="Абонплата и когда клиент платит" icon={Wallet}>
         <div>
           <label className="label">Абонплата, сом</label>
-          <input
-            className="input"
-            name="avgCheck"
-            type="number"
-            min="0"
-            step="any"
-            defaultValue={client?.avgCheck ?? 0}
-          />
+          <DecimalInput name="avgCheck" defaultValue={client?.avgCheck ?? 0} />
         </div>
         <div>
           <label className="label">День оплаты (число месяца)</label>
@@ -187,12 +181,8 @@ export default function ClientForm({
         </div>
         <div>
           <label className="label">% от прибыли</label>
-          <input
-            className="input"
+          <DecimalInput
             name="profitPercent"
-            type="number"
-            min="0"
-            step="any"
             defaultValue={client?.profitPercent ?? ""}
             placeholder="если работаем за процент"
           />
@@ -238,12 +228,8 @@ export default function ClientForm({
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
             <label className="label">Целевой CPL, сом</label>
-            <input
-              className="input"
+            <DecimalInput
               name="targetCpl"
-              type="number"
-              min="0"
-              step="any"
               defaultValue={client?.targetCpl ?? ""}
               placeholder="порог решения по заявке"
             />
@@ -261,33 +247,9 @@ export default function ClientForm({
         <div>
           <div className="label">Стоимость доп. услуг, сом</div>
           <div className="grid gap-3 sm:grid-cols-3">
-            <input
-              className="input"
-              name="sitePrice"
-              type="number"
-              min="0"
-              step="any"
-              defaultValue={client?.sitePrice ?? ""}
-              placeholder="сайт"
-            />
-            <input
-              className="input"
-              name="botPrice"
-              type="number"
-              min="0"
-              step="any"
-              defaultValue={client?.botPrice ?? ""}
-              placeholder="чат-бот"
-            />
-            <input
-              className="input"
-              name="videoPrice"
-              type="number"
-              min="0"
-              step="any"
-              defaultValue={client?.videoPrice ?? ""}
-              placeholder="монтаж"
-            />
+            <DecimalInput name="sitePrice" defaultValue={client?.sitePrice ?? ""} placeholder="сайт" />
+            <DecimalInput name="botPrice" defaultValue={client?.botPrice ?? ""} placeholder="чат-бот" />
+            <DecimalInput name="videoPrice" defaultValue={client?.videoPrice ?? ""} placeholder="монтаж" />
           </div>
         </div>
       </FormSection>

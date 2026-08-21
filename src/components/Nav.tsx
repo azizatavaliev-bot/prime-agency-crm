@@ -26,6 +26,8 @@ import {
   X,
   LogOut,
   Zap,
+  Grid2x2,
+  Sparkles,
 } from "lucide-react";
 
 export const NAV_ICONS = {
@@ -39,6 +41,8 @@ export const NAV_ICONS = {
   regulations: BookText,
   notes: NotebookText,
   tasks: KanbanSquare,
+  taskInbox: Sparkles,
+  unity: Grid2x2,
   team: UserCog,
   payroll: HandCoins,
   analytics: PieChart,
@@ -129,6 +133,7 @@ export default function Nav({
           </div>
           <div className="mt-1 pl-12 text-xs text-muted">Система учёта агентства</div>
         </div>
+
 
         <nav className="space-y-4">
           {[...groups.entries()].map(([group, list]) => (

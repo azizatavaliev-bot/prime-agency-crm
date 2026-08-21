@@ -86,12 +86,14 @@ export default function PaymentForm({
           <input
             className="input"
             name="amount"
-            type="number"
-            min="0"
-            step="any"
+            type="text"
+            inputMode="decimal"
             required
             value={amount}
-            onChange={(e) => setAmount(e.target.value)}
+            onChange={(e) => {
+              const v = e.target.value;
+              if (v === "" || /^\d*[.,]?\d*$/.test(v)) setAmount(v);
+            }}
             placeholder={suggested ? String(Math.round(suggested)) : ""}
           />
           {showSuggest && (

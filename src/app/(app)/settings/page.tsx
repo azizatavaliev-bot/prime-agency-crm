@@ -7,6 +7,7 @@ import { telegramEnabled } from "@/lib/telegram";
 import { dict, labelOf } from "@/lib/dict";
 import { som } from "@/lib/format";
 import { Section, MiniTable } from "@/components/ui";
+import DecimalInput from "@/components/DecimalInput";
 
 export const dynamic = "force-dynamic";
 
@@ -53,7 +54,7 @@ export default async function SettingsGeneralPage() {
           </div>
           <div>
             <label className="label">Курс доллара, сом</label>
-            <input className="input" name="usdRate" type="number" step="0.01" defaultValue={usdRate} />
+            <DecimalInput name="usdRate" defaultValue={usdRate} />
             <div className="mt-1 text-xs text-muted">Для рекламных расходов, введённых в USD</div>
           </div>
           <div className="sm:col-span-2 lg:col-span-4">

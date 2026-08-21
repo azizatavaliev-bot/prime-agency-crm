@@ -1,11 +1,22 @@
 "use client";
 
-import { useState } from "react";
-import { Crown, ShieldCheck, Calculator, Target, Headset, Code2, Film, type LucideIcon } from "lucide-react";
-import { saveUser } from "@/lib/actions";
+import { useActionState, useState } from "react";
+import { useFormStatus } from "react-dom";
+import { AlertTriangle, Crown, ShieldCheck, Calculator, Target, Headset, Code2, Film, type LucideIcon } from "lucide-react";
+import { saveUser, type SaveUserState } from "@/lib/actions";
 import { ROLES } from "@/lib/constants";
 import Select from "./Select";
 import PasswordField from "./PasswordField";
+import DecimalInput from "./DecimalInput";
+
+function SubmitButton({ label }: { label: string }) {
+  const { pending } = useFormStatus();
+  return (
+    <button className="btn-primary w-full" disabled={pending}>
+      {pending ? "Сохраняю…" : label}
+    </button>
+  );
+}
 
 /** Что реально открывает каждая роль — видно прямо при выборе. */
 const ROLE_ICONS: Record<keyof typeof ROLES, LucideIcon> = {
@@ -58,12 +69,13 @@ export default function UserForm({
 }) {
   const [role, setRole] = useState(member?.role ?? "TARGETOLOG");
   const [rateType, setRateType] = useState(member?.rateType ?? "PERCENT");
+  const [state, formAction] = useActionState<SaveUserState, FormData>(saveUser, { ok: true });
 
   // Ставка нужна тем, кто получает долю с проектов.
   const needsRate = role === "TARGETOLOG" || role === "DEVELOPER" || role === "EDITOR" || role === "TEAM_LEAD";
 
   return (
-    <form action={saveUser} className="space-y-5">
+    <form action={formAction} className="space-y-5">
       {member && <input type="hidden" name="id" value={member.id} />}
       <input type="hidden" name="role" value={role} />
 
@@ -156,15 +168,7 @@ export default function UserForm({
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
               <label className="label">Оклад за месяц, сом</label>
-              <input
-                className="input"
-                name="baseSalary"
-                type="number"
-                min="0"
-                step="any"
-                defaultValue={member?.baseSalary ?? 0}
-                placeholder="0"
-              />
+              <DecimalInput name="baseSalary" defaultValue={member?.baseSalary ?? 0} placeholder="0" />
             </div>
           </div>
           <div className="mt-2 text-xs text-muted">
@@ -192,12 +196,8 @@ export default function UserForm({
             </div>
             <div>
               <label className="label">{rateType === "PERCENT" ? "Процент, %" : "Сумма, сом"}</label>
-              <input
-                className="input"
+              <DecimalInput
                 name="rate"
-                type="number"
-                step="any"
-                min="0"
                 defaultValue={member?.rate ?? ""}
                 placeholder={rateType === "PERCENT" ? "34" : "15000"}
               />
@@ -225,9 +225,17 @@ export default function UserForm({
         Работает в агентстве — снимите галочку вместо удаления
       </label>
 
-      <button className="btn-primary w-full">
-        {member ? "Сохранить" : "Добавить сотрудника"}
-      </button>
+      {!state.ok && state.error && (
+        <div className="flex items-center gap-2 rounded-xl bg-red-50 px-3 py-2 text-sm text-red-700">
+          <AlertTriangle size={15} className="shrink-0" /> {state.error}
+        </div>
+      )}
+
+      {/* Прилипает к низу модалки — на длинной карточке сотрудника кнопку
+          иначе приходится долго искать прокруткой. */}
+      <div className="surface sticky -bottom-5 -mx-5 border-t border-zinc-200 px-5 pb-5 pt-3 sm:-mx-6 sm:px-6">
+        <SubmitButton label={member ? "Сохранить" : "Добавить сотрудника"} />
+      </div>
     </form>
   );
 }

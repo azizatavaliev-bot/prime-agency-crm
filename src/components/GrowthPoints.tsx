@@ -3,6 +3,7 @@ import { som, num, dateRu, toInputDate } from "@/lib/format";
 import { saveSnapshot, deleteSnapshot } from "@/lib/actions";
 import FormModal from "./FormModal";
 import DatePicker from "./DatePicker";
+import DecimalInput from "./DecimalInput";
 
 export type Snapshot = {
   id: string;
@@ -44,25 +45,19 @@ function snapshotForm(clientId: string, type: "POINT_A" | "POINT_B", snap?: Snap
         </div>
         <div>
           <label className="label">Цена заявки, сом</label>
-          <input className="input" name="cpl" type="number" step="0.01" defaultValue={snap?.cpl ?? ""} />
+          <DecimalInput name="cpl" defaultValue={snap?.cpl ?? ""} />
         </div>
         <div>
           <label className="label">Рекламный бюджет, сом</label>
-          <input className="input" name="adSpend" type="number" step="0.01" defaultValue={snap?.adSpend ?? ""} />
+          <DecimalInput name="adSpend" defaultValue={snap?.adSpend ?? ""} />
         </div>
         <div>
           <label className="label">Выручка клиента, сом</label>
-          <input className="input" name="revenue" type="number" step="0.01" defaultValue={snap?.revenue ?? ""} />
+          <DecimalInput name="revenue" defaultValue={snap?.revenue ?? ""} />
         </div>
         <div>
           <label className="label">Конверсия в продажу, %</label>
-          <input
-            className="input"
-            name="conversion"
-            type="number"
-            step="0.1"
-            defaultValue={snap?.conversion ?? ""}
-          />
+          <DecimalInput name="conversion" defaultValue={snap?.conversion ?? ""} />
         </div>
       </div>
 

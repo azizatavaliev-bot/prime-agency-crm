@@ -7,6 +7,7 @@ import { EXPENSE_METHOD, EXPENSE_STATUS, EXPENSE_CATEGORY } from "@/lib/constant
 import { toInputDate } from "@/lib/format";
 import Select from "./Select";
 import DatePicker from "./DatePicker";
+import DecimalInput from "./DecimalInput";
 
 const toOpts = (o: Record<string, string>) => Object.entries(o).map(([key, name]) => ({ key, name }));
 
@@ -66,15 +67,7 @@ export default function ExpenseForm({
       </div>
       <div>
         <label className="label">Сумма, сом *</label>
-        <input
-          className="input"
-          name="amount"
-          type="number"
-          min="0"
-          step="any"
-          required
-          defaultValue={expense?.amount}
-        />
+        <DecimalInput name="amount" required defaultValue={expense?.amount} />
       </div>
       <div>
         <label className="label">Статус</label>

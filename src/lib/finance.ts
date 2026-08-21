@@ -81,17 +81,44 @@ export function split(
 }
 
 /** Оценка CPL/CPA и попадание в цель. */
+/** Какое поле метрики читать для данной цели кампании — одно место для всех расчётов. */
+export function reportMetricValue(r: {
+  objective: string;
+  leads: number;
+  engagement: number;
+  traffic: number;
+  profileVisits: number;
+}): number {
+  switch (r.objective) {
+    case "ENGAGEMENT":
+      return r.engagement;
+    case "TRAFFIC":
+      return r.traffic;
+    case "PROFILE_VISITS":
+      return r.profileVisits;
+    default:
+      return r.leads;
+  }
+}
+
 export function reportMetrics(r: {
   spent: number;
+  objective: string;
   leads: number;
+  engagement: number;
+  traffic: number;
+  profileVisits: number;
   actions: number;
   targetCpl: number;
   targetCpa: number | null;
 }) {
-  const cpl = r.leads > 0 ? r.spent / r.leads : null;
+  // Метрика зависит от цели кампании — вовлечённость/трафик/посещения профиля
+  // хранятся каждая в своей колонке, а не только "заявки".
+  const metric = reportMetricValue(r);
+  const cpl = metric > 0 ? r.spent / metric : null;
   const cpa = r.actions > 0 ? r.spent / r.actions : null;
   const cplOk = cpl === null ? null : cpl <= r.targetCpl;
   const cpaOk = cpa === null || !r.targetCpa ? null : cpa <= r.targetCpa;
   const inTarget = cplOk === null ? null : cplOk && cpaOk !== false;
-  return { cpl, cpa, cplOk, cpaOk, inTarget };
+  return { cpl, cpa, cplOk, cpaOk, inTarget, metric };
 }

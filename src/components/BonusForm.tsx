@@ -1,5 +1,6 @@
 import { saveBonus } from "@/lib/actions";
 import Select from "./Select";
+import DecimalInput from "./DecimalInput";
 
 /** Разовая премия сотруднику за месяц: сумма, за что и по какому проекту. */
 export default function BonusForm({
@@ -33,7 +34,7 @@ export default function BonusForm({
         )}
         <div>
           <label className="label">Сумма, сом</label>
-          <input className="input" name="amount" type="number" min="0" step="any" required placeholder="5000" />
+          <DecimalInput name="amount" required placeholder="5000" />
         </div>
         <div>
           <label className="label">Проект (необязательно)</label>

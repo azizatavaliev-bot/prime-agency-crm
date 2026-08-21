@@ -3,6 +3,17 @@ export function som(value: number | null | undefined): string {
   return `${v.toLocaleString("ru-RU").replace(/ /g, " ")} сом`;
 }
 
+/**
+ * Отчёт хранит targetCpl как обязательное число (в схеме нет null) — если у
+ * клиента порог не задан, actions.ts подставляет туда 999999 как «условно
+ * без потолка». Показывать это число как есть («999 999 сом») бессмысленно —
+ * везде, где рендерим targetCpl отчёта, используем эту функцию, а не som().
+ */
+export function targetCplLabel(value: number | null | undefined): string {
+  if (value === null || value === undefined || value >= 999999) return "—";
+  return som(value);
+}
+
 export function num(value: number | null | undefined, digits = 0): string {
   return (value ?? 0).toLocaleString("ru-RU", {
     minimumFractionDigits: digits,

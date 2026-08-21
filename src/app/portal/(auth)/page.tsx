@@ -1,8 +1,9 @@
 import Link from "next/link";
 import { requireClient } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { reportMetrics } from "@/lib/finance";
+import { reportMetrics, reportMetricValue } from "@/lib/finance";
 import { som, dateRu, num } from "@/lib/format";
+import { OBJECTIVE_METRIC_LABEL } from "@/lib/constants";
 import { PageHeader, Section, Empty, Stat } from "@/components/ui";
 import { CreditCard, FileBarChart, Layers, ExternalLink, Wallet, TrendingUp } from "lucide-react";
 
@@ -21,14 +22,20 @@ export default async function PortalHome() {
     }),
     prisma.adReport.aggregate({
       where: { clientId: session.clientId },
-      _sum: { spent: true, leads: true },
+      _sum: { spent: true, leads: true, engagement: true, traffic: true, profileVisits: true },
     }),
     prisma.adReport.count({ where: { clientId: session.clientId } }),
   ]);
   if (!client) return <Empty text="Проект не найден" />;
 
   const totalSpent = spendAgg._sum.spent ?? 0;
-  const totalLeads = spendAgg._sum.leads ?? 0;
+  // Складываем результат по всем целям кампаний вместе — заявки, вовлечённость
+  // и трафик считаются разными полями, но клиенту нужна одна общая цифра.
+  const totalResult =
+    (spendAgg._sum.leads ?? 0) +
+    (spendAgg._sum.engagement ?? 0) +
+    (spendAgg._sum.traffic ?? 0) +
+    (spendAgg._sum.profileVisits ?? 0);
 
   return (
     <div>
@@ -36,7 +43,7 @@ export default async function PortalHome() {
 
       <div className="grid gap-3 grid-cols-2 lg:grid-cols-3">
         <Stat label="Потрачено на рекламу всего" value={som(totalSpent)} icon={Wallet} />
-        <Stat label="Заявок получено всего" value={String(totalLeads)} icon={TrendingUp} />
+        <Stat label="Результат получено всего" value={String(totalResult)} icon={TrendingUp} />
         <Stat label="Отчётов" value={String(reportsCount)} icon={FileBarChart} />
       </div>
 
@@ -92,7 +99,7 @@ export default async function PortalHome() {
                     )}
                   </div>
                   <div className="mt-1 text-xs text-zinc-500">
-                    Потрачено {som(r.spent)} · Заявок {r.leads}
+                    Потрачено {som(r.spent)} · {OBJECTIVE_METRIC_LABEL[r.objective] ?? "Результат"} {reportMetricValue(r)}
                     {m.cpl ? ` · CPL ${num(m.cpl)} сом` : ""}
                   </div>
                 </div>
