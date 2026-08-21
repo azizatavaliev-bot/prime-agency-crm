@@ -7,6 +7,7 @@ import { CLIENT_STATUS, SERVICES } from "@/lib/constants";
 import Select from "./Select";
 import DatePicker from "./DatePicker";
 import FormSection from "./FormSection";
+import SubmitButton from "./SubmitButton";
 
 type UserOpt = { id: string; name: string; role: string };
 type Opt = { key: string; name: string };
@@ -68,6 +69,9 @@ export default function ClientForm({
     <form action={saveClient} className="space-y-4">
       {client && <input type="hidden" name="id" value={client.id} />}
 
+      {/* Короткие блоки — парами на широком экране: окно шире (max-w-4xl), меньше
+          прокрутки, чем когда все 7 секций идут одна под одной в узкую колонку. */}
+      <div className="grid gap-4 lg:grid-cols-2">
       <FormSection title="О клиенте" hint="Как называется и чем занимается" icon={Building2}>
         <div>
           <label className="label">Название *</label>
@@ -154,7 +158,9 @@ export default function ClientForm({
           <DatePicker name="startedAt" defaultValue={toInputDate(client?.startedAt ?? new Date())} />
         </div>
       </FormSection>
+      </div>
 
+      <div className="grid gap-4 lg:grid-cols-2">
       <FormSection title="Деньги" hint="Абонплата и когда клиент платит" icon={Wallet}>
         <div>
           <label className="label">Абонплата, сом</label>
@@ -207,6 +213,7 @@ export default function ClientForm({
           <DatePicker name="contractEnd" defaultValue={toInputDate(client?.contractEnd)} />
         </div>
       </FormSection>
+      </div>
 
       <FormSection title="Услуги и цель" hint="Что делаем и к какому результату идём" icon={Target} columns={1}>
         <div>
@@ -346,9 +353,11 @@ export default function ClientForm({
         </div>
       </FormSection>
 
-      <button className="btn-primary w-full !py-2.5">
-        {client ? "Сохранить изменения" : "Добавить клиента"}
-      </button>
+      <div className="form-footer">
+        <SubmitButton pendingLabel="Сохраняем…">
+          {client ? "Сохранить изменения" : "Добавить клиента"}
+        </SubmitButton>
+      </div>
     </form>
   );
 }

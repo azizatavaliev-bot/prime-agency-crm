@@ -223,6 +223,16 @@ tbody tr:hover {
   @apply mb-3 flex items-center gap-2 text-sm font-medium;
   color: var(--muted);
 }
+/* Подвал формы в модалке: кнопка сохранения всегда на виду, сколько бы полей
+   ни было выше. Отрицательные поля растягивают полосу на всю ширину окна,
+   компенсируя внутренние отступы ModalShell. */
+.form-footer {
+  @apply sticky bottom-0 z-10 -mx-5 mt-1 px-5 pt-3 sm:-mx-6 sm:px-6;
+  padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  backdrop-filter: blur(8px);
+  border-top: 1px solid var(--line);
+}
 
 /* ---------- тёмная тема для утилит Tailwind, использованных в разметке ---------- */
 .dark .bg-white {

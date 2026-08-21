@@ -104,7 +104,7 @@ export default async function ClientsPage({
             <FormModal
               label="Новый клиент"
               title="Новый клиент"
-              width="max-w-3xl"
+              width="max-w-4xl"
               icon={<Plus size={16} />}
               hint="Заполните цель и договорённости — их видит вся команда проекта. Абонплата попадёт в план выручки месяца, а дата следующей оплаты создаст напоминание."
             >

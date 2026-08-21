@@ -622,7 +622,7 @@ export function ClientModal({
                                     <FormModal
                                       label="Редактировать карточку"
                                       title={`Карточка клиента — ${client.name}`}
-                                      width="max-w-3xl"
+                                      width="max-w-4xl"
                                       icon={<Pencil size={16} />}
                                       hint="Цель и договорённости видны всей команде проекта — это основа для отчётов и задач."
                                     >

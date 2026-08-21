@@ -8,6 +8,7 @@ import {
   Bell,
   Moon,
   Sun,
+  Monitor,
   LogOut,
   User as UserIcon,
   Settings,
@@ -20,7 +21,17 @@ import {
 } from "lucide-react";
 import { Avatar } from "./ui";
 import { readAllNotifications } from "@/lib/actions";
+import { useTheme, type Theme } from "@/lib/theme";
 import type { SearchResult } from "@/app/api/search/route";
+
+/** Клик по кнопке в шапке — по кругу: светлая → тёмная → системная. */
+const THEME_ICON: Record<Theme, typeof Sun> = { light: Sun, dark: Moon, system: Monitor };
+const NEXT_THEME: Record<Theme, Theme> = { light: "dark", dark: "system", system: "light" };
+const THEME_TITLE: Record<Theme, string> = {
+  light: "Светлая тема — нажмите для тёмной",
+  dark: "Тёмная тема — нажмите для системной",
+  system: "Системная тема — нажмите для светлой",
+};
 
 export type TopNotification = {
   id: string;
@@ -50,14 +61,13 @@ export default function TopBar({
   const [searchOpen, setSearchOpen] = useState(false);
   const [bellOpen, setBellOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [dark, setDark] = useState(false);
+  const { theme, setTheme } = useTheme();
   const [isPending, startTransition] = useTransition();
   const searchRef = useRef<HTMLDivElement>(null);
   const bellRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    setDark(document.documentElement.classList.contains("dark"));
     const onClick = (e: MouseEvent) => {
       if (searchRef.current && !searchRef.current.contains(e.target as Node)) setSearchOpen(false);
       if (bellRef.current && !bellRef.current.contains(e.target as Node)) setBellOpen(false);
@@ -87,13 +97,6 @@ export default function TopBar({
     }, 250);
     return () => clearTimeout(t);
   }, [q]);
-
-  const toggleTheme = () => {
-    const next = !dark;
-    setDark(next);
-    document.documentElement.classList.toggle("dark", next);
-    localStorage.setItem("prime-theme", next ? "dark" : "light");
-  };
 
   const submitSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -158,8 +161,15 @@ export default function TopBar({
       </div>
 
       <div className="ml-auto flex items-center gap-2">
-        <button onClick={toggleTheme} className="rounded-xl p-2.5 text-muted transition hover:bg-subtle" title="Тема">
-          {dark ? <Sun size={17} /> : <Moon size={17} />}
+        <button
+          onClick={() => setTheme(NEXT_THEME[theme])}
+          className="rounded-xl p-2.5 text-muted transition hover:bg-subtle"
+          title={THEME_TITLE[theme]}
+        >
+          {(() => {
+            const ThemeIcon = THEME_ICON[theme];
+            return <ThemeIcon size={17} />;
+          })()}
         </button>
 
         <div className="relative" ref={bellRef}>

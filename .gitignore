@@ -7,3 +7,4 @@ dist
 .next-build
 tsconfig.tsbuildinfo
 .github/
+.next-mine/
