@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { CalendarDays, Plus, Trash2, TrendingUp } from "lucide-react";
+import { CalendarDays, Plus, Trash2, TrendingUp, Users2 } from "lucide-react";
 import { saveMarketingReport } from "@/lib/actions";
 import FormSection from "./FormSection";
 import Select, { type SelectOption } from "./Select";
@@ -33,6 +33,7 @@ export default function MarketingReportForm({
     currency?: string;
     leads?: number;
     impressions?: number;
+    clicks?: number;
     inquiries?: number;
     notes?: string;
   };
@@ -43,6 +44,7 @@ export default function MarketingReportForm({
     currency: string;
     leads: number;
     impressions: number;
+    clicks: number;
     inquiries: number;
   };
 
@@ -53,16 +55,19 @@ export default function MarketingReportForm({
     currency: "KGS",
     leads: 0,
     impressions: 0,
+    clicks: 0,
     inquiries: 0,
     ...init,
   });
 
+  const [clientId, setClientId] = useState(defaults?.clientId ?? "");
   const [rows, setRows] = useState<Row[]>([
     newRow({
       spend: defaults?.spend ?? 0,
       currency: defaults?.currency ?? "KGS",
       leads: defaults?.leads ?? 0,
       impressions: defaults?.impressions ?? 0,
+      clicks: defaults?.clicks ?? 0,
       inquiries: defaults?.inquiries ?? 0,
     }),
   ]);
@@ -79,6 +84,7 @@ export default function MarketingReportForm({
   const spendSom = rows.reduce((sum, r) => sum + rowSom(r), 0);
   const leads = rows.reduce((sum, r) => sum + r.leads, 0);
   const impressions = rows.reduce((sum, r) => sum + r.impressions, 0);
+  const clicks = rows.reduce((sum, r) => sum + r.clicks, 0);
   const inquiries = rows.reduce((sum, r) => sum + r.inquiries, 0);
   const hasUsdRow = rows.some((r) => r.currency === "USD");
   const cplValue = leads > 0 ? Math.round(spendSom / leads) : null;
@@ -94,7 +100,26 @@ export default function MarketingReportForm({
     <form action={saveMarketingReport} className="space-y-4">
       {defaults?.id && <input type="hidden" name="id" value={defaults.id} />}
 
-      <FormSection title="Период и канал" icon={CalendarDays} columns={2}>
+      {/*
+        Клиент и дата — первое, что заполняют, и по отдельной крупной секции:
+        раньше клиент был последним необязательным полем среди четырёх других
+        и терялся — маркетолог половину отчётов заводил «общими», без привязки.
+      */}
+      <FormSection title="Клиент и дата" icon={Users2} columns={2} hint="Сначала клиент — так отчёт сразу попадёт в его историю">
+        {clients.length > 0 ? (
+          <div className="sm:col-span-2">
+            <label className="label">Клиент</label>
+            <Select
+              name="clientId"
+              options={clients}
+              defaultValue={clientId}
+              onChange={setClientId}
+              placeholder="Общий отчёт агентства, без клиента"
+            />
+          </div>
+        ) : (
+          <input type="hidden" name="clientId" value="" />
+        )}
         <div>
           <label className="label">Дата</label>
           <DatePicker name="date" defaultValue={defaults?.date ?? toInputDate(new Date())} required />
@@ -116,12 +141,6 @@ export default function MarketingReportForm({
             placeholder="Не указано"
           />
         </div>
-        {clients.length > 0 && (
-          <div>
-            <label className="label">Клиент (если отчёт по проекту)</label>
-            <Select name="clientId" options={clients} defaultValue={defaults?.clientId} placeholder="Общий, без привязки" />
-          </div>
-        )}
       </FormSection>
 
       {/* Итоговые поля, которые реально уходят в saveMarketingReport — считаются из строк ниже. */}
@@ -129,6 +148,7 @@ export default function MarketingReportForm({
       <input type="hidden" name="currency" value="KGS" />
       <input type="hidden" name="leads" value={leads} />
       <input type="hidden" name="impressions" value={impressions} />
+      <input type="hidden" name="clicks" value={clicks} />
       <input type="hidden" name="inquiries" value={inquiries} />
 
       <FormSection title="Данные отчёта" icon={TrendingUp} columns={1}>
@@ -149,18 +169,22 @@ export default function MarketingReportForm({
                   </button>
                 )}
               </div>
-              <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-                <div>
+              {/* На телефоне 2 колонки вместо 4 — иначе цифры сжимаются до нечитаемых
+                  полей шире одного символа. Расход — на всю ширину: рядом с ним селектор валюты. */}
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                <div className="col-span-2 sm:col-span-1">
                   <label className="label">Расход</label>
                   <div className="flex gap-2">
                     <input
                       className="input"
                       type="number"
+                      inputMode="decimal"
                       step="0.01"
-                      value={r.spend}
+                      value={r.spend || ""}
+                      placeholder="0"
                       onChange={(e) => updateRow(r.key, { spend: Number(e.target.value) || 0 })}
                     />
-                    <div className="w-24">
+                    <div className="w-24 shrink-0">
                       <Select
                         name={`row-currency-${r.key}`}
                         options={[
@@ -178,8 +202,21 @@ export default function MarketingReportForm({
                   <input
                     className="input"
                     type="number"
-                    value={r.leads}
+                    inputMode="numeric"
+                    value={r.leads || ""}
+                    placeholder="0"
                     onChange={(e) => updateRow(r.key, { leads: Number(e.target.value) || 0 })}
+                  />
+                </div>
+                <div>
+                  <label className="label">Клики</label>
+                  <input
+                    className="input"
+                    type="number"
+                    inputMode="numeric"
+                    value={r.clicks || ""}
+                    placeholder="0"
+                    onChange={(e) => updateRow(r.key, { clicks: Number(e.target.value) || 0 })}
                   />
                 </div>
                 <div>
@@ -187,7 +224,9 @@ export default function MarketingReportForm({
                   <input
                     className="input"
                     type="number"
-                    value={r.impressions}
+                    inputMode="numeric"
+                    value={r.impressions || ""}
+                    placeholder="0"
                     onChange={(e) => updateRow(r.key, { impressions: Number(e.target.value) || 0 })}
                   />
                 </div>
@@ -196,7 +235,9 @@ export default function MarketingReportForm({
                   <input
                     className="input"
                     type="number"
-                    value={r.inquiries}
+                    inputMode="numeric"
+                    value={r.inquiries || ""}
+                    placeholder="0"
                     onChange={(e) => updateRow(r.key, { inquiries: Number(e.target.value) || 0 })}
                   />
                 </div>
@@ -209,11 +250,12 @@ export default function MarketingReportForm({
           </button>
 
           {hasUsdRow && (
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <label className="label !mb-0">Курс USD</label>
               <input
                 className="input !py-1.5 w-28"
                 type="number"
+                inputMode="decimal"
                 step="0.01"
                 value={rate}
                 onChange={(e) => setRate(Number(e.target.value) || 0)}

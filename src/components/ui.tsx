@@ -255,12 +255,15 @@ export function CompactStat({
   hint,
   tone = "default",
   icon: Icon,
+  delta,
 }: {
   label: string;
   value: string;
   hint?: string;
   tone?: "default" | "good" | "warn" | "bad";
   icon?: LucideIcon;
+  /** Изменение к прошлому периоду — как в карточках Unity: «↓2%» рядом с числом. */
+  delta?: { percent: number; goodWhenUp?: boolean };
 }) {
   const valueTone = {
     default: "",
@@ -268,11 +271,20 @@ export function CompactStat({
     warn: "text-amber-600",
     bad: "text-red-600",
   }[tone];
+  const up = (delta?.percent ?? 0) > 0;
+  const deltaGood = delta?.goodWhenUp === false ? !up : up;
   return (
     <div className="card px-3.5 py-3">
-      <div className="flex items-center gap-1.5 text-[11px] text-muted">
-        {Icon && <Icon size={12} strokeWidth={1.9} />}
-        <span className="truncate">{label}</span>
+      <div className="flex items-center justify-between gap-1.5">
+        <div className="flex min-w-0 items-center gap-1.5 text-[11px] text-muted">
+          {Icon && <Icon size={12} strokeWidth={1.9} />}
+          <span className="truncate">{label}</span>
+        </div>
+        {delta && delta.percent !== 0 && (
+          <span className={`shrink-0 text-[11px] font-medium ${deltaGood ? "text-emerald-600" : "text-red-600"}`}>
+            {up ? "↑" : "↓"}{Math.abs(delta.percent)}%
+          </span>
+        )}
       </div>
       <div className={`font-display mt-1 text-lg font-semibold tracking-tight ${valueTone}`}>
         {value}

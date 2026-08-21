@@ -12,6 +12,7 @@ export type MarketingRow = {
   spend: number;
   leads: number;
   impressions: number;
+  clicks: number;
   inquiries: number;
   notes: string | null;
   authorName?: string | null;
@@ -26,8 +27,11 @@ export function totals(rows: MarketingRow[]) {
   const spend = rows.reduce((s, r) => s + r.spend, 0);
   const leads = rows.reduce((s, r) => s + r.leads, 0);
   const impressions = rows.reduce((s, r) => s + r.impressions, 0);
+  const clicks = rows.reduce((s, r) => s + r.clicks, 0);
   const inquiries = rows.reduce((s, r) => s + r.inquiries, 0);
-  return { spend, leads, impressions, inquiries, cpl: cpl(spend, leads) };
+  // CTR — доля показов, которые привели к клику; без показов метрика бессмысленна.
+  const ctr = impressions > 0 ? (clicks / impressions) * 100 : null;
+  return { spend, leads, impressions, clicks, inquiries, ctr, cpl: cpl(spend, leads) };
 }
 
 /** Разбивка суммы расхода/лидов по ключу (канал/источник/направление). */
@@ -77,6 +81,7 @@ export async function reportsForRange(
     spend: r.spend,
     leads: r.leads,
     impressions: r.impressions,
+    clicks: r.clicks,
     inquiries: r.inquiries,
     notes: r.notes,
     authorName: r.author?.name,
@@ -122,13 +127,17 @@ export function weekStartUtc(): Date {
 
 /** Группировка по датам (для календаря) — ISO-дата -> сумма за день. */
 export function groupByDate(rows: MarketingRow[]) {
-  const map = new Map<string, { spend: number; leads: number; impressions: number; inquiries: number }>();
+  const map = new Map<
+    string,
+    { spend: number; leads: number; impressions: number; clicks: number; inquiries: number }
+  >();
   for (const r of rows) {
     const key = r.date.toISOString().slice(0, 10);
-    const cur = map.get(key) ?? { spend: 0, leads: 0, impressions: 0, inquiries: 0 };
+    const cur = map.get(key) ?? { spend: 0, leads: 0, impressions: 0, clicks: 0, inquiries: 0 };
     cur.spend += r.spend;
     cur.leads += r.leads;
     cur.impressions += r.impressions;
+    cur.clicks += r.clicks;
     cur.inquiries += r.inquiries;
     map.set(key, cur);
   }
@@ -139,6 +148,29 @@ export function monthRange(year: number, month: number) {
   const from = new Date(Date.UTC(year, month - 1, 1));
   const to = new Date(Date.UTC(year, month, 0, 23, 59, 59));
   return { from, to };
+}
+
+/** Текст отчёта клиенту — один шаблон для копирования, Telegram и превью в форме. */
+export function reportShareText(r: {
+  date: Date;
+  spend: number;
+  leads: number;
+  impressions: number;
+  clicks: number;
+  inquiries: number;
+  clientName?: string | null;
+  notes?: string | null;
+}): string {
+  const cplLine = r.leads > 0 ? `\nЦена заявки: ${Math.round(r.spend / r.leads)} сом` : "";
+  const lines = [
+    `📊 Отчёт за ${r.date.toLocaleDateString("ru-RU")}${r.clientName ? ` — ${r.clientName}` : ""}`,
+    `Расход: ${Math.round(r.spend).toLocaleString("ru-RU")} сом`,
+    `Заявок: ${r.leads}`,
+  ];
+  if (r.clicks) lines.push(`Клики: ${r.clicks}`);
+  if (r.impressions) lines.push(`Показы: ${r.impressions.toLocaleString("ru-RU")}`);
+  if (r.inquiries) lines.push(`Обращений: ${r.inquiries}`);
+  return lines.join("\n") + cplLine + (r.notes ? `\n\n${r.notes}` : "");
 }
 
 export { monthKey };

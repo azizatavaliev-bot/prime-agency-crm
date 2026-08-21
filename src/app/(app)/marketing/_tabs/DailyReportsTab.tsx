@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { FileText, Trash2, Pencil } from "lucide-react";
+import { FileText, Trash2, Pencil, Send } from "lucide-react";
 
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -12,12 +12,15 @@ import { som, num, dateRu } from "@/lib/format";
 import { cpl } from "@/lib/marketing";
 import { Table, Collapse } from "@/components/ui";
 import DailyReportModal from "@/components/DailyReportModal";
+import ShareReportPanel from "@/components/ShareReportPanel";
+import { reportShareText } from "@/lib/marketing";
 
 export default async function DailyReportsTab({
   sp = {},
 }: {
-  /** date — предзаполнить день из календаря, edit — открыть отчёт на правку. */
-  sp?: { date?: string; edit?: string };
+  /** date — предзаполнить день из календаря, edit — открыть отчёт на правку,
+   *  share — открыть карточку «поделиться» по только что сохранённому отчёту. */
+  sp?: { date?: string; edit?: string; share?: string; sent?: string; error?: string; tasksAdded?: string };
 }) {
   const user = await requireUser();
   if (!can.writeReports(user)) redirect("/no-access");
@@ -44,6 +47,13 @@ export default async function DailyReportsTab({
   const editing = sp.edit
     ? await prisma.marketingReport.findFirst({
         where: { AND: [{ id: sp.edit }, marketingScope(user)] },
+      })
+    : null;
+
+  const sharing = sp.share
+    ? await prisma.marketingReport.findFirst({
+        where: { AND: [{ id: sp.share }, marketingScope(user)] },
+        include: { client: { select: { id: true, name: true, tgChatId: true } } },
       })
     : null;
 
@@ -77,6 +87,7 @@ export default async function DailyReportsTab({
                   currency: editing.currency,
                   leads: editing.leads,
                   impressions: editing.impressions,
+                  clicks: editing.clicks,
                   inquiries: editing.inquiries,
                   notes: editing.notes ?? undefined,
                 }
@@ -113,6 +124,15 @@ export default async function DailyReportsTab({
                     >
                       <Pencil size={13} />
                     </Link>
+                    {r.client?.name && (
+                      <Link
+                        href={`/marketing?tab=daily&share=${r.id}`}
+                        className="btn-ghost !px-2.5 !py-1 !text-xs"
+                        title="Поделиться отчётом"
+                      >
+                        <Send size={13} />
+                      </Link>
+                    )}
                     <form action={deleteMarketingReport}>
                       <input type="hidden" name="id" value={r.id} />
                       <button className="btn-ghost !px-2.5 !py-1 !text-xs text-red-600">
@@ -134,6 +154,26 @@ export default async function DailyReportsTab({
           </Table>
         </Collapse>
       </div>
+      {sharing?.client && (
+        <ShareReportPanel
+          reportId={sharing.id}
+          clientId={sharing.client.id}
+          clientName={sharing.client.name}
+          hasChat={Boolean(sharing.client.tgChatId)}
+          text={reportShareText({
+            date: sharing.date,
+            spend: sharing.spend,
+            leads: sharing.leads,
+            impressions: sharing.impressions,
+            clicks: sharing.clicks,
+            inquiries: sharing.inquiries,
+            notes: sharing.notes,
+          })}
+          sent={sp.sent === "1"}
+          error={sp.error}
+          tasksAdded={sp.tasksAdded ? Number(sp.tasksAdded) : undefined}
+        />
+      )}
     </div>
   );
 }

@@ -19,6 +19,7 @@ import { nextPaymentDate } from "./payday";
 import { ROLES, DEFAULTS, REPORT_OBJECTIVE, BONUS_METRIC, RENEWAL_MODE } from "./constants";
 import { notifyAssignee, closeOrReopenTask } from "./tasks";
 import { notifyClient, notifyUser } from "./telegram";
+import { reportShareText } from "./marketing";
 import { ensureDictSeeded } from "./dict";
 import { payrollFor } from "./payroll";
 
@@ -1552,6 +1553,7 @@ export async function saveMarketingReport(fd: FormData) {
     usdRate,
     leads: Math.round(n(fd, "leads")),
     impressions: Math.round(n(fd, "impressions")),
+    clicks: Math.round(n(fd, "clicks")),
     inquiries: Math.round(n(fd, "inquiries")),
     notes: str(fd, "notes"),
     clientId,
@@ -1559,6 +1561,7 @@ export async function saveMarketingReport(fd: FormData) {
   };
 
   const id = str(fd, "id");
+  let reportId = id;
   if (id) {
     // Чужой отчёт правит только владелец.
     const existing = await prisma.marketingReport.findUnique({ where: { id } });
@@ -1566,7 +1569,8 @@ export async function saveMarketingReport(fd: FormData) {
     if (user.role !== "SUPER_ADMIN" && existing.authorId !== user.id) redirect("/no-access");
     await prisma.marketingReport.update({ where: { id }, data });
   } else {
-    await prisma.marketingReport.create({ data });
+    const created = await prisma.marketingReport.create({ data });
+    reportId = created.id;
   }
 
   revalidatePath("/marketing");
@@ -1575,6 +1579,76 @@ export async function saveMarketingReport(fd: FormData) {
   // Уводим со страницы правки: иначе форма остаётся в режиме «правка отчёта»
   // и следующий ввод молча перезаписал бы только что сохранённый.
   if (id) redirect("/marketing?tab=daily");
+  // Отчёт по клиенту сохранили — сразу открываем карточку «поделиться»,
+  // чтобы не искать только что созданную строку в списке.
+  if (clientId && reportId) redirect(`/marketing?tab=daily&share=${reportId}`);
+}
+
+/**
+ * Отправить готовый отчёт клиенту в Telegram — тот же текст, что и в копии
+ * для менеджера, плюс скриншот кабинета, если его приложили к отчёту.
+ */
+export async function shareReportToClient(fd: FormData) {
+  const user = await requireUser();
+  if (!can.writeReports(user)) redirect("/no-access");
+  const reportId = req(fd, "reportId");
+  const report = await prisma.marketingReport.findFirst({
+    where: { AND: [{ id: reportId }, { client: clientScope(user) }] },
+    include: { client: true },
+  });
+  if (!report || !report.clientId) redirect("/no-access");
+  if (!report.client?.tgChatId) redirect(`/marketing?tab=daily&share=${reportId}&error=no-chat`);
+
+  const text = reportShareText({
+    date: report.date,
+    spend: report.spend,
+    leads: report.leads,
+    impressions: report.impressions,
+    clicks: report.clicks,
+    inquiries: report.inquiries,
+    clientName: null, // клиент и так знает, что это про него
+    notes: report.notes,
+  });
+  await notifyClient(report.clientId, { kind: "REPORT_READY", title: "Отчёт за день", body: text });
+  revalidatePath("/marketing");
+  redirect(`/marketing?tab=daily&share=${reportId}&sent=1`);
+}
+
+/**
+ * Быстро завести несколько задач по проекту сразу после отчёта — маркетолог
+ * ещё помнит, что нужно сделать, и не должен открывать доску отдельно.
+ * Каждая строка textarea — своя задача, дедлайн по умолчанию сегодня.
+ */
+export async function quickAddTasks(fd: FormData) {
+  const user = await requireUser();
+  if (user.role === "DEVELOPER") redirect("/no-access");
+  const clientId = str(fd, "clientId");
+  if (clientId) {
+    const client = await prisma.client.findFirst({ where: { AND: [{ id: clientId }, clientScope(user)] } });
+    if (!client) redirect("/no-access");
+  }
+  const titles = req(fd, "titles")
+    .split("\n")
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .slice(0, 10); // не даём случайно вставить простыню — это быстрые заметки, не план на месяц
+  if (titles.length) {
+    await prisma.task.createMany({
+      data: titles.map((title) => ({
+        title,
+        board: "TARGET",
+        stage: "TODO",
+        clientId,
+        assigneeId: user.id,
+        dueAt: new Date(),
+        priority: "MEDIUM",
+      })),
+    });
+  }
+  revalidatePath("/tasks");
+  revalidatePath("/marketing");
+  const reportId = str(fd, "reportId");
+  redirect(reportId ? `/marketing?tab=daily&share=${reportId}&tasksAdded=${titles.length}` : "/tasks");
 }
 
 export async function deleteMarketingReport(fd: FormData) {

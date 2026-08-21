@@ -44,6 +44,7 @@ export default async function MarketingCalendarTab({ sp }: { sp: { y?: string; m
     spend: r.spend,
     leads: r.leads,
     impressions: r.impressions,
+    clicks: r.clicks,
     inquiries: r.inquiries,
     notes: r.notes,
     authorName: r.authorName ?? null,

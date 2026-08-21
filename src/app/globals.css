@@ -131,6 +131,18 @@ h3,
     0 0 0 3px color-mix(in srgb, var(--accent) 35%, transparent),
     0 10px 24px -8px color-mix(in srgb, var(--accent) 85%, transparent);
 }
+/* Отключённая кнопка ни разу не выглядела отключённой — просто оставалась
+   яркой и кликабельной на вид, хотя браузер уже не пропускал клик. Теперь
+   одно правило на все .btn-*: приглушаем и убираем курсор-руку. */
+.btn-primary:disabled,
+.btn-ghost:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+  filter: none;
+  transform: none;
+  box-shadow: none;
+}
+
 .btn-ghost {
   @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-medium transition;
   background: var(--surface);

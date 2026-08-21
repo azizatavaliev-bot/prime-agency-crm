@@ -26,6 +26,7 @@ export type CalendarReport = {
   spend: number;
   leads: number;
   impressions: number;
+  clicks: number;
   inquiries: number;
   notes: string | null;
   authorName: string | null;
@@ -36,6 +37,7 @@ type Bucket = {
   spend: number;
   leads: number;
   impressions: number;
+  clicks: number;
   inquiries: number;
   reports: CalendarReport[];
 };
@@ -113,11 +115,12 @@ export default function MarketingCalendar({
     const map = new Map<string, Bucket>();
     for (const r of filtered) {
       const cur = map.get(r.date) ?? {
-        spend: 0, leads: 0, impressions: 0, inquiries: 0, reports: [],
+        spend: 0, leads: 0, impressions: 0, clicks: 0, inquiries: 0, reports: [],
       };
       cur.spend += r.spend;
       cur.leads += r.leads;
       cur.impressions += r.impressions;
+      cur.clicks += r.clicks;
       cur.inquiries += r.inquiries;
       cur.reports.push(r);
       map.set(r.date, cur);
@@ -146,7 +149,7 @@ export default function MarketingCalendar({
 
   // Итоги считаем по видимому периоду, а не по всему загруженному окну
   const totals = useMemo(() => {
-    let spend = 0, leads = 0, impressions = 0, inquiries = 0, filledDays = 0;
+    let spend = 0, leads = 0, impressions = 0, clicks = 0, inquiries = 0, filledDays = 0;
     for (const d of visibleDays) {
       const b = byDate.get(d);
       if (!b) continue;
@@ -154,14 +157,16 @@ export default function MarketingCalendar({
       spend += b.spend;
       leads += b.leads;
       impressions += b.impressions;
+      clicks += b.clicks;
       inquiries += b.inquiries;
     }
     // Знаменатель — только наступившие дни: в середине месяца «4 из 31»
     // читалось как провал, хотя заполнено всё, что можно.
     const elapsed = visibleDays.filter((d) => d <= today).length;
     return {
-      spend, leads, impressions, inquiries, filledDays,
+      spend, leads, impressions, clicks, inquiries, filledDays,
       cpl: leads > 0 ? spend / leads : null,
+      ctr: impressions > 0 ? (clicks / impressions) * 100 : null,
       totalDays: elapsed || visibleDays.length,
     };
   }, [visibleDays, byDate, today]);
@@ -373,6 +378,15 @@ export default function MarketingCalendar({
           <div className="rounded-2xl bg-subtle p-3">
             <div className="text-[11px] text-muted">Показы</div>
             <div className="mt-0.5 text-base font-semibold">{num(totals.impressions)}</div>
+          </div>
+          <div className="rounded-2xl bg-subtle p-3">
+            <div className="text-[11px] text-muted">Клики</div>
+            <div className="mt-0.5 text-base font-semibold">
+              {num(totals.clicks)}
+              {totals.ctr !== null && (
+                <span className="ml-1 text-[11px] font-normal text-muted">CTR {totals.ctr.toFixed(1)}%</span>
+              )}
+            </div>
           </div>
           <div className="rounded-2xl bg-subtle p-3">
             <div className="text-[11px] text-muted">Обращения</div>
