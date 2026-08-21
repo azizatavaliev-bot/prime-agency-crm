@@ -66,12 +66,12 @@ export default function ClientForm({
   const accountManagers = users.filter((u) => u.role === "TEAM_LEAD");
 
   return (
-    <form action={saveClient} className="space-y-4">
+    <form action={saveClient} className="space-y-5">
       {client && <input type="hidden" name="id" value={client.id} />}
 
       {/* Короткие блоки — парами на широком экране: окно шире (max-w-4xl), меньше
           прокрутки, чем когда все 7 секций идут одна под одной в узкую колонку. */}
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid gap-5 lg:grid-cols-2">
       <FormSection title="О клиенте" hint="Как называется и чем занимается" icon={Building2}>
         <div>
           <label className="label">Название *</label>
@@ -160,7 +160,7 @@ export default function ClientForm({
       </FormSection>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid gap-5 lg:grid-cols-2">
       <FormSection title="Деньги" hint="Абонплата и когда клиент платит" icon={Wallet}>
         <div>
           <label className="label">Абонплата, сом</label>

@@ -19,19 +19,19 @@ export default function FormSection({
 }) {
   const cols = { 1: "", 2: "sm:grid-cols-2", 3: "sm:grid-cols-3" }[columns];
   return (
-    <section className="rounded-2xl border border-zinc-200 p-4">
-      <div className="mb-3 flex items-start gap-2.5">
+    <section className="rounded-2xl border border-zinc-200 p-5">
+      <div className="mb-4 flex items-start gap-3">
         {Icon && (
-          <span className="accent-soft accent-text flex h-7 w-7 shrink-0 items-center justify-center rounded-lg">
-            <Icon size={14} strokeWidth={2} />
+          <span className="accent-soft accent-text flex h-8 w-8 shrink-0 items-center justify-center rounded-xl">
+            <Icon size={15} strokeWidth={2} />
           </span>
         )}
         <div className="min-w-0">
           <div className="text-sm font-semibold leading-tight">{title}</div>
-          {hint && <div className="mt-0.5 text-xs text-muted">{hint}</div>}
+          {hint && <div className="mt-1 text-xs leading-relaxed text-muted">{hint}</div>}
         </div>
       </div>
-      <div className={`grid gap-4 ${cols}`}>{children}</div>
+      <div className={`grid gap-x-4 gap-y-4 ${cols}`}>{children}</div>
     </section>
   );
 }
