@@ -20,7 +20,7 @@ import {
 } from "lucide-react";
 import type { SessionUser } from "@/lib/auth";
 import { can } from "@/lib/access";
-import { reportMetrics } from "@/lib/finance";
+import { reportMetrics, reportMetricValue } from "@/lib/finance";
 import { isOverdue } from "@/lib/tasks";
 import {
   markPaid,
@@ -45,6 +45,8 @@ import {
   PAYMENT_STATUS_COLOR,
   ROLES,
   SERVICES,
+  DEFAULTS,
+  OBJECTIVE_METRIC_LABEL,
   stagesFor,
   EXPENSE_CATEGORY,
   EXPENSE_CATEGORY_COLOR,
@@ -762,6 +764,7 @@ export function ReportModal({
   clientId,
   canEdit,
   defaultTargetCpl,
+  usdRate = DEFAULTS.usdRate,
   trigger,
   row,
   className,
@@ -771,6 +774,7 @@ export function ReportModal({
   clientId: string;
   canEdit: boolean;
   defaultTargetCpl?: number | null;
+  usdRate?: number;
   trigger?: React.ReactNode;
   row?: React.ReactNode;
   className?: string;
@@ -798,9 +802,10 @@ export function ReportModal({
         </Badge>
       }
     >
-      <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
-        <MiniStat label="Потрачено" value={som(report.spent)} />
-        <MiniStat label="Заявок" value={String(report.leads)} />
+      <div className="grid gap-3 grid-cols-2 lg:grid-cols-5">
+        <MiniStat label="Потрачено" value={som(report.spent)} hint={`≈ $${num(report.spent / usdRate)}`} />
+        <MiniStat label={OBJECTIVE_METRIC_LABEL[report.objective] ?? "Результат"} value={String(reportMetricValue(report))} />
+        <MiniStat label="Показы" value={report.views ? String(report.views) : "—"} />
         <MiniStat
           label="CPL"
           value={m.cpl ? `${num(m.cpl)} сом` : "—"}

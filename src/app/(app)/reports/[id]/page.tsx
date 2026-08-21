@@ -3,8 +3,9 @@ import { notFound } from "next/navigation";
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { clientScope } from "@/lib/access";
-import { reportMetrics } from "@/lib/finance";
+import { reportMetrics, reportMetricValue, getUsdRate } from "@/lib/finance";
 import { som, dateRu, num, targetCplLabel } from "@/lib/format";
+import { OBJECTIVE_METRIC_LABEL } from "@/lib/constants";
 import PrintButton from "@/components/PrintButton";
 
 export const dynamic = "force-dynamic";
@@ -28,6 +29,8 @@ export default async function ClientReportPage({ params }: { params: Promise<{ i
   const m = reportMetrics(r);
   const pm = prev ? reportMetrics(prev) : null;
   const delta = m.cpl && pm?.cpl ? Math.round(((m.cpl - pm.cpl) / pm.cpl) * 100) : null;
+  const usdRate = await getUsdRate();
+  const metricLabel = OBJECTIVE_METRIC_LABEL[r.objective] ?? "Результат";
 
   return (
     <div className="mx-auto max-w-3xl">
@@ -54,10 +57,12 @@ export default async function ClientReportPage({ params }: { params: Promise<{ i
           <div className="rounded-2xl bg-zinc-50 p-5">
             <div className="text-xs text-zinc-500">Потрачено на рекламу</div>
             <div className="mt-1 text-2xl font-semibold">{som(r.spent)}</div>
+            <div className="mt-0.5 text-xs text-zinc-400">≈ ${num(r.spent / usdRate)}</div>
           </div>
           <div className="rounded-2xl bg-zinc-50 p-5">
-            <div className="text-xs text-zinc-500">Получено заявок</div>
-            <div className="mt-1 text-2xl font-semibold">{r.leads}</div>
+            <div className="text-xs text-zinc-500">{metricLabel}</div>
+            <div className="mt-1 text-2xl font-semibold">{reportMetricValue(r)}</div>
+            {r.views > 0 && <div className="mt-0.5 text-xs text-zinc-400">{r.views} показов</div>}
           </div>
           <div className={`rounded-2xl p-5 ${m.cplOk === false ? "bg-red-50" : "bg-emerald-50"}`}>
             <div className="text-xs text-zinc-500">Цена заявки</div>

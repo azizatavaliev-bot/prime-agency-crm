@@ -18,7 +18,7 @@ import {
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { clientScope, can } from "@/lib/access";
-import { reportMetrics } from "@/lib/finance";
+import { reportMetrics, reportMetricValue, getUsdRate } from "@/lib/finance";
 import { isOverdue } from "@/lib/tasks";
 import {
   deleteClient,
@@ -34,6 +34,7 @@ import { dict } from "@/lib/dict";
 import {
   PAYMENT_KIND,
   PAYMENT_METHOD,
+  OBJECTIVE_METRIC_LABEL,
   stagesFor,
 } from "@/lib/constants";
 import { PageHeader, Table, Collapse, Stat, Field, Section } from "@/components/ui";
@@ -98,6 +99,7 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
     : null;
   const lastReport = client.reports[0];
   const lastMetrics = lastReport ? reportMetrics(lastReport) : null;
+  const usdRate = await getUsdRate();
 
   return (
     <div>
@@ -397,7 +399,7 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
                           </Collapse>
                         </div>
                       )}
-                      <Table head={["Период", "Бюджет", "Потрачено", "Заявки", "CPL", "Цель CPL", "CPA", "Связки", ""]}>
+                      <Table head={["Период", "Бюджет", "Потрачено", "Результат", "Показы", "CPL", "Цель CPL", "CPA", "Связки", ""]}>
                         {client.reports.map((r) => {
                           const m = reportMetrics(r);
                           return (
@@ -408,6 +410,7 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
                               clientId={client.id}
                               canEdit={can.writeReports(user)}
                               defaultTargetCpl={client.targetCpl}
+                              usdRate={usdRate}
                               className={m.inTarget === false ? "bg-red-50" : m.inTarget ? "bg-emerald-50" : ""}
                               row={
                                 <>
@@ -415,8 +418,15 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
                                     {dateRu(r.periodFrom)} — {dateRu(r.periodTo)}
                                   </td>
                                   <td className="td">{som(r.budget)}</td>
-                                  <td className="td">{som(r.spent)}</td>
-                                  <td className="td">{r.leads}</td>
+                                  <td className="td">
+                                    {som(r.spent)}
+                                    <span className="ml-1 text-xs text-muted">≈ ${num(r.spent / usdRate)}</span>
+                                  </td>
+                                  <td className="td">
+                                    {reportMetricValue(r)}
+                                    <span className="ml-1 text-xs text-muted">{OBJECTIVE_METRIC_LABEL[r.objective] ?? ""}</span>
+                                  </td>
+                                  <td className="td text-zinc-500">{r.views || "—"}</td>
                                   <td
                                     className={`td font-medium ${
                                       m.cplOk === false ? "text-red-600" : m.cplOk ? "text-emerald-600" : ""

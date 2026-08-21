@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import { requireOwner } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { reportMetrics } from "@/lib/finance";
+import { reportMetrics, reportMetricValue } from "@/lib/finance";
 import { som, monthKey, monthLabel, num } from "@/lib/format";
 import { PAYMENT_KIND, EXPENSE_CATEGORY } from "@/lib/constants";
 import { PageHeader, Table, Stat, Section } from "@/components/ui";
@@ -206,7 +206,7 @@ export default async function AnalyticsPage() {
             const clientReports = reports.filter(
               (r) => (!g.clientId || r.clientId === g.clientId) && monthKey(r.periodTo) === g.month
             );
-            const gLeads = clientReports.reduce((s, r) => s + r.leads, 0);
+            const gLeads = clientReports.reduce((s, r) => s + reportMetricValue(r), 0);
             const gSpent = clientReports.reduce((s, r) => s + r.spent, 0);
             const clientPaid = payments.filter(
               (p) => p.status === "PAID" && p.periodMonth === g.month && (!g.clientId || p.clientId === g.clientId)

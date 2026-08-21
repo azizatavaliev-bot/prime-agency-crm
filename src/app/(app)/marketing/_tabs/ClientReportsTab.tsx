@@ -15,9 +15,10 @@ import {
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { clientScope, can } from "@/lib/access";
-import { reportMetrics } from "@/lib/finance";
+import { reportMetrics, reportMetricValue, getUsdRate } from "@/lib/finance";
 import { deleteReport } from "@/lib/actions";
 import { som, dateRu, num, targetCplLabel } from "@/lib/format";
+import { OBJECTIVE_METRIC_LABEL } from "@/lib/constants";
 import { Table, Stat } from "@/components/ui";
 import FormModal from "@/components/FormModal";
 import FilterSelect from "@/components/FilterSelect";
@@ -46,7 +47,11 @@ export default async function ClientReportsTab({ sp }: { sp: { clientId?: string
   const withM = reports.map((r) => ({ r, m: reportMetrics(r) }));
   const inTarget = withM.filter((x) => x.m.inTarget === true).length;
   const spent = reports.reduce((s, r) => s + r.spent, 0);
-  const leads = reports.reduce((s, r) => s + r.leads, 0);
+  // Результат считаем по метрике каждого отчёта отдельно (вовлечённость,
+  // трафик, заявки — разные счётчики) и складываем их количество, а не
+  // всегда «заявки»: с новой per-кампанийной целью это обычно не заявки.
+  const result = reports.reduce((s, r) => s + reportMetricValue(r), 0);
+  const usdRate = await getUsdRate();
 
   return (
     <div>
@@ -65,11 +70,11 @@ export default async function ClientReportsTab({ sp }: { sp: { clientId?: string
 
       <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
         <Stat label="Отчётов" value={String(reports.length)} icon={FileBarChart} />
-        <Stat label="Потрачено" value={som(spent)} icon={Wallet} />
-        <Stat label="Заявок" value={num(leads)} icon={Users} />
+        <Stat label="Потрачено" value={som(spent)} hint={`≈ $${num(spent / usdRate)}`} icon={Wallet} />
+        <Stat label="Результат" value={num(result)} hint="заявки + вовлечённость + трафик" icon={Users} />
         <Stat
-          label="Средний CPL"
-          value={leads ? `${num(spent / leads)} сом` : "—"}
+          label="Средняя цена результата"
+          value={result ? `${num(spent / result)} сом` : "—"}
           hint={`в цели: ${inTarget} из ${withM.filter((x) => x.m.inTarget !== null).length}`}
           tone={inTarget > withM.length / 2 ? "good" : "warn"}
           icon={Target}
@@ -89,7 +94,7 @@ export default async function ClientReportsTab({ sp }: { sp: { clientId?: string
         />
       </form>
 
-      <Table head={["Проект", "Период", "Потрачено", "Заявки", "CPL", "Цель", "CPA", "Статус", "Связки", ""]}>
+      <Table head={["Проект", "Период", "Потрачено", "Результат", "Показы", "CPL", "Цель", "CPA", "Статус", "Связки", ""]}>
         {withM.map(({ r, m }) => (
           <ReportModal
             key={r.id}
@@ -98,6 +103,7 @@ export default async function ClientReportsTab({ sp }: { sp: { clientId?: string
             clientId={r.clientId}
             canEdit={can.writeReports(user)}
             defaultTargetCpl={r.client.targetCpl}
+            usdRate={usdRate}
             className={m.inTarget === false ? "bg-red-50" : m.inTarget ? "bg-emerald-50" : ""}
             row={
               <>
@@ -105,8 +111,15 @@ export default async function ClientReportsTab({ sp }: { sp: { clientId?: string
                 <td className="td text-zinc-500">
                   {dateRu(r.periodFrom)} — {dateRu(r.periodTo)}
                 </td>
-                <td className="td">{som(r.spent)}</td>
-                <td className="td">{r.leads}</td>
+                <td className="td">
+                  {som(r.spent)}
+                  <span className="ml-1 text-xs text-muted">≈ ${num(r.spent / usdRate)}</span>
+                </td>
+                <td className="td">
+                  {reportMetricValue(r)}
+                  <span className="ml-1 text-xs text-muted">{OBJECTIVE_METRIC_LABEL[r.objective] ?? ""}</span>
+                </td>
+                <td className="td text-zinc-500">{r.views || "—"}</td>
                 <td
                   className={`td font-medium ${
                     m.cplOk === false ? "text-red-600" : m.cplOk ? "text-emerald-600" : ""

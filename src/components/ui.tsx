@@ -285,10 +285,12 @@ export function CompactStat({
 export function MiniStat({
   label,
   value,
+  hint,
   tone = "default",
 }: {
   label: string;
   value: string;
+  hint?: string;
   tone?: "default" | "good" | "warn" | "bad";
 }) {
   const valueTone = {
@@ -303,6 +305,7 @@ export function MiniStat({
       <div className={`font-display mt-1 text-lg font-semibold tracking-tight ${valueTone}`}>
         {value}
       </div>
+      {hint && <div className="mt-0.5 text-[11px] text-muted">{hint}</div>}
     </div>
   );
 }

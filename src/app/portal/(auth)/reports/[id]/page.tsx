@@ -3,9 +3,10 @@ import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { requireClient } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { reportMetrics } from "@/lib/finance";
+import { reportMetrics, reportMetricValue, getUsdRate } from "@/lib/finance";
 import { saveClientFeedback } from "@/lib/actions";
-import { som, dateRu } from "@/lib/format";
+import { som, dateRu, num } from "@/lib/format";
+import { OBJECTIVE_METRIC_LABEL } from "@/lib/constants";
 import DecimalInput from "@/components/DecimalInput";
 
 export const dynamic = "force-dynamic";
@@ -21,6 +22,8 @@ export default async function PortalReportPage({ params }: { params: Promise<{ i
   if (!r) notFound();
 
   const m = reportMetrics(r);
+  const usdRate = await getUsdRate();
+  const metricLabel = OBJECTIVE_METRIC_LABEL[r.objective] ?? "Результат";
 
   return (
     <div>
@@ -40,10 +43,12 @@ export default async function PortalReportPage({ params }: { params: Promise<{ i
           <div className="rounded-2xl bg-zinc-50 p-5">
             <div className="text-xs text-zinc-500">Потрачено на рекламу</div>
             <div className="mt-1 text-2xl font-semibold">{som(r.spent)}</div>
+            <div className="mt-0.5 text-xs text-zinc-400">≈ ${num(r.spent / usdRate)}</div>
           </div>
           <div className="rounded-2xl bg-zinc-50 p-5">
-            <div className="text-xs text-zinc-500">Получено заявок</div>
-            <div className="mt-1 text-2xl font-semibold">{r.leads}</div>
+            <div className="text-xs text-zinc-500">{metricLabel}</div>
+            <div className="mt-1 text-2xl font-semibold">{reportMetricValue(r)}</div>
+            {r.views > 0 && <div className="mt-0.5 text-xs text-zinc-400">{r.views} показов</div>}
           </div>
           <div className={`rounded-2xl p-5 ${m.cplOk === false ? "bg-red-50" : "bg-emerald-50"}`}>
             <div className="text-xs text-zinc-500">Цена заявки</div>

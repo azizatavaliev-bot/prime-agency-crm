@@ -1,8 +1,9 @@
 import Link from "next/link";
 import { requireClient } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { reportMetrics } from "@/lib/finance";
+import { reportMetrics, reportMetricValue } from "@/lib/finance";
 import { som, dateRu, num } from "@/lib/format";
+import { OBJECTIVE_METRIC_LABEL } from "@/lib/constants";
 import { PageHeader, Section, Empty } from "@/components/ui";
 import { FileBarChart, ExternalLink, ArrowLeft, ArrowRight } from "lucide-react";
 
@@ -54,7 +55,7 @@ export default async function PortalReportsPage({
                     )}
                   </div>
                   <div className="mt-1 text-xs text-zinc-500">
-                    Потрачено {som(r.spent)} · Заявок {r.leads}
+                    Потрачено {som(r.spent)} · {OBJECTIVE_METRIC_LABEL[r.objective] ?? "Результат"} {reportMetricValue(r)}
                     {m.cpl ? ` · CPL ${num(m.cpl)} сом` : ""}
                   </div>
                 </div>

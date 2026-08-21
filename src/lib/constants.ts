@@ -245,6 +245,19 @@ export const REPORT_OBJECTIVE = {
   TRAFFIC: "Трафик",
 } as const;
 
+/**
+ * Метка результата для каждой цели кампании — общая для формы, таблиц
+ * отчётов, дашборда и клиентского портала. LEADS/PROFILE_VISITS больше не
+ * выбираются в форме, но остаются в старых отчётах — подписи для них нужны,
+ * чтобы старые данные не показывались без объяснения.
+ */
+export const OBJECTIVE_METRIC_LABEL: Record<string, string> = {
+  LEADS: "Заявок",
+  ENGAGEMENT: "Вовлечённость",
+  TRAFFIC: "Переходов",
+  PROFILE_VISITS: "Посещений профиля",
+};
+
 /** Показатели, по которым ставим план на месяц. */
 export const GOAL_METRIC = {
   REVENUE: "Выручка, сом",
