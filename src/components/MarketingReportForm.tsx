@@ -127,10 +127,11 @@ export default function MarketingReportForm({
           <label className="label">Дата</label>
           <DatePicker name="date" defaultValue={defaults?.date ?? toInputDate(new Date())} required />
         </div>
-        <div>
-          <label className="label">Канал</label>
-          <Select name="channel" options={channels} defaultValue={defaults?.channel ?? channels[0]?.value} required />
-        </div>
+        {/* Канал (таргет/органика) почти всегда один и тот же — раньше выбор
+            дублировал «Источник» глазами таргетолога. Значение по-прежнему
+            пишется в отчёт и участвует в аналитике «По каналам», просто без
+            лишнего клика: по умолчанию «Таргет», первый пункт словаря. */}
+        <input type="hidden" name="channel" value={defaults?.channel ?? channels[0]?.value ?? ""} />
         <div>
           <label className="label">Источник</label>
           <Select name="source" options={sources} defaultValue={defaults?.source} placeholder="Не указан" />

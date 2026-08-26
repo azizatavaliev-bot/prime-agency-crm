@@ -10,9 +10,27 @@ import {
   Plus,
   Pencil,
   Filter,
+  Wallet,
+  Users,
+  Target,
+  CalendarCheck2,
+  Trophy,
 } from "lucide-react";
 import { som, num } from "@/lib/format";
 import ModalShell from "./ModalShell";
+import { Stat } from "./ui";
+
+/**
+ * Статусные цвета тепловой карты — фиксированный набор, не тема оформления:
+ * "дешевле среднего" / "около среднего" / "дороже среднего" читаются одинаково
+ * в светлой и тёмной теме. Светлый фон (warning/serious) — тёмный текст,
+ * тёмный фон (good) — белый: иначе буквы тонут в заливке.
+ */
+const HEAT: Record<"good" | "warn" | "serious", { bg: string; text: string }> = {
+  good: { bg: "#0ca30c", text: "#ffffff" },
+  warn: { bg: "#fab219", text: "#1a1500" },
+  serious: { bg: "#ec835a", text: "#1a0f08" },
+};
 
 export type CalendarReport = {
   id: string;
@@ -337,29 +355,24 @@ export default function MarketingCalendar({
         </div>
       )}
 
-      {/* Итоги периода: главное всегда, остальное по клику */}
+      {/* Итоги периода: главное всегда, остальное по клику. Цветные плитки —
+          тот же Stat, что на дашборде и в аналитике, чтобы раздел не выглядел
+          обесцвеченным на фоне остальной системы. */}
       <div className="mb-3 grid gap-2 grid-cols-2 lg:grid-cols-4">
-        <div className="rounded-2xl bg-subtle p-3">
-          <div className="text-[11px] text-muted">Расход</div>
-          <div className="mt-0.5 text-lg font-semibold tracking-tight">{som(totals.spend)}</div>
-        </div>
-        <div className="rounded-2xl bg-subtle p-3">
-          <div className="text-[11px] text-muted">Заявки</div>
-          <div className="mt-0.5 text-lg font-semibold tracking-tight">{num(totals.leads)}</div>
-        </div>
-        <div className="rounded-2xl bg-subtle p-3">
-          <div className="text-[11px] text-muted">CPL средний</div>
-          <div className="mt-0.5 text-lg font-semibold tracking-tight">
-            {totals.cpl ? som(totals.cpl) : "—"}
-          </div>
-        </div>
-        <div className={`rounded-2xl p-3 ${missed > 0 ? "bg-amber-50" : "bg-subtle"}`}>
-          <div className="text-[11px] text-muted">Заполнено дней</div>
-          <div className="mt-0.5 text-lg font-semibold tracking-tight">
-            {totals.filledDays} / {totals.totalDays}
-          </div>
-          {missed > 0 && <div className="text-[11px] text-amber-700">пропущено {missed}</div>}
-        </div>
+        <Stat label="Расход" value={som(totals.spend)} icon={Wallet} />
+        <Stat label="Заявки" value={num(totals.leads)} tone="good" icon={Users} />
+        <Stat
+          label="CPL средний"
+          value={totals.cpl ? som(totals.cpl) : "—"}
+          icon={Target}
+        />
+        <Stat
+          label="Заполнено дней"
+          value={`${totals.filledDays} / ${totals.totalDays}`}
+          hint={missed > 0 ? `пропущено ${missed}` : "всё внесено"}
+          tone={missed > 0 ? "warn" : "good"}
+          icon={CalendarCheck2}
+        />
       </div>
 
       <button
@@ -375,35 +388,24 @@ export default function MarketingCalendar({
       </button>
       {statsOpen && (
         <div className="mb-3 grid gap-2 grid-cols-2 lg:grid-cols-4">
-          <div className="rounded-2xl bg-subtle p-3">
-            <div className="text-[11px] text-muted">Показы</div>
-            <div className="mt-0.5 text-base font-semibold">{num(totals.impressions)}</div>
-          </div>
-          <div className="rounded-2xl bg-subtle p-3">
-            <div className="text-[11px] text-muted">Клики</div>
-            <div className="mt-0.5 text-base font-semibold">
-              {num(totals.clicks)}
-              {totals.ctr !== null && (
-                <span className="ml-1 text-[11px] font-normal text-muted">CTR {totals.ctr.toFixed(1)}%</span>
-              )}
-            </div>
-          </div>
-          <div className="rounded-2xl bg-subtle p-3">
-            <div className="text-[11px] text-muted">Обращения</div>
-            <div className="mt-0.5 text-base font-semibold">{num(totals.inquiries)}</div>
-          </div>
-          <div className="rounded-2xl bg-subtle p-3">
-            <div className="text-[11px] text-muted">Отчётов внесено</div>
-            <div className="mt-0.5 text-base font-semibold">
-              {visibleDays.reduce((s, d) => s + (byDate.get(d)?.reports.length ?? 0), 0)}
-            </div>
-          </div>
-          <div className="rounded-2xl bg-subtle p-3">
-            <div className="text-[11px] text-muted">Лучший день</div>
-            <div className="mt-0.5 text-base font-semibold">
-              {bestDay ? `${bestDay.date.slice(8)} · ${som(bestDay.cpl)}` : "—"}
-            </div>
-          </div>
+          <Stat label="Показы" value={num(totals.impressions)} />
+          <Stat
+            label="Клики"
+            value={num(totals.clicks)}
+            hint={totals.ctr !== null ? `CTR ${totals.ctr.toFixed(1)}%` : undefined}
+          />
+          <Stat label="Обращения" value={num(totals.inquiries)} />
+          <Stat
+            label="Отчётов внесено"
+            value={num(visibleDays.reduce((s, d) => s + (byDate.get(d)?.reports.length ?? 0), 0))}
+          />
+          <Stat
+            label="Лучший день"
+            value={bestDay ? bestDay.date.slice(8) : "—"}
+            hint={bestDay ? `${som(bestDay.cpl)} за заявку` : undefined}
+            tone={bestDay ? "good" : "default"}
+            icon={Trophy}
+          />
         </div>
       )}
 
@@ -423,26 +425,23 @@ export default function MarketingCalendar({
           const dayCpl = b && b.leads > 0 ? b.spend / b.leads : null;
           const noReportPast = !b && isPast;
 
-          // Тепловая карта: дешевле среднего — зелёным, дороже — красным.
-          let tone = "bg-subtle text-muted";
+          // Тепловая карта — статусные цвета (не тема оформления, см. HEAT):
+          // дешевле среднего зелёным, около — жёлтым, дороже — оранжево-красным.
+          let heat: { bg: string; text: string } | null = null;
           if (dayCpl !== null && avgCpl > 0) {
             const ratio = dayCpl / avgCpl;
-            tone =
-              ratio <= 0.85
-                ? "bg-emerald-100 text-emerald-900"
-                : ratio >= 1.15
-                  ? "bg-red-100 text-red-900"
-                  : "bg-amber-100 text-amber-900";
-          } else if (b) {
-            tone = "bg-zinc-100 text-zinc-900";
+            heat = ratio <= 0.85 ? HEAT.good : ratio >= 1.15 ? HEAT.serious : HEAT.warn;
           }
+          const style = heat ? { background: heat.bg, color: heat.text } : undefined;
+          const plainTone = heat ? "" : b ? "bg-subtle" : "bg-subtle text-muted";
 
           return (
             <button
               key={date}
               type="button"
               onClick={() => setSelectedDay(date)}
-              className={`relative rounded-xl p-2 text-left text-xs transition hover:brightness-95 min-h-[54px] sm:min-h-[78px] ${tone} ${
+              style={style}
+              className={`relative rounded-xl p-2 text-left text-xs transition hover:brightness-95 min-h-[54px] sm:min-h-[78px] ${plainTone} ${
                 isToday
                   ? "ring-2 ring-[var(--accent)]"
                   : noReportPast
@@ -455,12 +454,22 @@ export default function MarketingCalendar({
                   : `${dayLabel(date)} · отчёта нет`
               }
             >
-              {bestDay?.date === date && <span className="absolute right-1 top-1 text-[11px]">🏆</span>}
+              {bestDay?.date === date && (
+                <span
+                  className="absolute right-1 top-1 flex h-4 w-4 items-center justify-center rounded-full bg-white/90 text-amber-500 shadow-sm"
+                  title="Лучший день по CPL"
+                >
+                  <Trophy size={10} strokeWidth={2.5} />
+                </span>
+              )}
               <div className="font-semibold">{dayNum}</div>
 
               {/* На телефоне цифры не влезают — показываем точку, детали по тапу */}
               {b && (
-                <span className="mt-1 block h-1.5 w-1.5 rounded-full bg-emerald-500 sm:hidden" />
+                <span
+                  className="mt-1 block h-1.5 w-1.5 rounded-full sm:hidden"
+                  style={{ background: heat ? heat.text : "currentColor" }}
+                />
               )}
               {noReportPast && (
                 <span className="mt-1 block text-[10px] font-semibold opacity-70 sm:hidden">✕</span>
@@ -490,13 +499,16 @@ export default function MarketingCalendar({
 
       <div className="mt-3 flex flex-wrap gap-3 text-[11px] text-muted">
         <span className="flex items-center gap-1">
-          <span className="h-2.5 w-2.5 rounded bg-emerald-100" /> дешевле среднего
+          <span className="h-2.5 w-2.5 rounded" style={{ background: HEAT.good.bg }} /> дешевле
+          среднего
         </span>
         <span className="flex items-center gap-1">
-          <span className="h-2.5 w-2.5 rounded bg-amber-100" /> около среднего
+          <span className="h-2.5 w-2.5 rounded" style={{ background: HEAT.warn.bg }} /> около
+          среднего
         </span>
         <span className="flex items-center gap-1">
-          <span className="h-2.5 w-2.5 rounded bg-red-100" /> дороже среднего
+          <span className="h-2.5 w-2.5 rounded" style={{ background: HEAT.serious.bg }} /> дороже
+          среднего
         </span>
         <span className="flex items-center gap-1">
           <span className="h-2.5 w-2.5 rounded border border-dashed border-zinc-400" /> отчёт не

@@ -84,8 +84,11 @@ export default async function ClientsPage({
 
   const activeStatuses = ["TEST", "ACTIVE", "RISK"];
   const active = clients.filter((c) => activeStatuses.includes(c.status));
+  const paused = clients.filter((c) => c.status === "PAUSED").length;
+  const churned = clients.filter((c) => c.status === "CHURNED").length;
   const risk = clients.filter((c) => c.status === "RISK").length;
   const mrr = active.reduce((s, c) => s + c.avgCheck, 0);
+  const openTasks = clients.reduce((s, c) => s + c.tasks.filter((t) => !t.done).length, 0);
   const notPaid = active.filter(
     (c) => !c.payments.some((p) => p.periodMonth === mk && p.status === "PAID")
   ).length;
@@ -121,9 +124,18 @@ export default async function ClientsPage({
         }
       />
 
-      <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
-        <Stat label="Активных" value={String(active.length)} hint={`всего: ${clients.length}`} icon={Users} />
+      {/* 6 плиток, как в FADAMOS: всё состояние портфеля видно одним взглядом,
+          без прокрутки и открытия карточек */}
+      <div className="grid gap-3 grid-cols-2 lg:grid-cols-6">
+        <Stat label="Все клиенты" value={String(clients.length)} icon={Users} />
+        <Stat label="Активные" value={String(active.length)} tone="good" icon={CheckCircle2} />
+        <Stat label="На паузе" value={String(paused)} tone={paused ? "warn" : "default"} icon={CalendarClock} />
+        <Stat label="Ушли" value={String(churned)} tone={churned ? "bad" : "default"} icon={AlertTriangle} />
         <Stat label="Абонплата в месяц" value={som(mrr)} icon={Wallet} />
+        <Stat label="Открытых задач" value={String(openTasks)} icon={KanbanSquare} />
+      </div>
+
+      <div className="mt-3 grid gap-3 grid-cols-2 lg:grid-cols-2">
         <Stat
           label="Не закрыт этот месяц"
           value={String(notPaid)}
