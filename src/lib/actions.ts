@@ -388,7 +388,8 @@ export async function saveTask(fd: FormData) {
       await notifyAssignee(data.assigneeId, { ...t, ...data, id }, "Задача назначена на вас");
   } else {
     if (user.role === "DEVELOPER") redirect("/no-access");
-    const created = await prisma.task.create({ data });
+    // authorId — чтобы автор видел свою задачу даже без клиента и исполнителя
+    const created = await prisma.task.create({ data: { ...data, authorId: user.id } });
     const raw = str(fd, "checklist");
     if (raw) {
       const items = raw

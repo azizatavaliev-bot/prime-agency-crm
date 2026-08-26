@@ -38,7 +38,6 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   items.push({ href: "/tasks", label: "Задачи", icon: "tasks" });
   if (can.manageTaskInbox(user)) items.push({ href: "/tasks/inbox", label: "ИИ-инбокс", icon: "taskInbox" });
   items.push({ href: "/notes", label: "Заметки", icon: "notes" });
-  items.push({ href: "/unity", label: "Unity", icon: "unity" });
   items.push({ href: "/regulations", label: "Регламенты", icon: "regulations" });
 
   if (user.role === "SUPER_ADMIN" || user.role === "ADMIN") {

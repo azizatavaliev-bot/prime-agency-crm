@@ -82,23 +82,26 @@ export default function TaskForm({
   ];
 
   return (
-    <form action={saveTask} className="space-y-5">
+    /*
+      Компактная раскладка: раньше девять блоков шли колонкой, кнопка
+      «Добавить задачу» уезжала за экран и её приходилось искать скроллом.
+      Теперь парные поля стоят в два столбца, а кнопка закреплена снизу.
+    */
+    <form action={saveTask} className="space-y-4">
       {task && <input type="hidden" name="id" value={task.id} />}
       {fixedClientId && <input type="hidden" name="clientId" value={fixedClientId} />}
       <input type="hidden" name="board" value={board} />
 
-      <div>
-        <input
-          className="input !text-base !py-3 font-medium"
-          name="title"
-          required
-          autoFocus
-          defaultValue={task?.title}
-          placeholder="Что нужно сделать?"
-        />
-      </div>
+      <input
+        className="input !text-base !py-2.5 font-medium"
+        name="title"
+        required
+        autoFocus
+        defaultValue={task?.title}
+        placeholder="Что нужно сделать?"
+      />
 
-      {/* Доска — карточками, чтобы было видно, куда попадёт задача */}
+      {/* Доска — одной строкой: иконка и название, без подписи под ними */}
       <div>
         <div className="label">Доска</div>
         <div className="grid grid-cols-3 gap-2">
@@ -111,39 +114,59 @@ export default function TaskForm({
                 key={key}
                 type="button"
                 onClick={() => setBoard(key)}
-                className={`flex flex-col items-center gap-1 rounded-2xl border p-3 text-center transition ${
+                title={meta.hint}
+                className={`flex items-center justify-center gap-2 rounded-xl border px-3 py-2 text-sm transition ${
                   active
-                    ? "accent-soft border-transparent ring-2 ring-[var(--accent)]"
-                    : "border-zinc-200 hover:bg-subtle"
+                    ? "accent-soft border-transparent ring-2 ring-[var(--accent)] font-medium"
+                    : "border-zinc-200 text-muted hover:bg-subtle"
                 }`}
               >
-                <Icon size={18} className={active ? "accent-text" : "text-muted"} />
-                <span className="text-xs font-medium">{label}</span>
-                <span className="text-[10px] leading-tight text-muted">{meta.hint}</span>
+                <Icon size={15} className={active ? "accent-text" : ""} />
+                {label}
               </button>
             );
           })}
         </div>
       </div>
 
-      {/* Этап — чипами: сразу видно весь конвейер */}
-      <div>
-        <div className="label">Этап</div>
-        <div className="flex flex-wrap gap-2">
-          {stages.map(([key, label], i) => (
-            <label key={key} className="cursor-pointer">
-              <input
-                type="radio"
-                name="stage"
-                value={key}
-                defaultChecked={board === task?.board ? task.stage === key : i === 0}
-                className="peer sr-only"
-              />
-              <span className="chip chip-toggle border-zinc-200 text-muted transition">
-                {label}
-              </span>
-            </label>
-          ))}
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div>
+          <div className="label">Этап</div>
+          <div className="flex flex-wrap gap-2">
+            {stages.map(([key, label], i) => (
+              <label key={key} className="cursor-pointer">
+                <input
+                  type="radio"
+                  name="stage"
+                  value={key}
+                  defaultChecked={board === task?.board ? task.stage === key : i === 0}
+                  className="peer sr-only"
+                />
+                <span className="chip chip-toggle border-zinc-200 text-muted transition">{label}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <div className="label">
+            <Flag size={13} className="mr-1.5 inline-block align-[-2px]" />
+            Приоритет
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {Object.entries(PRIORITY).map(([key, label]) => (
+              <label key={key} className="cursor-pointer">
+                <input
+                  type="radio"
+                  name="priority"
+                  value={key}
+                  defaultChecked={(task?.priority ?? "MEDIUM") === key}
+                  className="peer sr-only"
+                />
+                <span className="chip chip-toggle border-zinc-200 text-muted transition">{label}</span>
+              </label>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -163,8 +186,6 @@ export default function TaskForm({
             />
           </div>
         )}
-        {/* Когда задачу заводят из карточки клиента, поля «Клиент» нет — и
-            «Ответственный» оставался одинокой половинкой слева */}
         <div className={fixedClientId ? "sm:col-span-2" : ""}>
           <label className="label">
             Ответственный
@@ -186,51 +207,50 @@ export default function TaskForm({
         </div>
       </div>
 
-      {/* Дедлайн: быстрые кнопки + свой календарь */}
-      <div>
-        <label className="label flex items-center gap-1.5">
-          <CalendarDays size={13} /> Дедлайн
-        </label>
-        <div className="mb-2 flex flex-wrap gap-2">
-          {quickDates.map(([label, value]) => (
-            <button
-              key={label}
-              type="button"
-              onClick={() => setDue(value)}
-              className={`chip transition ${
-                due === value
-                  ? "accent-gradient border-transparent text-white"
-                  : "border-zinc-200 text-muted hover:bg-subtle"
-              }`}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-        {/* key заставляет календарь перечитать значение после быстрых кнопок */}
-        <DatePicker key={due} name="dueAt" defaultValue={due} />
-      </div>
-
-      {/* Приоритет — чипами, цвет тот же, что и полоса на карточке */}
-      <div>
-        <div className="label flex items-center gap-1.5">
-          <Flag size={13} /> Приоритет
-        </div>
-        <div className="flex flex-wrap gap-2">
-          {Object.entries(PRIORITY).map(([key, label]) => (
-            <label key={key} className="cursor-pointer">
-              <input
-                type="radio"
-                name="priority"
-                value={key}
-                defaultChecked={(task?.priority ?? "MEDIUM") === key}
-                className="peer sr-only"
-              />
-              <span className="chip chip-toggle border-zinc-200 text-muted transition">
+      <div className="grid gap-4 sm:grid-cols-2">
+        {/* Дедлайн: быстрые кнопки и календарь в одну строку, а не друг под другом */}
+        <div>
+          <label className="label">
+            <CalendarDays size={13} className="mr-1.5 inline-block align-[-2px]" />
+            Дедлайн
+          </label>
+          <div className="flex flex-wrap items-center gap-2">
+            {quickDates.map(([label, value]) => (
+              <button
+                key={label}
+                type="button"
+                onClick={() => setDue(value)}
+                className={`chip transition ${
+                  due === value
+                    ? "accent-gradient border-transparent text-white"
+                    : "border-zinc-200 text-muted hover:bg-subtle"
+                }`}
+              >
                 {label}
-              </span>
-            </label>
-          ))}
+              </button>
+            ))}
+            {/* key заставляет календарь перечитать значение после быстрых кнопок */}
+            <div className="min-w-[9rem] flex-1">
+              <DatePicker key={due} name="dueAt" defaultValue={due} />
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <label className="label">
+            <Repeat size={13} className="mr-1.5 inline-block align-[-2px]" />
+            Повторять
+          </label>
+          <Select
+            name="recurrence"
+            defaultValue={task?.recurrence ?? ""}
+            placeholder="— не повторять —"
+            options={[
+              { value: "", label: "— не повторять —" },
+              ...Object.entries(RECURRENCE).map(([value, label]) => ({ value, label })),
+            ]}
+          />
+          <div className="mt-1 text-[11px] text-muted">Повтор создастся, когда закроете текущую</div>
         </div>
       </div>
 
@@ -247,59 +267,45 @@ export default function TaskForm({
                   defaultChecked={selectedTags.includes(t.key)}
                   className="peer sr-only"
                 />
-                <span className="chip chip-toggle border-zinc-200 text-muted transition">
-                  {t.name}
-                </span>
+                <span className="chip chip-toggle border-zinc-200 text-muted transition">{t.name}</span>
               </label>
             ))}
           </div>
         </div>
       )}
 
-      <div>
-        <label className="label flex items-center gap-1.5">
-          <Repeat size={13} /> Повторять
-        </label>
-        <Select
-          name="recurrence"
-          defaultValue={task?.recurrence ?? ""}
-          placeholder="— не повторять —"
-          options={[
-            { value: "", label: "— не повторять —" },
-            ...Object.entries(RECURRENCE).map(([value, label]) => ({ value, label })),
-          ]}
-        />
-        <div className="mt-1 text-xs text-muted">
-          Следующая задача создастся, когда вы закроете текущую
-        </div>
-      </div>
-
-      <div>
-        <label className="label">Комментарий</label>
-        <textarea
-          className="input"
-          name="comment"
-          rows={2}
-          defaultValue={task?.comment ?? ""}
-          placeholder="Детали, ссылки, что важно не забыть"
-        />
-      </div>
-
-      {!task && (
-        <div>
-          <label className="label flex items-center gap-1.5">
-            <ListChecks size={13} /> Чеклист
-          </label>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div className={task ? "sm:col-span-2" : ""}>
+          <label className="label">Комментарий</label>
           <textarea
             className="input"
-            name="checklist"
+            name="comment"
             rows={3}
-            placeholder={"Каждый пункт с новой строки\nНапример: снять сторис\nсобрать креативы"}
+            defaultValue={task?.comment ?? ""}
+            placeholder="Детали, ссылки, что важно не забыть"
           />
         </div>
-      )}
 
-      <button className="btn-primary w-full !py-2.5">{task ? "Сохранить" : "Добавить задачу"}</button>
+        {!task && (
+          <div>
+            <label className="label">
+              <ListChecks size={13} className="mr-1.5 inline-block align-[-2px]" />
+              Чеклист
+            </label>
+            <textarea
+              className="input"
+              name="checklist"
+              rows={3}
+              placeholder={"Каждый пункт с новой строки\nснять сторис\nсобрать креативы"}
+            />
+          </div>
+        )}
+      </div>
+
+      {/* Кнопка закреплена снизу окна — не нужно скроллить, чтобы сохранить */}
+      <div className="form-footer">
+        <button className="btn-primary w-full !py-2.5">{task ? "Сохранить" : "Добавить задачу"}</button>
+      </div>
     </form>
   );
 }

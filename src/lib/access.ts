@@ -36,8 +36,10 @@ export function marketingScope(user: SessionUser): Prisma.MarketingReportWhereIn
 export function taskScope(user: SessionUser): Prisma.TaskWhereInput {
   if (user.role === "SUPER_ADMIN" || user.role === "ADMIN" || user.role === "ACCOUNTANT") return {};
   if (user.role === "DEVELOPER" || user.role === "EDITOR")
-    return { assigneeId: user.id, board: { in: ["DEV", "VIDEO"] } };
-  return { OR: [{ assigneeId: user.id }, { client: clientScope(user) }] };
+    return { OR: [{ assigneeId: user.id }, { authorId: user.id }], board: { in: ["DEV", "VIDEO"] } };
+  // authorId обязателен: задача без клиента и без ответственного иначе
+  // пропадала у того, кто её только что завёл — выглядело как «не сохраняется».
+  return { OR: [{ assigneeId: user.id }, { authorId: user.id }, { client: clientScope(user) }] };
 }
 
 export const can = {

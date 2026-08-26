@@ -12,7 +12,6 @@ import {
   BarChart3,
 } from "lucide-react";
 import { getSession, login, demoLoginEnabled } from "@/lib/auth";
-import { unityLogin, setUnityTokens } from "@/lib/unity";
 import LoginForm from "@/components/LoginForm";
 
 const DEMO: { login: string; label: string; hint: string; icon: typeof Crown; wide?: boolean }[] = [
@@ -51,8 +50,6 @@ export default async function LoginPage({
     if (!user) redirect("/login?error=1");
     // Тем же логином/паролем пробуем войти и в Unity — молча, если не вышло:
     // Unity опциональна, а пароль нигде не сохраняем, только на этот вызов.
-    const unityTokens = await unityLogin(loginValue, password);
-    if (unityTokens) await setUnityTokens(unityTokens);
     redirect("/dashboard");
   }
 

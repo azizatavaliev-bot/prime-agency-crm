@@ -37,6 +37,7 @@ model User {
   clientsAsTargetolog  Client[]          @relation("targetolog")
   clientsAsAccount     Client[]          @relation("account")
   tasks                Task[]            @relation("assignee")
+  authoredTasks        Task[]            @relation("taskAuthor")
   reports              AdReport[]
   notifications        Notification[]
   memberships          ClientMember[]
@@ -367,6 +368,10 @@ model Task {
   client     Client?   @relation(fields: [clientId], references: [id], onDelete: SetNull)
   assigneeId String?
   assignee   User?     @relation("assignee", fields: [assigneeId], references: [id])
+  /// Кто завёл задачу. Без этого автор терял из виду задачу, созданную
+  /// без клиента и без ответственного: доступ считался только по ним.
+  authorId   String?
+  author     User?     @relation("taskAuthor", fields: [authorId], references: [id])
   dueAt      DateTime?
   comment    String?
   done       Boolean   @default(false)

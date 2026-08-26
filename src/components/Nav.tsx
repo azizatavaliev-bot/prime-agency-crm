@@ -26,7 +26,6 @@ import {
   X,
   LogOut,
   Zap,
-  Grid2x2,
   Sparkles,
 } from "lucide-react";
 
@@ -42,7 +41,6 @@ export const NAV_ICONS = {
   notes: NotebookText,
   tasks: KanbanSquare,
   taskInbox: Sparkles,
-  unity: Grid2x2,
   team: UserCog,
   payroll: HandCoins,
   analytics: PieChart,
