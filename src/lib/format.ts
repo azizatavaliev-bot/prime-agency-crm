@@ -53,3 +53,18 @@ export function toInputDate(d: Date | string | null | undefined): string {
   const day = String(date.getDate()).padStart(2, "0");
   return `${y}-${m}-${day}`;
 }
+
+/**
+ * Короткая сумма для узких плиток статистики. В ряду из восьми показателей
+ * «250 000 сом» не помещается и обрезается на «250 000 со» — здесь тот же
+ * смысл в трёх символах. Для точных сумм в таблицах и карточках — som().
+ */
+export function somShort(value: number | null | undefined): string {
+  const v = Math.round(value ?? 0);
+  if (Math.abs(v) >= 1_000_000) {
+    const mln = v / 1_000_000;
+    return `${num(mln, mln >= 10 ? 0 : 1)} млн`;
+  }
+  if (Math.abs(v) >= 10_000) return `${num(Math.round(v / 1000))} тыс`;
+  return som(v);
+}

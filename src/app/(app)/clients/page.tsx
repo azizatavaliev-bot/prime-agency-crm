@@ -18,9 +18,9 @@ import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { clientScope, can } from "@/lib/access";
 import { dicts, labelOf, colorOf } from "@/lib/dict";
-import { som, dateRu, monthKey } from "@/lib/format";
+import { som, somShort, dateRu, monthKey } from "@/lib/format";
 import { paymentChip, daysToPayment } from "@/lib/payday";
-import { PageHeader, Stat, Avatar } from "@/components/ui";
+import { PageHeader, CompactStat, Avatar } from "@/components/ui";
 import ClientForm from "@/components/ClientForm";
 import FormModal from "@/components/FormModal";
 import FilterSelect from "@/components/FilterSelect";
@@ -124,25 +124,24 @@ export default async function ClientsPage({
         }
       />
 
-      {/* 6 плиток, как в FADAMOS: всё состояние портфеля видно одним взглядом,
-          без прокрутки и открытия карточек */}
-      <div className="grid gap-3 grid-cols-2 lg:grid-cols-6">
-        <Stat label="Все клиенты" value={String(clients.length)} icon={Users} />
-        <Stat label="Активные" value={String(active.length)} tone="good" icon={CheckCircle2} />
-        <Stat label="На паузе" value={String(paused)} tone={paused ? "warn" : "default"} icon={CalendarClock} />
-        <Stat label="Ушли" value={String(churned)} tone={churned ? "bad" : "default"} icon={AlertTriangle} />
-        <Stat label="Абонплата в месяц" value={som(mrr)} icon={Wallet} />
-        <Stat label="Открытых задач" value={String(openTasks)} icon={KanbanSquare} />
-      </div>
-
-      <div className="mt-3 grid gap-3 grid-cols-2 lg:grid-cols-2">
-        <Stat
-          label="Не закрыт этот месяц"
+      {/* Одна лента показателей, как в FADAMOS: всё состояние портфеля
+          читается одним взглядом. Раньше было два ряда крупных карточек —
+          «Абонплата» не помещалась в колонку и обрезалась на «250 000 со». */}
+      <div className="grid gap-2.5 grid-cols-2 sm:grid-cols-4 xl:grid-cols-8">
+        <CompactStat label="Всего" value={String(clients.length)} hint="клиентов в базе" icon={Users} />
+        <CompactStat label="Активные" value={String(active.length)} tone="good" icon={CheckCircle2} />
+        <CompactStat label="На паузе" value={String(paused)} tone={paused ? "warn" : "default"} icon={CalendarClock} />
+        <CompactStat label="Ушли" value={String(churned)} tone={churned ? "bad" : "default"} icon={AlertTriangle} />
+        <CompactStat label="Абонплата" value={somShort(mrr)} hint="в месяц" icon={Wallet} />
+        <CompactStat label="Задачи" value={String(openTasks)} hint="открытых" icon={KanbanSquare} />
+        <CompactStat
+          label="Не оплатили"
           value={String(notPaid)}
+          hint="за этот месяц"
           tone={notPaid ? "warn" : "good"}
           icon={TrendingUp}
         />
-        <Stat label="Риск оттока" value={String(risk)} tone={risk ? "bad" : "good"} icon={AlertTriangle} />
+        <CompactStat label="Риск оттока" value={String(risk)} tone={risk ? "bad" : "good"} icon={AlertTriangle} />
       </div>
 
       <form className="my-4 flex flex-wrap gap-2">
@@ -177,7 +176,7 @@ export default async function ClientsPage({
         ))}
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid gap-4 xl:grid-cols-2">
         {sorted.map((c) => {
           const paidThisMonth = c.payments.some((p) => p.periodMonth === mk && p.status === "PAID");
           const chip = paymentChip(c.paymentDay);
@@ -291,7 +290,7 @@ export default async function ClientsPage({
           );
         })}
         {clients.length === 0 && (
-          <div className="card p-8 text-center text-sm text-muted lg:col-span-2">Клиентов пока нет</div>
+          <div className="card p-8 text-center text-sm text-muted xl:col-span-2">Клиентов пока нет</div>
         )}
       </div>
     </div>
